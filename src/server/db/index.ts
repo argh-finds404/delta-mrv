@@ -1,10 +1,28 @@
+import { config } from "dotenv";
+config({ path: ".env.local" });
+config({ path: ".env" });
+
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "./schema";
 
-const databaseUrl =
-  process.env.DATABASE_URL ||
-  "postgresql://placeholder:placeholder@localhost:5432/placeholder";
+/**
+ * Strips TCP-only parameters like channel_binding=require that can cause
+ * Neon HTTP driver fetch issues.
+ */
+function sanitizeDatabaseUrl(url: string | undefined): string {
+  if (!url) {
+    return "postgresql://placeholder:placeholder@localhost:5432/placeholder";
+  }
+  return url
+    .replace(/([?&])channel_binding=require(&?)/, (_, prefix, suffix) => {
+      return suffix ? prefix : "";
+    })
+    .replace(/\?$/, "");
+}
+
+const rawDatabaseUrl = process.env.DATABASE_URL;
+const databaseUrl = sanitizeDatabaseUrl(rawDatabaseUrl);
 
 // Per neon-postgres skill: use pooled DATABASE_URL with @neondatabase/serverless for web/serverless query traffic
 const sqlClient = neon(databaseUrl);

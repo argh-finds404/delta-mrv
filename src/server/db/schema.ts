@@ -99,3 +99,7 @@ export const verificationEvents = pgTable("verification_events", {
     .defaultNow()
     .notNull(),
 });
+
+
+// Better Auth and Multi-Tenant Organization schema
+export * from "./auth-schema";
