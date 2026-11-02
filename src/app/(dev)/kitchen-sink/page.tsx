@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   HashDisplay,
   hashDisplayFixtures,
@@ -21,7 +22,12 @@ import {
   emptyStateFixtures,
   OfflineBanner,
   offlineBannerFixtures,
+  ProofPreview,
+  sampleAnchoredRecord,
 } from "@/src/components";
+import SignInPage from "@/src/app/(auth)/sign-in/page";
+import SignUpPage from "@/src/app/(auth)/sign-up/page";
+import DemoPage from "@/src/app/(auth)/demo/page";
 import { cn } from "@/lib/utils";
 
 export default function KitchenSinkPage() {
@@ -142,6 +148,8 @@ export default function KitchenSinkPage() {
           <a href="#empty-state" className="hover:underline">10. EmptyState</a>
           <span>·</span>
           <a href="#offline-banner" className="hover:underline">11. OfflineBanner</a>
+          <span>·</span>
+          <a href="#auth-surfaces" className="hover:underline text-signal font-semibold">12. Auth Surfaces</a>
         </nav>
 
         <div className="space-y-12">
@@ -559,6 +567,93 @@ export default function KitchenSinkPage() {
                 <span className="text-[11px] font-mono text-field-muted block mb-1">State: Reconnected, actively syncing queue:</span>
                 <OfflineBanner {...offlineBannerFixtures.syncingQueue} theme={activeTheme} />
               </div>
+            </div>
+          </section>
+
+          {/* SECTION 12: AUTH SURFACES */}
+          <section id="auth-surfaces" className="space-y-6 pt-6 border-t border-inherit">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold tracking-wide uppercase font-mono">
+                  12. Authentication &amp; Onboarding Surfaces (docs/15 §6)
+                </h2>
+                <span className="rounded border px-2 py-0.5 font-mono text-[10px] text-signal bg-field-raised border-field-hairline">
+                  45/55 Asymmetric Split
+                </span>
+              </div>
+              <p
+                className={cn(
+                  "text-xs mt-1",
+                  isPaper ? "text-paper-muted" : "text-field-muted"
+                )}
+              >
+                No glowing orbs or centered gradient cards. Real anchored proof preview on left; focused forms on right.
+              </p>
+            </div>
+
+            {/* Direct Page Links */}
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/sign-in"
+                className="inline-flex items-center gap-1.5 rounded border border-field-hairline bg-field-raised px-3 py-1.5 text-xs font-mono text-field-text hover:border-signal transition-colors"
+              >
+                <span>Route: /sign-in</span>
+                <span className="text-signal">→</span>
+              </Link>
+              <Link
+                href="/sign-up"
+                className="inline-flex items-center gap-1.5 rounded border border-field-hairline bg-field-raised px-3 py-1.5 text-xs font-mono text-field-text hover:border-signal transition-colors"
+              >
+                <span>Route: /sign-up (2 Steps)</span>
+                <span className="text-signal">→</span>
+              </Link>
+              <Link
+                href="/demo"
+                className="inline-flex items-center gap-1.5 rounded border border-field-hairline bg-field-raised px-3 py-1.5 text-xs font-mono text-field-text hover:border-signal transition-colors"
+              >
+                <span>Route: /demo (4 Roles)</span>
+                <span className="text-signal">→</span>
+              </Link>
+            </div>
+
+            {/* ProofPreview Component (Desktop & Collapsed) */}
+            <div className="space-y-3">
+              <span className="text-xs font-mono text-field-muted block">
+                ProofPreview Artifact (Left 45% Panel &amp; Collapsed Mobile Bar):
+              </span>
+              <div className="rounded-lg border border-field-hairline overflow-hidden">
+                <ProofPreview record={sampleAnchoredRecord} mode="collapsed" />
+                <div className="hidden md:block bg-field-canopy border-t border-field-hairline">
+                  <ProofPreview record={sampleAnchoredRecord} mode="full" />
+                </div>
+              </div>
+            </div>
+
+            {/* Live Interactive Embeds */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+              {/* Sign In Form Embed */}
+              <div className="rounded-lg border border-field-hairline bg-field-abyss p-6">
+                <span className="text-xs font-mono text-signal block mb-3">
+                  Embedded Sign-In View:
+                </span>
+                <SignInPage />
+              </div>
+
+              {/* Demo Persona Switcher Embed */}
+              <div className="rounded-lg border border-field-hairline bg-field-abyss p-6">
+                <span className="text-xs font-mono text-signal block mb-3">
+                  Embedded Demo Switcher View:
+                </span>
+                <DemoPage onSelectPersona={(p) => alert(`Selected persona: ${p.roleTitle} (${p.organization})`)} />
+              </div>
+            </div>
+
+            {/* Sign Up Two-Step Form Embed */}
+            <div className="rounded-lg border border-field-hairline bg-field-abyss p-6 max-w-xl">
+              <span className="text-xs font-mono text-signal block mb-3">
+                Embedded Sign-Up View (Step 1 + Step 2 Type Cards):
+              </span>
+              <SignUpPage />
             </div>
           </section>
         </div>

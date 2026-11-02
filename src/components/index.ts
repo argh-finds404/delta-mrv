@@ -31,3 +31,7 @@ export * from "./empty-state/fixtures";
 export * from "./offline-banner/offline-banner";
 export * from "./offline-banner/fixtures";
 
+export * from "./auth/ProofPreview";
+export * from "./auth/fixtures";
+
+
