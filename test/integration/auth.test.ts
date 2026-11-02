@@ -3,20 +3,6 @@ import { afterAll, describe, expect, it } from "vitest";
 import { member, organization, user } from "../../src/server/db/schema";
 import { db } from "./db";
 
-// src/env.ts validates every variable, including ones this test never uses.
-// Unrelated ones get inert values here; real DB and auth settings come from .env.local.
-const INERT = {
-  BLOB_READ_WRITE_TOKEN: "x",
-  GEMINI_MODEL: "x",
-  BASE_SEPOLIA_RPC_URL: "https://rpc.invalid",
-  ANCHOR_PRIVATE_KEY: "0x" + "0".repeat(64),
-  ANCHOR_CONTRACT_ADDRESS: "0x" + "0".repeat(40),
-  NEXT_PUBLIC_CHAIN_ID: "84532",
-  NEXT_PUBLIC_CONTRACT_ADDRESS: "0x" + "0".repeat(40),
-  CRON_SECRET: "x",
-};
-for (const [k, v] of Object.entries(INERT)) process.env[k] ||= v;
-
 const { auth } = await import("../../src/server/auth");
 const { queryClient } = await import("../../src/server/db/client");
 

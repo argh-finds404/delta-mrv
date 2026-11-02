@@ -475,6 +475,14 @@ site.
 2. `locationCommitment = SHA256("DELTA_LOC_V1:" + salt + ":" + canonicalize(exactGeoJson))`.
 3. Public responses carry `fuzzedLocation` (area-level centroid) and the
    commitment. **Never** `exactGeoJson`, **never** the salt.
+   `fuzzedLocation` is the **centre of the 1/20-degree grid cell** (about 5.5 km)
+   that contains the polygon's centroid (`src/lib/geo/fuzz.ts`). Deterministic by
+   design: random jitter differs per request and averages away under repeated
+   queries (THREAT_MODEL T5). The cell size is the documented granularity
+   parameter.
+   Point-in-polygon queries against exact geometry (`findProjectsCovering`) are
+   answered only for projects the caller already holds exact geometry for;
+   answering them publicly would let a caller locate a site by bisection.
 4. Authorised sessions get both, so they can verify the commitment themselves.
 5. The **server** decides which geometry a caller receives. The map component
    renders what it is handed and has no opinion.

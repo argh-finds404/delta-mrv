@@ -2,21 +2,10 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../../src/server/db/schema";
 
-// Explicit environment wins; .env.local only fills in what is missing.
-try {
-  process.loadEnvFile(".env.local");
-} catch {
-  // no .env.local (CI, local Docker): the environment must already be set
-}
-
-const url = process.env.DATABASE_URL_UNPOOLED;
+const url = process.env.DATABASE_URL_UNPOOLED; // env and the production guard: setup.ts
 if (!url) throw new Error("DATABASE_URL_UNPOOLED is not set");
-// Integration tests write (inside rolled-back transactions) and must never reach production.
-if (!process.env.NEON_BRANCH || process.env.NEON_BRANCH === "production") {
-  throw new Error(`refusing to run integration tests: NEON_BRANCH is "${process.env.NEON_BRANCH ?? ""}"`);
-}
 
-export const client = postgres(url, { max: 1, prepare: false });
+export const client = postgres(url, { max: 1, prepare: false, connect_timeout: 120 });
 export const db = drizzle(client, { schema });
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 

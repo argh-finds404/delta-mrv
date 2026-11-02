@@ -67,6 +67,13 @@ out on Stage 5 is not.
 No reviewer UI exists yet. If an owner can review their own org's work, the
 product does not exist.
 
+**Stage 2 status: GATE GREEN 2026-11-03** — `coi.test.ts` 27/27 and
+`tenancy.test.ts` 22/22 against the Neon dev branch; `pnpm check` green. Not
+yet run against local Docker. Known gaps: decisions append no audit event until
+`audit-chain.service` exists (Stage 5); there is no representation of a
+"platform admin" in the schema, so that test proves only that a user with no
+organisation has no path to a vote.
+
 ### Stage 3 — Atlas and public read path
 
 - `StoragePort` interface and blob adapter

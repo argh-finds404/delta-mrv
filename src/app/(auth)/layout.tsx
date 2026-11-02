@@ -17,7 +17,7 @@ export default function AuthLayout({
       />
 
       {/* Desktop Left Panel (45% on --field-canopy) */}
-      <aside className="hidden w-full md:flex md:w-[45%] flex-col border-r border-field-hairline bg-field-canopy">
+      <aside className="hidden w-full md:flex md:w-[45%] flex-col border-r border-field-hairline bg-field-canopy md:sticky md:top-0 md:h-screen">
         <ProofPreview record={sampleAnchoredRecord} mode="full" />
       </aside>
 

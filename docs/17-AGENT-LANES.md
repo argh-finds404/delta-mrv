@@ -32,9 +32,14 @@ execute, and verifiable by looking at it.
 
 ```
 src/server/**
+src/app/api/**
 src/lib/crypto/**
 src/lib/state-machine/**
 src/lib/scoring/**
+src/lib/forensics/**
+src/lib/geo/**
+src/lib/auth-client.ts
+src/lib/org-type.ts
 src/env.ts
 src/proxy.ts
 contracts/**
@@ -52,6 +57,10 @@ vitest.config.ts
 ```
 
 ### Lane B exclusive write
+
+API routes are thin adapters over services, so `src/app/api/**` is Lane A
+(above). Lane B still owns every page, layout and template under `src/app/`:
+the `*.tsx` files and the stylesheets.
 
 ```
 src/components/**

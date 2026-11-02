@@ -3,13 +3,14 @@
 import * as React from "react";
 import Image from "next/image";
 import {
-  ZoomIn,
-  ZoomOut,
-  RotateCcw,
-  Sliders,
-  Columns,
   ChevronDown,
   ChevronUp,
+  ChevronsLeftRight,
+  Columns2,
+  RotateCcw,
+  SlidersHorizontal,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import { HashDisplay } from "@/src/components/hash-display/hash-display";
 import { cn } from "@/src/lib/utils";
@@ -21,6 +22,8 @@ export interface EvidenceImage {
   dhash: string;
   width?: number;
   height?: number;
+  /** Where the photo was taken, if the file says. Shown in mono under the image. */
+  gps?: { lat: number; lng: number };
 }
 
 export interface EvidencePairProps {
@@ -32,437 +35,345 @@ export interface EvidencePairProps {
   beforeLabel?: string;
   /** Label for after image (default: "After") */
   afterLabel?: string;
+  /** Extra rows for the collapsed detail strip (camera, boundary, activity…) */
+  details?: React.ReactNode;
   /** Optional theme */
   theme?: "field" | "paper";
   /** Additional CSS class names */
   className?: string;
 }
 
+const STEP = 2;
+const BIG_STEP = 10;
+const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+
+/** "12 Mar 2024", in UTC so the server render and the browser agree. */
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function formatCoordinate(gps: { lat: number; lng: number }): string {
+  const ns = gps.lat >= 0 ? "N" : "S";
+  const ew = gps.lng >= 0 ? "E" : "W";
+  return `${Math.abs(gps.lat).toFixed(4)}° ${ns}, ${Math.abs(gps.lng).toFixed(4)}° ${ew}`;
+}
+
 /**
- * EvidencePair — Synchronized comparison slider and image viewer.
- * Authority: docs/18-VISUAL-CORRECTION.md §2 & §3.
- * Primary interaction in the Lab. Fills its container and dominates.
- * Handle is large enough to grab without aiming.
- * Hashes and capture times are in a collapsed strip below.
+ * EvidencePair — the comparison, and the primary interaction in the Lab.
+ * Authority: docs/19-LAYOUT-SPEC.md §2, §5, §7; docs/18-VISUAL-CORRECTION.md §2–§3.
+ *
+ * Top to bottom: a 40px control row, the image area (takes everything left over),
+ * captions that sit BELOW the image and never inside it, and a 32px detail strip.
  */
 export function EvidencePair({
   before,
   after,
   beforeLabel = "Before",
   afterLabel = "After",
+  details,
   theme = "field",
   className,
 }: EvidencePairProps) {
   const isPaper = theme === "paper";
 
-  // Comparison slider position (0% - 100%, default 50%)
-  const [sliderPos, setSliderPos] = React.useState<number>(50);
-  const [isDraggingSlider, setIsDraggingSlider] = React.useState<boolean>(false);
-
-  // Synced Zoom and Pan state
+  const [position, setPosition] = React.useState<number>(50); // divider, % of image width
+  const [viewMode, setViewMode] = React.useState<"slider" | "side-by-side">("slider");
   const [zoom, setZoom] = React.useState<number>(1);
   const [pan, setPan] = React.useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = React.useState<boolean>(false);
-  const dragStartRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const panStartRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [interaction, setInteraction] = React.useState<"idle" | "slider" | "pan">("idle");
+  const [showStrip, setShowStrip] = React.useState<boolean>(false);
 
-  // View mode: "slider" or "side-by-side"
-  const [viewMode, setViewMode] = React.useState<"slider" | "side-by-side">("slider");
+  const imageBoxRef = React.useRef<HTMLDivElement>(null);
+  const drag = React.useRef<{
+    mode: "slider" | "pan";
+    startX: number;
+    startY: number;
+    panX: number;
+    panY: number;
+    moved: boolean;
+  } | null>(null);
 
-  // Metadata strip collapsed by default per §2
-  const [showMetadata, setShowMetadata] = React.useState<boolean>(false);
-
-  const containerRef = React.useRef<HTMLDivElement>(null);
-
-  // Zoom handlers
-  const handleZoomIn = () => {
-    setZoom((prev) => Math.min(prev + 0.5, 4));
+  // One transform for both images, so they stay registered at every zoom.
+  const imageStyle: React.CSSProperties = {
+    transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`,
+    transformOrigin: "center center",
+    transition: interaction === "pan" ? "none" : "transform 120ms cubic-bezier(0.2, 0, 0, 1)",
   };
 
-  const handleZoomOut = () => {
-    setZoom((prev) => {
-      const next = Math.max(prev - 0.5, 1);
-      if (next === 1) setPan({ x: 0, y: 0 });
-      return next;
+  const aspect = (before.width ?? 800) / (before.height ?? 600);
+
+  const setZoomLevel = (next: number) => {
+    const z = clamp(next, 1, 4);
+    setZoom(z);
+    if (z === 1) setPan({ x: 0, y: 0 });
+  };
+
+  const reset = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+    setPosition(50);
+  };
+
+  const positionFromClientX = (clientX: number) => {
+    const rect = imageBoxRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0) return;
+    setPosition(clamp(Math.round(((clientX - rect.left) / rect.width) * 100), 0, 100));
+  };
+
+  // ---- pointer: the whole image area is the control (docs/19 §7) ----
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const onHandle = (e.target as HTMLElement).closest("[data-handle]") !== null;
+    // Zoomed in, dragging the picture pans it; the divider is then moved from its
+    // handle, by keyboard, or by a plain click.
+    const mode = viewMode === "slider" && (zoom <= 1 || onHandle) ? "slider" : zoom > 1 ? "pan" : null;
+    if (!mode) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { mode, startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y, moved: false };
+    setInteraction(mode);
+    if (mode === "slider") positionFromClientX(e.clientX);
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    if (d.mode === "slider") {
+      positionFromClientX(e.clientX);
+      return;
+    }
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true;
+    const rect = imageBoxRef.current?.getBoundingClientRect();
+    const maxX = rect ? ((zoom - 1) * rect.width) / (2 * zoom) : 0;
+    const maxY = rect ? ((zoom - 1) * rect.height) / (2 * zoom) : 0;
+    setPan({
+      x: clamp(d.panX + dx / zoom, -maxX, maxX),
+      y: clamp(d.panY + dy / zoom, -maxY, maxY),
     });
   };
 
-  const handleResetZoom = () => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-    setSliderPos(50);
+  const endPointer = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    // A click, not a drag, while zoomed: jump the divider there.
+    if (d.mode === "pan" && !d.moved && viewMode === "slider") positionFromClientX(e.clientX);
+    drag.current = null;
+    setInteraction("idle");
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
-  // Keyboard navigation for slider: Left / Right arrow keys
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  // ---- keyboard: arrows 2%, shift+arrows 10%, Home / End ----
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (viewMode !== "slider") return;
-
-    if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      setSliderPos((prev) => Math.max(0, prev - (e.shiftKey ? 10 : 2)));
-    } else if (e.key === "ArrowRight") {
-      e.preventDefault();
-      setSliderPos((prev) => Math.min(100, prev + (e.shiftKey ? 10 : 2)));
-    } else if (e.key === "Home") {
-      e.preventDefault();
-      setSliderPos(0);
-    } else if (e.key === "End") {
-      e.preventDefault();
-      setSliderPos(100);
-    }
-  };
-
-  // Slider drag events
-  const updateSliderFromClientX = (clientX: number) => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
-    const percentage = Math.round((x / rect.width) * 100);
-    setSliderPos(percentage);
-  };
-
-  const handleSliderPointerDown = (e: React.PointerEvent) => {
+    const step = e.shiftKey ? BIG_STEP : STEP;
+    const next =
+      e.key === "ArrowLeft" ? position - step
+      : e.key === "ArrowRight" ? position + step
+      : e.key === "Home" ? 0
+      : e.key === "End" ? 100
+      : null;
+    if (next === null) return;
     e.preventDefault();
-    e.stopPropagation();
-    setIsDraggingSlider(true);
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    setPosition(clamp(next, 0, 100));
   };
 
-  const handleSliderPointerMove = (e: React.PointerEvent) => {
-    if (!isDraggingSlider) return;
-    updateSliderFromClientX(e.clientX);
-  };
+  const sliderMode = viewMode === "slider";
+  const cursor =
+    zoom > 1 ? (interaction === "pan" ? "cursor-grabbing" : "cursor-grab") : sliderMode ? "cursor-ew-resize" : "cursor-default";
 
-  const handleSliderPointerUp = (e: React.PointerEvent) => {
-    if (isDraggingSlider) {
-      setIsDraggingSlider(false);
-      try {
-        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-      } catch {
-        // pointer capture release fallback
-      }
-    }
-  };
-
-  // Pan drag events (when zoom > 1)
-  const handleCanvasPointerDown = (e: React.PointerEvent) => {
-    if (zoom <= 1 || isDraggingSlider) return;
-    setIsPanning(true);
-    dragStartRef.current = { x: e.clientX, y: e.clientY };
-    panStartRef.current = { ...pan };
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  };
-
-  const handleCanvasPointerMove = (e: React.PointerEvent) => {
-    if (!isPanning) return;
-    const dx = e.clientX - dragStartRef.current.x;
-    const dy = e.clientY - dragStartRef.current.y;
-    const maxPan = 150 * (zoom - 1);
-    const newX = Math.max(-maxPan, Math.min(panStartRef.current.x + dx, maxPan));
-    const newY = Math.max(-maxPan, Math.min(panStartRef.current.y + dy, maxPan));
-    setPan({ x: newX, y: newY });
-  };
-
-  const handleCanvasPointerUp = (e: React.PointerEvent) => {
-    if (isPanning) {
-      setIsPanning(false);
-      try {
-        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-      } catch {
-        // pointer capture fallback
-      }
-    }
-  };
-
-  // Synchronized transform applied to both images
-  const transformStyle: React.CSSProperties = {
-    transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`,
-    transformOrigin: "center center",
-    transition: isPanning ? "none" : "transform 100ms ease-out",
-  };
-
-  return (
-    <div
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
-      className={cn(
-        "flex flex-col rounded-lg border outline-none transition-colors overflow-hidden",
-        isPaper
-          ? "border-paper-rule bg-paper-card"
-          : "border-field-hairline bg-field-canopy",
-        className
-      )}
-    >
-      {/* Top Quiet Toolbar: Mode Switcher & Zoom (recedes behind the image) */}
-      <div
+  /** The picture itself. Pills live inside its box, captions never do. */
+  const picture = (img: EvidenceImage, label: string, side: "left" | "right") => (
+    <>
+      <Image
+        src={img.url}
+        alt={`${label} photo, captured ${formatDate(img.capturedAt)}`}
+        width={img.width ?? 800}
+        height={img.height ?? 600}
+        unoptimized
+        draggable={false}
+        style={imageStyle}
+        className="pointer-events-none size-full select-none object-fill"
+      />
+      <span
         className={cn(
-          "flex items-center justify-between px-3 py-1.5 border-b text-xs select-none",
-          isPaper ? "border-paper-rule bg-paper" : "border-field-hairline bg-field-raised"
+          "pointer-events-none absolute top-2 z-10 rounded-sm bg-field-abyss/70 px-2 py-1 text-xs leading-4 text-field-text",
+          side === "left" ? "left-2" : "right-2"
         )}
       >
-        <div className="flex items-center gap-2">
-          {/* View Mode (quiet surface shift, no solid signal color per §3) */}
-          <div className="flex items-center rounded border border-field-hairline p-0.5 bg-field-canopy">
-            <button
-              type="button"
-              onClick={() => setViewMode("slider")}
-              className={cn(
-                "px-2 py-0.5 text-xs rounded transition-colors flex items-center gap-1",
-                viewMode === "slider"
-                  ? isPaper
-                    ? "bg-paper-card text-paper-ink font-medium"
-                    : "bg-field-raised text-field-text font-medium"
-                  : "text-field-muted hover:text-field-text"
-              )}
-            >
-              <Sliders className="size-3" /> Slider
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("side-by-side")}
-              className={cn(
-                "px-2 py-0.5 text-xs rounded transition-colors flex items-center gap-1",
-                viewMode === "side-by-side"
-                  ? isPaper
-                    ? "bg-paper-card text-paper-ink font-medium"
-                    : "bg-field-raised text-field-text font-medium"
-                  : "text-field-muted hover:text-field-text"
-              )}
-            >
-              <Columns className="size-3" /> Side by side
-            </button>
-          </div>
+        {label}
+      </span>
+    </>
+  );
+
+  const caption = (img: EvidenceImage, label: string, align: "left" | "right") => (
+    <p className={cn("min-w-0 text-[13px] leading-5 text-field-muted", align === "right" && "text-right")}>
+      <span className="block truncate">
+        {label} capture · {formatDate(img.capturedAt)}
+      </span>
+      {img.gps && (
+        <span className="block truncate font-mono tabular-nums text-field-text">{formatCoordinate(img.gps)}</span>
+      )}
+    </p>
+  );
+
+  const segment = (active: boolean) =>
+    cn(
+      "flex h-8 items-center gap-2 rounded-sm px-3 text-[13px] transition-colors duration-[120ms]",
+      active ? "bg-field-raised text-field-text" : "text-field-muted hover:text-field-text"
+    );
+
+  const iconButton =
+    "flex size-8 items-center justify-center rounded-sm text-field-muted transition-colors duration-[120ms] hover:text-field-text disabled:cursor-not-allowed disabled:opacity-30";
+
+  return (
+    <div className={cn("flex min-h-0 flex-col gap-2", className)}>
+      {/* Controls: one 40px row */}
+      <div className="flex h-10 shrink-0 items-center justify-between gap-4 select-none">
+        <div role="group" aria-label="View mode" className="flex items-center rounded-lg border border-field-hairline bg-field-canopy p-0.5">
+          <button type="button" aria-pressed={sliderMode} onClick={() => setViewMode("slider")} className={segment(sliderMode)}>
+            <SlidersHorizontal className="size-3.5" aria-hidden="true" /> Slider
+          </button>
+          <button type="button" aria-pressed={!sliderMode} onClick={() => setViewMode("side-by-side")} className={segment(!sliderMode)}>
+            <Columns2 className="size-3.5" aria-hidden="true" /> Side by side
+          </button>
         </div>
 
-        {/* Zoom Controls */}
-        <div className="flex items-center gap-2">
-          {viewMode === "slider" && (
-            <span className="hidden md:inline text-[11px] text-field-muted">
-              Step with ← / →
-            </span>
-          )}
-
-          <div className="flex items-center gap-1 rounded border border-field-hairline p-0.5 bg-field-canopy">
-            <button
-              type="button"
-              onClick={handleZoomOut}
-              disabled={zoom <= 1}
-              title="Zoom out"
-              className="p-1 rounded text-field-muted hover:text-field-text disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ZoomOut className="size-3.5" />
-            </button>
-            <span className="px-1.5 font-mono text-[11px] tabular-nums min-w-[36px] text-center text-field-text">
-              {Math.round(zoom * 100)}%
-            </span>
-            <button
-              type="button"
-              onClick={handleZoomIn}
-              disabled={zoom >= 4}
-              title="Zoom in"
-              className="p-1 rounded text-field-muted hover:text-field-text disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ZoomIn className="size-3.5" />
-            </button>
-            {zoom > 1 && (
-              <button
-                type="button"
-                onClick={handleResetZoom}
-                title="Reset zoom"
-                className="p-1 rounded text-review hover:text-field-text transition-colors"
-              >
-                <RotateCcw className="size-3.5" />
-              </button>
-            )}
-          </div>
+        <div role="group" aria-label="Zoom" className="flex items-center rounded-lg border border-field-hairline bg-field-canopy p-0.5">
+          <button type="button" title="Zoom out" aria-label="Zoom out" disabled={zoom <= 1} onClick={() => setZoomLevel(zoom - 0.5)} className={iconButton}>
+            <ZoomOut className="size-4" aria-hidden="true" />
+          </button>
+          <span className="min-w-12 text-center font-mono text-[13px] tabular-nums text-field-text" aria-live="polite">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button type="button" title="Zoom in" aria-label="Zoom in" disabled={zoom >= 4} onClick={() => setZoomLevel(zoom + 0.5)} className={iconButton}>
+            <ZoomIn className="size-4" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            title="Reset zoom and divider"
+            aria-label="Reset zoom and divider"
+            disabled={zoom === 1 && position === 50}
+            onClick={reset}
+            className={iconButton}
+          >
+            <RotateCcw className="size-4" aria-hidden="true" />
+          </button>
         </div>
       </div>
 
-      {/* Main Evidence Visualizer Canvas (Fills pane and dominates) */}
-      {viewMode === "slider" ? (
-        <div
-          ref={containerRef}
-          onPointerDown={handleCanvasPointerDown}
-          onPointerMove={handleCanvasPointerMove}
-          onPointerUp={handleCanvasPointerUp}
-          className={cn(
-            "relative w-full aspect-[4/3] sm:aspect-[16/10] overflow-hidden select-none bg-field-abyss",
-            zoom > 1 ? (isPanning ? "cursor-grabbing" : "cursor-grab") : "cursor-default"
-          )}
-        >
-          {/* Base Layer: Before Image */}
-          <div className="absolute inset-0 size-full pointer-events-none">
-            <Image
-              src={before.url}
-              alt={beforeLabel}
-              width={800}
-              height={600}
-              unoptimized
-              style={transformStyle}
-              className="size-full object-contain pointer-events-none"
-            />
-            {/* Minimal Label Badge Top Left */}
-            <div className="absolute top-3 left-3 px-2 py-0.5 rounded bg-field-abyss/85 border border-field-hairline text-xs text-field-muted z-10">
-              {beforeLabel}
-            </div>
-          </div>
-
-          {/* Overlay Layer: After Image clipped to slider position */}
-          <div
-            className="absolute inset-0 size-full pointer-events-none overflow-hidden"
-            style={{
-              clipPath: `inset(0 0 0 ${sliderPos}%)`,
-            }}
-          >
-            <Image
-              src={after.url}
-              alt={afterLabel}
-              width={800}
-              height={600}
-              unoptimized
-              style={transformStyle}
-              className="size-full object-contain pointer-events-none"
-            />
-            {/* Minimal Label Badge Top Right */}
-            <div className="absolute top-3 right-3 px-2 py-0.5 rounded bg-field-abyss/85 border border-field-hairline text-xs text-field-muted z-10">
-              {afterLabel}
-            </div>
-          </div>
-
-          {/* Large, Easy-to-Grab Divider Handle per §3 */}
-          <div
-            className="absolute top-0 bottom-0 z-20"
-            style={{
-              left: `${sliderPos}%`,
-              transform: "translateX(-50%)",
-            }}
-          >
-            {/* Vertical hairline divider */}
-            <div className="h-full w-0.5 bg-field-muted/70" />
-
-            {/* Draggable center handle (large enough to grab without aiming) */}
+      {/* Image area. It sizes itself to the picture's aspect ratio and fills the space left,
+          so the divider and the pills sit on the photograph, never on empty ground. */}
+      <div className="relative min-h-[320px] flex-1 overflow-hidden rounded-lg border border-field-hairline bg-field-abyss [container-type:size]">
+        {sliderMode ? (
+          <div className="absolute inset-0 flex items-center justify-center">
             <div
+              ref={imageBoxRef}
               role="slider"
-              aria-label="Image comparison slider"
-              aria-valuenow={sliderPos}
+              tabIndex={0}
+              aria-label={`Compare ${beforeLabel.toLowerCase()} and ${afterLabel.toLowerCase()}`}
+              aria-orientation="horizontal"
               aria-valuemin={0}
               aria-valuemax={100}
-              tabIndex={0}
-              onPointerDown={handleSliderPointerDown}
-              onPointerMove={handleSliderPointerMove}
-              onPointerUp={handleSliderPointerUp}
+              aria-valuenow={position}
+              aria-valuetext={`${position}% ${beforeLabel.toLowerCase()}`}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={endPointer}
+              onPointerCancel={endPointer}
+              onKeyDown={onKeyDown}
+              style={{ aspectRatio: aspect, width: `min(100cqw, calc(100cqh * ${aspect}))` }}
               className={cn(
-                "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-10 rounded border border-field-hairline flex items-center justify-center cursor-ew-resize transition-all select-none",
-                "bg-field-raised text-field-text text-xs",
-                isDraggingSlider ? "ring-2 ring-field-muted bg-field-canopy" : "hover:bg-field-canopy"
+                "relative touch-none select-none overflow-hidden outline-none",
+                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal",
+                cursor
               )}
             >
-              <span className="text-[11px] font-mono tracking-tight text-field-muted">
-                ||
-              </span>
-            </div>
-          </div>
-        </div>
-      ) : (
-        /* Side by side Viewport */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-field-hairline overflow-hidden">
-          <div
-            onPointerDown={handleCanvasPointerDown}
-            onPointerMove={handleCanvasPointerMove}
-            onPointerUp={handleCanvasPointerUp}
-            className={cn(
-              "relative aspect-[4/3] overflow-hidden bg-field-abyss select-none",
-              zoom > 1 ? (isPanning ? "cursor-grabbing" : "cursor-grab") : "cursor-default"
-            )}
-          >
-            <Image
-              src={before.url}
-              alt={beforeLabel}
-              width={800}
-              height={600}
-              unoptimized
-              style={transformStyle}
-              className="size-full object-contain pointer-events-none"
-            />
-            <div className="absolute top-3 left-3 px-2 py-0.5 rounded bg-field-abyss/85 border border-field-hairline text-xs text-field-muted z-10">
-              {beforeLabel}
-            </div>
-          </div>
+              <div className="absolute inset-0">{picture(before, beforeLabel, "left")}</div>
+              {/* After image, clipped to everything right of the divider */}
+              <div className="absolute inset-0" style={{ clipPath: `inset(0 0 0 ${position}%)` }}>
+                {picture(after, afterLabel, "right")}
+              </div>
 
-          <div
-            onPointerDown={handleCanvasPointerDown}
-            onPointerMove={handleCanvasPointerMove}
-            onPointerUp={handleCanvasPointerUp}
-            className={cn(
-              "relative aspect-[4/3] overflow-hidden bg-field-abyss select-none",
-              zoom > 1 ? (isPanning ? "cursor-grabbing" : "cursor-grab") : "cursor-default"
-            )}
-          >
-            <Image
-              src={after.url}
-              alt={afterLabel}
-              width={800}
-              height={600}
-              unoptimized
-              style={transformStyle}
-              className="size-full object-contain pointer-events-none"
-            />
-            <div className="absolute top-3 right-3 px-2 py-0.5 rounded bg-field-abyss/85 border border-field-hairline text-xs text-field-muted z-10">
-              {afterLabel}
+              {/* Divider: a 4px line and a 32px grab target that appears on hover */}
+              <div data-handle className="group absolute inset-y-0 z-20 w-8 -translate-x-1/2 cursor-ew-resize" style={{ left: `${position}%` }}>
+                <div className="absolute inset-y-0 left-1/2 w-1 -translate-x-1/2 bg-field-text/60" />
+                <div
+                  className={cn(
+                    "absolute left-1/2 top-1/2 flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full transition-colors duration-[120ms]",
+                    interaction === "slider" ? "bg-field-raised/90" : "bg-transparent group-hover:bg-field-raised/90"
+                  )}
+                >
+                  <ChevronsLeftRight className="size-4 text-field-text/70" aria-hidden="true" />
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="absolute inset-0 grid grid-cols-2 gap-2">
+            {[
+              { img: before, label: beforeLabel, side: "left" as const },
+              { img: after, label: afterLabel, side: "right" as const },
+            ].map(({ img, label, side }) => (
+              <div key={label} className="relative flex items-center justify-center [container-type:size]">
+                <div
+                  onPointerDown={onPointerDown}
+                  onPointerMove={onPointerMove}
+                  onPointerUp={endPointer}
+                  onPointerCancel={endPointer}
+                  style={{ aspectRatio: aspect, width: `min(100cqw, calc(100cqh * ${aspect}))` }}
+                  className={cn("relative touch-none select-none overflow-hidden", cursor)}
+                >
+                  {picture(img, label, side)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-      {/* Collapsed Strip for Hashes & Capture Times per §2 */}
-      <div className="border-t border-field-hairline">
+      {/* Captions sit below the image, outside its box (docs/19 §7) */}
+      <div className="grid shrink-0 grid-cols-2 gap-4 select-none">
+        {caption(before, beforeLabel, "left")}
+        {caption(after, afterLabel, "right")}
+      </div>
+
+      {/* Detail strip: 32px when closed */}
+      <div className="shrink-0 rounded-lg border border-field-hairline bg-field-canopy">
         <button
           type="button"
-          onClick={() => setShowMetadata((prev) => !prev)}
-          className="w-full px-3 py-1.5 flex items-center justify-between text-xs text-field-muted hover:text-field-text bg-field-canopy transition-colors"
+          aria-expanded={showStrip}
+          onClick={() => setShowStrip((v) => !v)}
+          className="flex h-8 w-full items-center justify-between px-3 text-[13px] text-field-muted transition-colors duration-[120ms] hover:text-field-text"
         >
-          <span>Capture metadata &amp; hashes</span>
-          {showMetadata ? (
-            <ChevronUp className="size-3.5" />
-          ) : (
-            <ChevronDown className="size-3.5" />
-          )}
+          <span>Capture details</span>
+          {showStrip ? <ChevronUp className="size-4" aria-hidden="true" /> : <ChevronDown className="size-4" aria-hidden="true" />}
         </button>
 
-        {showMetadata && (
-          <div
-            className={cn(
-              "grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x border-t text-xs",
-              isPaper ? "border-paper-rule divide-paper-rule" : "border-field-hairline divide-field-hairline"
-            )}
-          >
-            {/* Before Metadata */}
-            <div className="p-3 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-field-text">{beforeLabel}</span>
-                <span className="font-mono tabular-nums text-field-muted">
-                  {before.capturedAt}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 pt-0.5">
-                <span className="text-[11px] text-field-muted">SHA-256</span>
-                <HashDisplay hash={before.sha256} variant="truncated" theme={theme} />
-              </div>
-            </div>
-
-            {/* After Metadata */}
-            <div className="p-3 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-field-text">{afterLabel}</span>
-                <span className="font-mono tabular-nums text-field-muted">
-                  {after.capturedAt}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 pt-0.5">
-                <span className="text-[11px] text-field-muted">SHA-256</span>
-                <HashDisplay hash={after.sha256} variant="truncated" theme={theme} />
-              </div>
-            </div>
+        {showStrip && (
+          <div className="grid max-h-56 grid-cols-1 gap-4 overflow-y-auto border-t border-field-hairline p-4 text-[13px] leading-5 md:grid-cols-2">
+            {[
+              { img: before, label: beforeLabel },
+              { img: after, label: afterLabel },
+            ].map(({ img, label }) => (
+              <dl key={label} className="space-y-1">
+                <dt className="text-field-text">{label}</dt>
+                <dd className="flex items-center justify-between gap-4">
+                  <span className="text-field-muted">Captured</span>
+                  <span className="font-mono tabular-nums text-field-text">{img.capturedAt}</span>
+                </dd>
+                <dd className="flex items-center justify-between gap-4">
+                  <span className="text-field-muted">SHA-256</span>
+                  <HashDisplay hash={img.sha256} variant="truncated" theme={theme} />
+                </dd>
+              </dl>
+            ))}
+            {details && <div className={cn("space-y-1 md:col-span-2", !isPaper && "border-t border-field-hairline pt-4")}>{details}</div>}
           </div>
         )}
       </div>

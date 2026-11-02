@@ -6,10 +6,11 @@ import { nextCookies } from "better-auth/next-js";
 import { organization } from "better-auth/plugins";
 import { z } from "zod";
 import { env } from "../../env";
+import { ORG_TYPES } from "../../lib/org-type";
 import { db } from "../db/client";
 import * as schema from "../db/schema";
 
-const ORG_TYPE = z.enum(["OWNER", "VERIFIER", "FUNDER"]);
+const ORG_TYPE = z.enum(ORG_TYPES);
 
 export const auth = betterAuth({
   secret: env.BETTER_AUTH_SECRET,
