@@ -2,7 +2,7 @@ import * as React from "react";
 import Link from "next/link";
 import { ArrowUpRight, CheckCircle2, Shield } from "lucide-react";
 import { VerificationBadge, HashDisplay } from "@/src/components";
-import { cn } from "@/lib/utils";
+import { cn } from "@/src/lib/utils";
 
 export interface AnchoredProofRecord {
   /** Unique submission/proof identifier */

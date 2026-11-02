@@ -1,6 +1,6 @@
 import * as React from "react";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/src/lib/utils";
 
 export interface BitGridProps {
   /** 64-character binary string ('0' and '1') or 16-character hex string */

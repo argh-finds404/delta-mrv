@@ -1,6 +1,6 @@
 import * as React from "react";
 import { ShieldCheck, ShieldAlert, Clock, HelpCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/src/lib/utils";
 
 export type VerificationState = "MATCH" | "MISMATCH" | "PENDING" | "UNAVAILABLE";
 

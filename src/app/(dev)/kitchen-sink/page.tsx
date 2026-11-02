@@ -28,7 +28,7 @@ import {
 import SignInPage from "@/src/app/(auth)/sign-in/page";
 import SignUpPage from "@/src/app/(auth)/sign-up/page";
 import DemoPage from "@/src/app/(auth)/demo/page";
-import { cn } from "@/lib/utils";
+import { cn } from "@/src/lib/utils";
 
 export default function KitchenSinkPage() {
   const [activeTheme, setActiveTheme] = React.useState<"field" | "paper">("field");

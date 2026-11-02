@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Copy, Check } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/src/lib/utils";
 
 export interface HashDisplayProps {
   /** Full cryptographic hash (e.g. 64-char SHA-256 or Merkle root) */

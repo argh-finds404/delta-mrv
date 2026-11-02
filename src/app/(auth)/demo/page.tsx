@@ -9,7 +9,7 @@ import {
   ArrowRight,
   Info,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/src/lib/utils";
 
 export interface DemoPersona {
   id: string;

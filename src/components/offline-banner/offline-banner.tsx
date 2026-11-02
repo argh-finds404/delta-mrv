@@ -1,6 +1,6 @@
 import * as React from "react";
 import { WifiOff, RefreshCw, CheckCircle2, ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/src/lib/utils";
 
 export interface OfflineBannerProps {
   /** Whether the client browser currently lacks connectivity */

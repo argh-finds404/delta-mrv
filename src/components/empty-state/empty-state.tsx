@@ -1,6 +1,6 @@
 import * as React from "react";
 import { ArrowRight } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/src/lib/utils";
 
 export interface EmptyStateAction {
   /** Label for the single explicit action */

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Info, Minus, AlertTriangle, ShieldAlert } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/src/lib/utils";
 
 export type SeverityLevel = "info" | "low" | "medium" | "high";
 

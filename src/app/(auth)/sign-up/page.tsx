@@ -13,7 +13,7 @@ import {
   ShieldCheck,
   Coins,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/src/lib/utils";
 
 export type OrgType = "OWNER" | "VERIFIER" | "FUNDER";
 

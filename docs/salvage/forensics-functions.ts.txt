@@ -1,3 +1,7 @@
+// CONTRACT DRIFT — do not port as written. This implementation resizes before converting to grayscale.
+// docs/02-ARCHITECTURE.md §4.2 requires grayscale first, then resize to 9×8. The two produce different hashes.
+// Fix the order when porting in Stage 4.
+//
 // Salvaged unchanged from src/server/services/forensics.service.ts (pre-contract implementation). Reference only; nothing imports this.
 // Needs: node:crypto, exifr, sharp. ExifTelemetry is included because extractExifTelemetry returns it.
 

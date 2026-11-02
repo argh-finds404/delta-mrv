@@ -440,7 +440,7 @@ One page, three shapes by `org_type`:
 |---|---|
 | `OWNER` | Submissions needing more proof (first — it is actionable), projects, recent decisions, approved-and-anchored count |
 | `VERIFIER` | Queue depth by severity, assigned projects, your recent decisions, escalated splits awaiting a deciding vote (verifier administrators) |
-| `FUNDER` | Verified outcomes, recently anchored records, projects by organisation |
+| `FUNDER` | Verified outcomes, recently anchored records and projects — all scoped through `project_funder` to projects linked to their organisation |
 
 **Every number is computed from the database at request time.** No animated
 counters, no sparklines of invented data, no trend arrows you did not measure.

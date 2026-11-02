@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Check, X, GitMerge, AlertCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/src/lib/utils";
 
 export interface QuorumMeterProps {
   /** Number of approvals recorded in current review round */
