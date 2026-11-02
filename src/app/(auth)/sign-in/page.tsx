@@ -230,7 +230,7 @@ export default function SignInPage({ onSubmit }: SignInPageProps) {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full flex items-center justify-center gap-2 rounded bg-signal px-4 py-2 text-xs font-semibold text-[#0C1413] hover:bg-signal/90 disabled:opacity-60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal cursor-pointer"
+          className="w-full flex items-center justify-center gap-2 rounded bg-signal px-4 py-2 text-xs font-semibold text-[#0A0C0B] hover:bg-signal/90 disabled:opacity-60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal cursor-pointer"
         >
           {isSubmitting ? (
             <>
@@ -252,7 +252,7 @@ export default function SignInPage({ onSubmit }: SignInPageProps) {
           <span className="text-field-muted">New organisation?</span>
           <Link
             href="/sign-up"
-            className="text-signal hover:underline transition-colors"
+            className="text-field-text underline underline-offset-2 hover:text-field-muted transition-colors"
           >
             Register
           </Link>

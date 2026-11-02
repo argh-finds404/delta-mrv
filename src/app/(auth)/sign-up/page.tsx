@@ -167,20 +167,20 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
       {/* Header & Step Tracker */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="font-mono text-[11px] text-signal uppercase tracking-wider">
+          <span className="text-[11px] text-field-muted">
             Step {step} of 2 · {step === 1 ? "Your account" : "Organisation"}
           </span>
           <div className="flex gap-1.5">
             <span
               className={cn(
                 "h-1 w-6 rounded-full",
-                step >= 1 ? "bg-signal" : "bg-field-hairline"
+                step >= 1 ? "bg-field-text" : "bg-field-hairline"
               )}
             />
             <span
               className={cn(
                 "h-1 w-6 rounded-full",
-                step === 2 ? "bg-signal" : "bg-field-hairline"
+                step === 2 ? "bg-field-text" : "bg-field-hairline"
               )}
             />
           </div>
@@ -356,7 +356,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
 
           <button
             type="submit"
-            className="w-full flex items-center justify-center gap-2 rounded bg-signal px-4 py-2 text-xs font-semibold text-[#0C1413] hover:bg-signal/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal cursor-pointer"
+            className="w-full flex items-center justify-center gap-2 rounded bg-signal px-4 py-2 text-xs font-semibold text-[#0A0C0B] hover:bg-signal/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal cursor-pointer"
           >
             <span>Continue to organisation details</span>
             <ArrowRight className="size-3.5" />
@@ -446,19 +446,19 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
                 type="button"
                 onClick={() => setOrgType("OWNER")}
                 className={cn(
-                  "w-full text-left rounded-lg border p-3 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-signal cursor-pointer",
+                  "w-full text-left rounded-lg border p-3 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-field-text cursor-pointer",
                   orgType === "OWNER"
-                    ? "border-signal bg-field-raised/80"
+                    ? "border-field-text bg-field-raised/80"
                     : "border-field-hairline bg-field-canopy hover:bg-field-raised/40"
                 )}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <Building2 className={cn("size-4", orgType === "OWNER" ? "text-signal" : "text-field-muted")} />
+                    <Building2 className={cn("size-4", orgType === "OWNER" ? "text-field-text" : "text-field-muted")} />
                     <span className="text-xs font-medium text-field-text">Project owner</span>
                   </div>
                   {orgType === "OWNER" && (
-                    <span className="flex size-4 items-center justify-center rounded-full bg-signal text-[#0C1413]">
+                    <span className="flex size-4 items-center justify-center rounded-full bg-field-text text-field-abyss">
                       <Check className="size-3 stroke-[3]" />
                     </span>
                   )}
@@ -473,19 +473,19 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
                 type="button"
                 onClick={() => setOrgType("VERIFIER")}
                 className={cn(
-                  "w-full text-left rounded-lg border p-3 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-signal cursor-pointer",
+                  "w-full text-left rounded-lg border p-3 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-field-text cursor-pointer",
                   orgType === "VERIFIER"
-                    ? "border-signal bg-field-raised/80"
+                    ? "border-field-text bg-field-raised/80"
                     : "border-field-hairline bg-field-canopy hover:bg-field-raised/40"
                 )}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <ShieldCheck className={cn("size-4", orgType === "VERIFIER" ? "text-signal" : "text-field-muted")} />
+                    <ShieldCheck className={cn("size-4", orgType === "VERIFIER" ? "text-field-text" : "text-field-muted")} />
                     <span className="text-xs font-medium text-field-text">Independent verifier</span>
                   </div>
                   {orgType === "VERIFIER" && (
-                    <span className="flex size-4 items-center justify-center rounded-full bg-signal text-[#0C1413]">
+                    <span className="flex size-4 items-center justify-center rounded-full bg-field-text text-field-abyss">
                       <Check className="size-3 stroke-[3]" />
                     </span>
                   )}
@@ -500,19 +500,19 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
                 type="button"
                 onClick={() => setOrgType("FUNDER")}
                 className={cn(
-                  "w-full text-left rounded-lg border p-3 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-signal cursor-pointer",
+                  "w-full text-left rounded-lg border p-3 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-field-text cursor-pointer",
                   orgType === "FUNDER"
-                    ? "border-signal bg-field-raised/80"
+                    ? "border-field-text bg-field-raised/80"
                     : "border-field-hairline bg-field-canopy hover:bg-field-raised/40"
                 )}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <Coins className={cn("size-4", orgType === "FUNDER" ? "text-signal" : "text-field-muted")} />
+                    <Coins className={cn("size-4", orgType === "FUNDER" ? "text-field-text" : "text-field-muted")} />
                     <span className="text-xs font-medium text-field-text">Funder</span>
                   </div>
                   {orgType === "FUNDER" && (
-                    <span className="flex size-4 items-center justify-center rounded-full bg-signal text-[#0C1413]">
+                    <span className="flex size-4 items-center justify-center rounded-full bg-field-text text-field-abyss">
                       <Check className="size-3 stroke-[3]" />
                     </span>
                   )}
@@ -545,7 +545,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 flex items-center justify-center gap-2 rounded bg-signal px-4 py-2 text-xs font-semibold text-[#0C1413] hover:bg-signal/90 disabled:opacity-60 transition-colors cursor-pointer"
+              className="flex-1 flex items-center justify-center gap-2 rounded bg-signal px-4 py-2 text-xs font-semibold text-[#0A0C0B] hover:bg-signal/90 disabled:opacity-60 transition-colors cursor-pointer"
             >
               {isSubmitting ? (
                 <>
@@ -568,7 +568,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
         <span className="text-field-muted">Already registered? </span>
         <Link
           href="/sign-in"
-          className="text-signal hover:underline transition-colors"
+          className="text-field-text underline underline-offset-2 hover:text-field-muted transition-colors"
         >
           Sign in
         </Link>

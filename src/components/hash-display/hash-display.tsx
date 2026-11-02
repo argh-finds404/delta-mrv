@@ -85,7 +85,7 @@ export function HashDisplay({
       {label && (
         <span
           className={cn(
-            "font-sans font-normal uppercase tracking-wider text-[11px]",
+            "font-sans font-normal text-[11px]",
             isPaper ? "text-paper-muted" : "text-field-muted"
           )}
         >

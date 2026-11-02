@@ -1,5 +1,4 @@
 import * as React from "react";
-import { ShieldCheck, ShieldAlert, Clock, HelpCircle } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 
 export type VerificationState = "MATCH" | "MISMATCH" | "PENDING" | "UNAVAILABLE";
@@ -20,66 +19,49 @@ const badgeConfig: Record<
   {
     label: string;
     description: string;
-    icon: React.ComponentType<{ className?: string }>;
-    fieldContainerClass: string;
-    fieldIconClass: string;
-    fieldTextClass: string;
-    paperContainerClass: string;
-    paperIconClass: string;
-    paperTextClass: string;
+    fieldClass: string;
+    paperClass: string;
   }
 > = {
   MATCH: {
     label: "Match",
     description: "Recomputed manifest hash is anchored in Merkle tree",
-    icon: ShieldCheck,
-    // Maintainer override: --verified is border/icon only. Text is --field-text.
-    fieldContainerClass: "border-verified/40 bg-field-canopy",
-    fieldIconClass: "text-verified",
-    fieldTextClass: "text-field-text",
-    paperContainerClass: "border-paper-seal/40 bg-paper-card",
-    paperIconClass: "text-paper-seal",
-    paperTextClass: "text-paper-ink",
+    fieldClass:
+      "bg-[color-mix(in_srgb,var(--verified)_14%,transparent)] border-[color-mix(in_srgb,var(--verified)_35%,transparent)] text-verified",
+    paperClass:
+      "bg-[color-mix(in_srgb,var(--paper-seal)_14%,transparent)] border-[color-mix(in_srgb,var(--paper-seal)_35%,transparent)] text-paper-seal",
   },
   MISMATCH: {
     label: "Mismatch",
     description: "Record differs from anchored cryptographic commitment",
-    icon: ShieldAlert,
-    fieldContainerClass: "border-fraud/40 bg-[#E2644F]/10",
-    fieldIconClass: "text-fraud",
-    fieldTextClass: "text-field-text",
-    paperContainerClass: "border-[#E2644F]/40 bg-[#E2644F]/10",
-    paperIconClass: "text-fraud",
-    paperTextClass: "text-paper-ink",
+    fieldClass:
+      "bg-[color-mix(in_srgb,var(--fraud)_14%,transparent)] border-[color-mix(in_srgb,var(--fraud)_35%,transparent)] text-fraud",
+    paperClass:
+      "bg-[color-mix(in_srgb,var(--fraud)_14%,transparent)] border-[color-mix(in_srgb,var(--fraud)_35%,transparent)] text-fraud",
   },
   PENDING: {
     label: "Pending",
     description: "Approved by verifiers; Merkle batch awaiting Base Sepolia confirmation",
-    icon: Clock,
-    fieldContainerClass: "border-review/40 bg-[#E8A33D]/10",
-    fieldIconClass: "text-review",
-    fieldTextClass: "text-field-text",
-    paperContainerClass: "border-[#E8A33D]/40 bg-[#E8A33D]/10",
-    paperIconClass: "text-review",
-    paperTextClass: "text-paper-ink",
+    fieldClass:
+      "bg-[color-mix(in_srgb,var(--review)_14%,transparent)] border-[color-mix(in_srgb,var(--review)_35%,transparent)] text-review",
+    paperClass:
+      "bg-[color-mix(in_srgb,var(--review)_14%,transparent)] border-[color-mix(in_srgb,var(--review)_35%,transparent)] text-[#9A6014]",
   },
   UNAVAILABLE: {
     label: "Unavailable",
     description: "Chain RPC unreachable or client offline — neutral grey, never a false mismatch",
-    icon: HelpCircle,
-    fieldContainerClass: "border-field-hairline bg-field-raised/50",
-    fieldIconClass: "text-field-muted",
-    fieldTextClass: "text-field-muted",
-    paperContainerClass: "border-paper-rule bg-paper-card",
-    paperIconClass: "text-paper-muted",
-    paperTextClass: "text-paper-muted",
+    fieldClass:
+      "bg-[color-mix(in_srgb,var(--field-muted)_14%,transparent)] border-[color-mix(in_srgb,var(--field-muted)_35%,transparent)] text-field-muted",
+    paperClass:
+      "bg-[color-mix(in_srgb,var(--paper-muted)_14%,transparent)] border-[color-mix(in_srgb,var(--paper-muted)_35%,transparent)] text-paper-muted",
   },
 };
 
 /**
  * VerificationBadge — Trust-engine proof dossier indicator.
- * Strictly respects the four cryptographic states: MATCH, MISMATCH, PENDING, UNAVAILABLE.
- * Adheres to WCAG AA text contrast rules: --verified is strictly fill/border/icon, never normal text.
+ * Authority: docs/18-VISUAL-CORRECTION.md §1 & §2.
+ * Tint rule: 14% tint, 35% border, semantic color as text, and 4px filled dot.
+ * Sentence case: never ALL CAPS.
  */
 export function VerificationBadge({
   state,
@@ -88,42 +70,32 @@ export function VerificationBadge({
   className,
 }: VerificationBadgeProps) {
   const config = badgeConfig[state];
-  const IconComponent = config.icon;
   const isPaper = theme === "paper";
 
   return (
-    <div
-      className={cn(
-        "inline-flex items-center gap-2 rounded-sm border px-2.5 py-1 text-xs transition-colors",
-        isPaper ? config.paperContainerClass : config.fieldContainerClass,
-        className
-      )}
-    >
-      <IconComponent
-        className={cn(
-          "size-4 shrink-0",
-          isPaper ? config.paperIconClass : config.fieldIconClass
-        )}
-      />
+    <div className={cn("inline-flex flex-col gap-1", className)}>
       <span
+        title={config.description}
         className={cn(
-          "font-medium tracking-normal",
-          isPaper ? config.paperTextClass : config.fieldTextClass
+          "inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5 text-xs font-normal tracking-normal transition-colors select-none",
+          isPaper ? config.paperClass : config.fieldClass
         )}
       >
-        {config.label}
+        {/* 4px filled dot in semantic colour */}
+        <span className="size-1 rounded-full bg-current shrink-0" aria-hidden="true" />
+        <span>{config.label}</span>
       </span>
+
       {detail && (
         <span
           className={cn(
-            "font-mono tabular-nums text-[11px] opacity-80",
+            "text-[11px] leading-tight font-normal",
             isPaper ? "text-paper-muted" : "text-field-muted"
           )}
         >
-          · {detail}
+          {detail}
         </span>
       )}
     </div>
   );
 }
-

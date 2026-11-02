@@ -1,5 +1,4 @@
 import * as React from "react";
-import { Info, Minus, AlertTriangle, ShieldAlert } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 
 export type SeverityLevel = "info" | "low" | "medium" | "high";
@@ -21,40 +20,45 @@ const severityConfig: Record<
   SeverityLevel,
   {
     defaultLabel: string;
-    icon: React.ComponentType<{ className?: string }>;
     fieldClass: string;
     paperClass: string;
   }
 > = {
   info: {
     defaultLabel: "Info",
-    icon: Info,
-    fieldClass: "bg-field-raised text-field-muted border-field-hairline",
-    paperClass: "bg-paper-card text-paper-muted border-paper-rule",
+    fieldClass:
+      "bg-[color-mix(in_srgb,var(--field-muted)_14%,transparent)] border-[color-mix(in_srgb,var(--field-muted)_35%,transparent)] text-field-muted",
+    paperClass:
+      "bg-[color-mix(in_srgb,var(--paper-muted)_14%,transparent)] border-[color-mix(in_srgb,var(--paper-muted)_35%,transparent)] text-paper-muted",
   },
   low: {
     defaultLabel: "Low",
-    icon: Minus,
-    fieldClass: "bg-field-raised/60 text-field-inert border-field-hairline",
-    paperClass: "bg-paper-card text-paper-muted/80 border-paper-rule",
+    fieldClass:
+      "bg-[color-mix(in_srgb,var(--field-inert)_14%,transparent)] border-[color-mix(in_srgb,var(--field-inert)_35%,transparent)] text-field-muted",
+    paperClass:
+      "bg-[color-mix(in_srgb,var(--paper-muted)_14%,transparent)] border-[color-mix(in_srgb,var(--paper-muted)_35%,transparent)] text-paper-muted",
   },
   medium: {
     defaultLabel: "Medium",
-    icon: AlertTriangle,
-    fieldClass: "bg-[#E8A33D]/10 text-review border-[#E8A33D]/30",
-    paperClass: "bg-[#E8A33D]/15 text-[#8F5B10] border-[#E8A33D]/40",
+    fieldClass:
+      "bg-[color-mix(in_srgb,var(--review)_14%,transparent)] border-[color-mix(in_srgb,var(--review)_35%,transparent)] text-review",
+    paperClass:
+      "bg-[color-mix(in_srgb,var(--review)_14%,transparent)] border-[color-mix(in_srgb,var(--review)_35%,transparent)] text-[#9A6014]",
   },
   high: {
     defaultLabel: "High",
-    icon: ShieldAlert,
-    fieldClass: "bg-[#E2644F]/10 text-fraud border-[#E2644F]/30",
-    paperClass: "bg-[#E2644F]/15 text-[#9E2A18] border-[#E2644F]/40",
+    fieldClass:
+      "bg-[color-mix(in_srgb,var(--fraud)_14%,transparent)] border-[color-mix(in_srgb,var(--fraud)_35%,transparent)] text-fraud",
+    paperClass:
+      "bg-[color-mix(in_srgb,var(--fraud)_14%,transparent)] border-[color-mix(in_srgb,var(--fraud)_35%,transparent)] text-fraud",
   },
 };
 
 /**
  * SeverityChip — Visual classification for forensic findings and risk tiers.
- * Enforces shape + label + color encoding (never color alone per WCAG AA).
+ * Authority: docs/18-VISUAL-CORRECTION.md §1.
+ * Tint rule: 14% tint, 35% border, semantic color as text, and 4px filled dot.
+ * Sentence case: never ALL CAPS.
  */
 export function SeverityChip({
   severity,
@@ -64,21 +68,20 @@ export function SeverityChip({
   className,
 }: SeverityChipProps) {
   const config = severityConfig[severity];
-  const IconComponent = config.icon;
   const isPaper = theme === "paper";
-
   const displayText = label ?? config.defaultLabel;
 
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5 text-xs font-normal tracking-normal transition-colors",
+        "inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5 text-xs font-normal tracking-normal transition-colors select-none",
         isPaper ? config.paperClass : config.fieldClass,
         className
       )}
     >
-      <IconComponent className="size-3.5 shrink-0" />
-      <span className="capitalize">{displayText}</span>
+      {/* 4px filled dot in semantic colour */}
+      <span className="size-1 rounded-full bg-current shrink-0" aria-hidden="true" />
+      <span>{displayText}</span>
       {typeof count === "number" && (
         <span className="font-mono tabular-nums text-[11px] opacity-80">
           ({count})
@@ -87,4 +90,3 @@ export function SeverityChip({
     </span>
   );
 }
-

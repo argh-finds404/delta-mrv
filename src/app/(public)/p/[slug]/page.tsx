@@ -51,15 +51,15 @@ export default function PublicProjectPage({ params }: ProjectPageProps) {
               Delta MRV
             </span>
             <span className="text-paper-muted text-xs">/</span>
-            <span className="font-mono text-xs text-paper-muted">Projects</span>
+            <span className="text-xs text-paper-muted">Projects</span>
           </Link>
 
           <div className="flex items-center gap-3 text-xs">
             <Link
               href="/atlas"
-              className="font-mono text-xs text-paper-muted hover:text-paper-ink transition-colors"
+              className="text-xs text-paper-muted hover:text-paper-ink transition-colors"
             >
-              ← Back to Impact Atlas
+              ← Back to impact atlas
             </Link>
           </div>
         </div>
@@ -100,12 +100,12 @@ async function ProjectContent({ params }: ProjectPageProps) {
         {/* 1. Header (docs/14-PAGE-SPEC.md §3) */}
         <header className="space-y-4 border-b border-paper-rule pb-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="font-mono text-xs uppercase tracking-wider text-paper-muted">
+            <span className="text-xs text-paper-muted">
               {project.activityType}
             </span>
             <VerificationBadge
               state={project.verificationStatus}
-              detail="Base Sepolia Anchor"
+              detail="Base Sepolia anchor"
               theme="paper"
             />
           </div>
@@ -120,12 +120,12 @@ async function ProjectContent({ params }: ProjectPageProps) {
               <span className="font-medium text-paper-ink">{project.ownerOrg}</span>
             </div>
             <span>·</span>
-            <div className="flex items-center gap-1.5 font-mono">
+            <div className="flex items-center gap-1.5">
               <MapPin className="size-4 shrink-0 text-paper-seal" />
               <span>{project.location.region}</span>
             </div>
             <span>·</span>
-            <div className="flex items-center gap-1 font-mono tabular-nums">
+            <div className="flex items-center gap-1 tabular-nums">
               <span>{totalSubmissions} evidence events recorded</span>
             </div>
           </div>
@@ -148,8 +148,8 @@ async function ProjectContent({ params }: ProjectPageProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Left: Claim */}
             <div className="rounded-lg border border-paper-rule bg-paper-card p-5 space-y-2">
-              <span className="font-mono text-xs uppercase tracking-wider text-paper-muted block">
-                1. Project Developer Claim
+              <span className="text-xs font-medium text-paper-muted block">
+                1. Project developer claim
               </span>
               <div className="text-xl font-semibold font-mono tabular-nums text-paper-ink">
                 {project.reportedImpact}
@@ -162,9 +162,9 @@ async function ProjectContent({ params }: ProjectPageProps) {
             {/* Right: Record */}
             <div className="rounded-lg border border-paper-seal/40 bg-paper-card p-5 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="font-mono text-xs uppercase tracking-wider text-paper-seal flex items-center gap-1.5">
+                <span className="text-xs font-medium text-paper-seal flex items-center gap-1.5">
                   <CheckCircle2 className="size-3.5" />
-                  <span>2. Anchored Cryptographic Proof</span>
+                  <span>2. Anchored cryptographic proof</span>
                 </span>
               </div>
               <div className="text-xl font-semibold font-mono tabular-nums text-paper-ink">
@@ -177,12 +177,12 @@ async function ProjectContent({ params }: ProjectPageProps) {
           </div>
 
           {/* The Unflattering Gap Banner */}
-          <div className="rounded-lg border border-[#E8A33D]/40 bg-[#E8A33D]/10 p-4 text-xs font-mono text-[#8F5B10] flex items-start gap-2.5">
+          <div className="rounded-lg border border-[#E8A33D]/40 bg-[#E8A33D]/10 p-4 text-xs font-sans text-[#8F5B10] flex items-start gap-2.5">
             <AlertCircle className="size-4 shrink-0 mt-0.5" />
             <div>
-              <span className="font-bold">The Claimed-vs-Verified Gap: </span>
-              <span>{project.claimedVsVerifiedGap}. </span>
-              <span className="block pt-1 opacity-90 font-sans">
+              <span className="font-semibold">Claimed vs. verified gap: </span>
+              <span className="font-mono tabular-nums font-semibold">{project.claimedVsVerifiedGap}. </span>
+              <span className="block pt-1 opacity-90">
                 Delta displays unverified claims transparently. Unreviewed restoration is not treated as accomplished until independently verified.
               </span>
             </div>
@@ -205,9 +205,9 @@ async function ProjectContent({ params }: ProjectPageProps) {
 
           <div className="relative rounded-lg border border-paper-rule bg-[#EDE6D6] h-64 overflow-hidden flex flex-col justify-between p-4">
             <div className="flex items-center justify-between z-10">
-              <span className="inline-flex items-center gap-1 rounded bg-paper-card border border-paper-rule px-2.5 py-1 font-mono text-[11px] text-paper-muted">
+              <span className="inline-flex items-center gap-1 rounded bg-paper-card border border-paper-rule px-2.5 py-1 text-[11px] text-paper-muted">
                 <Compass className="size-3 text-paper-seal" />
-                <span>Boundary Canvas (Fuzzed Centroid View)</span>
+                <span>Boundary canvas (fuzzed centroid view)</span>
               </span>
               <span className="font-mono text-[11px] text-paper-muted tabular-nums">
                 [{project.location.coordinatesFuzzed[0].toFixed(4)},{" "}
@@ -215,7 +215,7 @@ async function ProjectContent({ params }: ProjectPageProps) {
               </span>
             </div>
 
-            <div className="self-center font-mono text-xs text-paper-muted max-w-sm text-center z-10 space-y-1">
+            <div className="self-center text-xs text-paper-muted max-w-sm text-center z-10 space-y-1">
               <p className="font-medium text-paper-ink">
                 Exact polygon boundary protected.
               </p>
@@ -240,8 +240,8 @@ async function ProjectContent({ params }: ProjectPageProps) {
             >
               Evidence Submission Timeline
             </h2>
-            <span className="font-mono text-xs text-paper-muted">
-              Chronological Ledger
+            <span className="text-xs text-paper-muted">
+              Chronological ledger
             </span>
           </div>
 
@@ -266,17 +266,17 @@ async function ProjectContent({ params }: ProjectPageProps) {
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-paper-muted">
-                        Round {item.round} ·
+                      <span className="text-xs text-paper-muted">
+                        Round <span className="font-mono tabular-nums">{item.round}</span> ·
                       </span>
                       <h3 className="text-xs font-semibold text-paper-ink">
                         {item.title}
                       </h3>
                     </div>
-                    <div className="flex items-center gap-3 text-[11px] font-mono text-paper-muted">
+                    <div className="flex items-center gap-3 text-[11px] text-paper-muted">
                       <span className="flex items-center gap-1">
                         <Calendar className="size-3" />
-                        <span>{new Date(item.capturedAt).toLocaleDateString()}</span>
+                        <span className="font-mono tabular-nums">{new Date(item.capturedAt).toLocaleDateString()}</span>
                       </span>
                       <span>·</span>
                       <span>
@@ -298,7 +298,7 @@ async function ProjectContent({ params }: ProjectPageProps) {
                         <ArrowRight className="size-3" />
                       </Link>
                     ) : (
-                      <span className="text-[11px] font-mono text-paper-muted italic">
+                      <span className="text-[11px] text-paper-muted italic">
                         Verification in progress
                       </span>
                     )}
@@ -319,8 +319,8 @@ async function ProjectContent({ params }: ProjectPageProps) {
               <ShieldCheck className="size-4 text-paper-seal" />
               <span>Assigned Independent Verifier Organisations</span>
             </h2>
-            <span className="font-mono text-[11px] text-paper-muted">
-              Accountability Governance
+            <span className="text-[11px] text-paper-muted">
+              Accountability governance
             </span>
           </div>
 
@@ -338,11 +338,11 @@ async function ProjectContent({ params }: ProjectPageProps) {
                   <span className="font-medium text-xs text-paper-ink block">
                     {v.name}
                   </span>
-                  <span className="font-mono text-[11px] text-paper-muted">
-                    Assigned Auditor · Verified Tenant
+                  <span className="text-[11px] text-paper-muted">
+                    Assigned auditor · Verified tenant
                   </span>
                 </div>
-                <span className="font-mono text-[11px] text-paper-seal border border-paper-seal/30 bg-paper-seal/10 px-2 py-0.5 rounded">
+                <span className="text-[11px] text-paper-seal border border-paper-seal/30 bg-paper-seal/10 px-2 py-0.5 rounded">
                   Active
                 </span>
               </div>

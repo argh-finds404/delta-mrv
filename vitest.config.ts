@@ -6,5 +6,10 @@ export default defineConfig({
     // server-only throws outside Next's server bundle
     alias: { "server-only": fileURLToPath(new URL("./test/stubs/empty.ts", import.meta.url)) },
   },
-  test: { environment: "node", include: ["test/**/*.test.ts"] },
+  // test/integration needs a database; it runs under `pnpm test:integration`
+  test: {
+    environment: "node",
+    include: ["test/**/*.test.ts"],
+    exclude: ["test/integration/**", "**/node_modules/**"],
+  },
 });

@@ -127,17 +127,17 @@ export function AtlasShell({
                 <span className="font-semibold tracking-tight text-xs">
                   Impact Atlas
                 </span>
-                <span className="font-mono text-[10px] text-signal rounded px-1 border border-field-hairline bg-field-abyss">
+                <span className="font-mono text-[10px] text-field-muted rounded px-1 border border-field-hairline bg-field-abyss">
                   SRID 4326
                 </span>
               </div>
               <span
                 className={cn(
-                  "font-mono text-[10px] block",
+                  "text-[10px] block",
                   isPaper ? "text-paper-muted" : "text-field-muted"
                 )}
               >
-                Open Vector Basemap
+                Open vector basemap
               </span>
             </div>
           </div>
@@ -145,13 +145,13 @@ export function AtlasShell({
           <Link
             href="/demo"
             className={cn(
-              "hidden sm:inline-flex items-center gap-1 rounded-lg border px-2.5 py-2 text-xs font-mono shadow-md transition-colors",
+              "hidden sm:inline-flex items-center gap-1 rounded-lg border px-2.5 py-2 text-xs shadow-md transition-colors",
               isPaper
                 ? "border-paper-rule bg-paper-card text-paper-muted hover:text-paper-ink"
                 : "border-field-hairline bg-field-canopy text-field-muted hover:text-field-text"
             )}
           >
-            <Shield className="size-3.5 text-signal" />
+            <Shield className="size-3.5 text-field-muted" />
             <span>Auditor view</span>
           </Link>
         </div>
@@ -171,7 +171,7 @@ export function AtlasShell({
         <div className="pointer-events-auto hidden lg:flex items-center gap-2">
           <div
             className={cn(
-              "rounded-lg border px-3 py-2 text-xs font-mono shadow-md flex items-center gap-3",
+              "rounded-lg border px-3 py-2 text-xs shadow-md flex items-center gap-3",
               isPaper
                 ? "border-paper-rule bg-paper-card text-paper-muted"
                 : "border-field-hairline bg-field-canopy text-field-muted"
@@ -183,7 +183,7 @@ export function AtlasShell({
             </span>
             <span className="flex items-center gap-1.5">
               <span className="size-2.5 rounded-full bg-review" />
-              <span>In Review</span>
+              <span>In review</span>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="size-2.5 rounded-full bg-fraud" />
@@ -238,13 +238,13 @@ export function AtlasShell({
                 )}
               >
                 <div className="flex items-center justify-between border-b pb-2 border-inherit">
-                  <span className="font-mono text-xs uppercase text-signal flex items-center gap-1.5">
-                    <Compass className="size-3.5" />
-                    <span>Cartographic Canvas (MapLibre Stub)</span>
+                  <span className="text-xs font-medium text-field-text flex items-center gap-1.5">
+                    <Compass className="size-3.5 text-field-muted" />
+                    <span>Cartographic canvas (MapLibre stub)</span>
                   </span>
                   <span
                     className={cn(
-                      "font-mono text-[11px]",
+                      "text-[11px]",
                       isPaper ? "text-paper-muted" : "text-field-muted"
                     )}
                   >
@@ -320,11 +320,11 @@ export function AtlasShell({
 
               <div
                 className={cn(
-                  "font-mono text-[11px] text-center",
+                  "text-[11px] text-center",
                   isPaper ? "text-paper-muted" : "text-field-muted"
                 )}
               >
-                <span>Showing {filteredProjects.length} fuzzed project centroids · </span>
+                <span>Showing <span className="font-mono tabular-nums">{filteredProjects.length}</span> fuzzed project centroids · </span>
                 <span>MapLibre GL JS v5 client canvas will render over PostGIS geometry</span>
               </div>
             </div>

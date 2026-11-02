@@ -10,7 +10,9 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - delta-pgdata:/var/lib/postgresql/data
+      # PostgreSQL 18 images keep PGDATA at /var/lib/postgresql/18/docker, so the
+      # volume mounts one level up; mounting .../data would not persist anything.
+      - delta-pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U delta -d delta"]
       interval: 5s

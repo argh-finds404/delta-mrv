@@ -95,10 +95,10 @@ export default function DemoPage({ onSelectPersona }: DemoPageProps) {
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-semibold tracking-tight text-field-text">
-            Demo Persona Switcher
+            Demo persona switcher
           </h1>
-          <span className="rounded border px-2 py-0.5 font-mono text-[11px] text-signal bg-field-raised border-field-hairline">
-            DEMO_MODE
+          <span className="rounded border px-2 py-0.5 text-[11px] text-field-muted bg-field-raised border-field-hairline">
+            Demo mode
           </span>
         </div>
         <p className="text-xs text-field-muted">
@@ -110,9 +110,9 @@ export default function DemoPage({ onSelectPersona }: DemoPageProps) {
       <div className="rounded-lg border border-field-hairline bg-field-canopy/70 p-4 space-y-2.5">
         <div className="flex items-center justify-between border-b border-field-hairline/60 pb-2">
           <span className="text-xs font-medium font-sans text-field-text">
-            The 60-Second Demo Path
+            The 60-second demo path
           </span>
-          <span className="text-[11px] font-mono text-field-muted">
+          <span className="text-[11px] text-field-muted">
             docs/11 §3
           </span>
         </div>
@@ -120,7 +120,7 @@ export default function DemoPage({ onSelectPersona }: DemoPageProps) {
         <ol className="space-y-1.5 text-xs text-field-muted list-none">
           {DEMO_SIX_STEPS.map((stepText, idx) => (
             <li key={idx} className="flex items-start gap-2">
-              <span className="flex size-4 shrink-0 items-center justify-center rounded-xs bg-field-raised font-mono text-[10px] text-signal font-semibold border border-field-hairline">
+              <span className="flex size-4 shrink-0 items-center justify-center rounded-xs bg-field-raised font-mono text-[10px] text-field-text font-medium border border-field-hairline">
                 {idx + 1}
               </span>
               <span className="text-field-muted text-xs leading-tight">
@@ -148,19 +148,19 @@ export default function DemoPage({ onSelectPersona }: DemoPageProps) {
               className={cn(
                 "rounded-lg border p-4 space-y-2.5 transition-colors",
                 isSelected
-                  ? "border-signal bg-field-raised/90"
+                  ? "border-field-text bg-field-raised/90"
                   : "border-field-hairline bg-field-canopy hover:border-field-hairline/90"
               )}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
-                    <Icon className="size-4 text-signal shrink-0" />
+                    <Icon className="size-4 text-field-muted shrink-0" />
                     <h2 className="text-xs font-semibold text-field-text">
                       {persona.roleTitle}
                     </h2>
-                    <span className="rounded border px-1.5 py-0.2 font-mono text-[10px] text-field-muted border-field-hairline">
-                      {persona.orgType}
+                    <span className="rounded border px-1.5 py-0.2 text-[10px] text-field-muted border-field-hairline">
+                      {persona.orgType === "OWNER" ? "Owner" : persona.orgType === "VERIFIER" ? "Verifier" : "Funder"}
                     </span>
                   </div>
                   <p className="text-xs text-field-muted pl-6">
@@ -171,7 +171,7 @@ export default function DemoPage({ onSelectPersona }: DemoPageProps) {
                 <button
                   type="button"
                   onClick={() => handleSelect(persona)}
-                  className="inline-flex items-center gap-1.5 rounded bg-signal px-3 py-1.5 text-xs font-medium text-[#0C1413] hover:bg-signal/90 transition-colors shrink-0 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 rounded bg-signal px-3 py-1.5 text-xs font-medium text-[#0A0C0B] hover:bg-signal/90 transition-colors shrink-0 cursor-pointer"
                 >
                   <span>Launch session</span>
                   <ArrowRight className="size-3" />

@@ -97,7 +97,7 @@ export function ProofPreview({
         </div>
 
         <div className="space-y-1">
-          <span className="text-xs font-mono uppercase tracking-wider text-field-muted">
+          <span className="text-xs text-field-muted">
             A live record
           </span>
           <div className="h-px w-12 bg-field-hairline" />
@@ -122,7 +122,7 @@ export function ProofPreview({
           </div>
 
           <div className="space-y-1">
-            <span className="text-[11px] font-mono text-field-muted uppercase">
+            <span className="text-[11px] text-field-muted">
               Authoritative digest
             </span>
             <div>

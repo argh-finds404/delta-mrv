@@ -71,7 +71,7 @@ export function ProjectDrawer({
           <div className="space-y-1">
             <span
               className={cn(
-                "font-mono uppercase tracking-wider text-[11px] block",
+                "text-xs block",
                 isPaper ? "text-paper-muted" : "text-field-muted"
               )}
             >
@@ -115,15 +115,15 @@ export function ProjectDrawer({
         <div className="flex items-center justify-between">
           <span
             className={cn(
-              "text-xs font-mono uppercase tracking-wider",
+              "text-xs",
               isPaper ? "text-paper-muted" : "text-field-muted"
             )}
           >
-            Integrity Status:
+            Integrity status:
           </span>
           <VerificationBadge
             state={project.verificationStatus}
-            detail="Public Anchor"
+            detail="Public anchor"
             theme={theme}
           />
         </div>
@@ -139,18 +139,18 @@ export function ProjectDrawer({
         >
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5 font-medium">
-              <MapPin className="size-3.5 text-signal shrink-0" />
+              <MapPin className="size-3.5 text-field-muted shrink-0" />
               <span>{project.location.region}</span>
             </span>
             <span
               className={cn(
-                "font-mono text-[10px] uppercase rounded px-1.5 py-0.5 border",
+                "text-[10px] rounded px-1.5 py-0.5 border",
                 isPaper
                   ? "border-paper-rule text-paper-muted"
                   : "border-field-hairline text-field-muted"
               )}
             >
-              Fuzzed Centroid
+              Fuzzed centroid
             </span>
           </div>
           <div
@@ -183,11 +183,11 @@ export function ProjectDrawer({
         >
           <span
             className={cn(
-              "text-[11px] font-mono uppercase tracking-wider block",
+              "text-xs font-medium block",
               isPaper ? "text-paper-muted" : "text-field-muted"
             )}
           >
-            Claimed vs Verified Track Record
+            Claimed vs verified track record
           </span>
 
           <div className="space-y-1.5">
@@ -198,7 +198,7 @@ export function ProjectDrawer({
                   isPaper ? "text-paper-muted" : "text-field-muted"
                 )}
               >
-                Reported Claim:
+                Reported claim:
               </span>
               <span className="font-mono tabular-nums font-medium text-right max-w-[200px]">
                 {project.reportedImpact}
@@ -213,7 +213,7 @@ export function ProjectDrawer({
                 )}
               >
                 <CheckCircle2 className="size-3 text-verified shrink-0" />
-                <span>Anchored Proof:</span>
+                <span>Anchored proof:</span>
               </span>
               <span className="font-mono tabular-nums font-semibold text-right max-w-[200px]">
                 {project.verifiedImpact}
@@ -224,7 +224,7 @@ export function ProjectDrawer({
           {/* The Honest Gap */}
           <div
             className={cn(
-              "rounded p-2 border text-xs font-mono",
+              "rounded p-2 border text-xs",
               isPaper
                 ? "border-[#E8A33D]/30 bg-[#E8A33D]/10 text-[#8F5B10]"
                 : "border-[#E8A33D]/30 bg-[#E8A33D]/10 text-review"
@@ -233,8 +233,8 @@ export function ProjectDrawer({
             <div className="flex items-start gap-1.5">
               <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
               <div>
-                <span className="font-bold">Unverified Gap: </span>
-                <span>{project.claimedVsVerifiedGap}</span>
+                <span className="font-medium">Unverified gap: </span>
+                <span className="font-mono tabular-nums">{project.claimedVsVerifiedGap}</span>
               </div>
             </div>
           </div>
@@ -244,11 +244,11 @@ export function ProjectDrawer({
         <div className="space-y-2">
           <span
             className={cn(
-              "text-[11px] font-mono uppercase tracking-wider block",
+              "text-xs font-medium block",
               isPaper ? "text-paper-muted" : "text-field-muted"
             )}
           >
-            Submission Status Ledger ({Object.values(project.submissionCounts).reduce((a, b) => a + b, 0)} total)
+            Submission status ledger ({Object.values(project.submissionCounts).reduce((a, b) => a + b, 0)} total)
           </span>
 
           <div className="grid grid-cols-2 gap-2 text-xs font-mono">
@@ -295,12 +295,12 @@ export function ProjectDrawer({
         <div className="space-y-1.5 pt-2 border-t border-inherit">
           <span
             className={cn(
-              "text-[11px] font-mono uppercase tracking-wider flex items-center gap-1",
+              "text-xs font-medium flex items-center gap-1",
               isPaper ? "text-paper-muted" : "text-field-muted"
             )}
           >
-            <ShieldCheck className="size-3.5 text-signal" />
-            <span>Assigned Independent Verifiers</span>
+            <ShieldCheck className="size-3.5 text-field-muted" />
+            <span>Assigned independent verifiers</span>
           </span>
           <div className="flex flex-wrap gap-1.5">
             {project.assignedVerifiers.map((verifier) => (
@@ -327,7 +327,7 @@ export function ProjectDrawer({
               "w-full flex items-center justify-center gap-2 rounded px-4 py-2.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-signal",
               isPaper
                 ? "bg-paper-seal text-white hover:bg-paper-seal/90"
-                : "bg-signal text-[#0C1413] hover:bg-signal/90"
+                : "bg-signal text-[#0A0C0B] hover:bg-signal/90"
             )}
           >
             <span>Open complete project page &amp; evidence</span>

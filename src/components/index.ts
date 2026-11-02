@@ -39,5 +39,7 @@ export * from "./atlas/FilterPills";
 export * from "./atlas/AtlasShell";
 export * from "./atlas/fixtures";
 
+export * from "./lab";
+
 
 

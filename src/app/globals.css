@@ -11,21 +11,21 @@
 */
 
 :root {
-  /* 2.1 Field Tokens (Default Authenticated Workspace) */
-  --field-abyss: #0C1413;    /* Page background */
-  --field-canopy: #14201E;   /* Cards, panels */
-  --field-raised: #1C2B28;   /* Hover, raised surfaces, inputs */
-  --field-hairline: #273A36; /* Borders, dividers */
-  --field-text: #E8EDE9;     /* Primary text */
-  --field-muted: #8CA39C;    /* Secondary text, labels */
-  --field-inert: #5B6D68;    /* Disabled, placeholder */
+  /* 2.1 Field Tokens v2 (Near-Neutral Chrome, docs/18-VISUAL-CORRECTION.md §1) */
+  --field-abyss: #0A0C0B;    /* Page background */
+  --field-canopy: #121514;   /* Cards, panels */
+  --field-raised: #1A1E1C;   /* Hover, inputs, raised */
+  --field-hairline: #262B29; /* Borders, dividers */
+  --field-text: #E6E9E7;     /* Primary text */
+  --field-muted: #9AA3A0;    /* Secondary text, labels */
+  --field-inert: #646B68;    /* Disabled, placeholder */
 
-  /* 2.2 Semantic Tokens — Shared Meaning in Both Themes */
-  --signal: #D7F6B8;         /* Primary action. ONE per screen */
-  --verified: #3E9D80;       /* A hash matched, a check passed (fill/border/icon only) */
-  --chain: #7C8CF8;          /* On-chain state. The ONLY place chain language lives */
-  --review: #E8A33D;         /* A human must look at this */
-  --fraud: #E2644F;          /* High-severity finding, mismatch, rejected */
+  /* 2.2 Semantic Tokens v2 — Five Distinct Hues */
+  --signal: #C9F578;         /* Primary action. ONE per screen */
+  --verified: #3DD6B0;       /* A hash matched, a check passed (Teal) */
+  --chain: #8B93FF;          /* Anchored, on-chain (Violet) */
+  --review: #F0A93B;         /* A human must look (Amber) */
+  --fraud: #F2705C;          /* High-severity finding, mismatch (Coral Red) */
 
   /* 2.3 Paper Tokens (Public Proof Dossier) */
   --paper: #F7F3EA;          /* Page background */
@@ -58,7 +58,7 @@
   --popover: var(--field-canopy);
   --popover-foreground: var(--field-text);
   --primary: var(--signal);
-  --primary-foreground: #0C1413;
+  --primary-foreground: #0A0C0B;
   --secondary: var(--field-raised);
   --secondary-foreground: var(--field-text);
   --muted: var(--field-raised);

@@ -28,6 +28,11 @@ import {
   FilterPills,
   AtlasShell,
   sampleAtlasProjects,
+  QueuePane,
+  EvidencePair,
+  FindingCard,
+  DecisionForm,
+  sampleLabSubmissions,
 } from "@/src/components";
 import SignInPage from "@/src/app/(auth)/sign-in/page";
 import SignUpPage from "@/src/app/(auth)/sign-up/page";
@@ -43,6 +48,9 @@ export default function KitchenSinkPage() {
   });
   const [isStandaloneDrawerOpen, setIsStandaloneDrawerOpen] = React.useState(false);
   const [activeProjectForDrawer] = React.useState(sampleAtlasProjects[0]);
+  const [selectedLabId, setSelectedLabId] = React.useState(sampleLabSubmissions[0].id);
+  const [labAdminView, setLabAdminView] = React.useState(true);
+  const [labEmptyMode, setLabEmptyMode] = React.useState<"none" | "no-assignments" | "queue-clear">("none");
 
   const isPaper = activeTheme === "paper";
 
@@ -70,8 +78,8 @@ export default function KitchenSinkPage() {
               <h1 className="text-2xl font-semibold tracking-tight">
                 Delta Design System — Component Kitchen Sink
               </h1>
-              <span className="rounded border px-2 py-0.5 font-mono text-[11px] tabular-nums text-signal bg-field-raised border-field-hairline">
-                Lane B · Dev Review
+              <span className="rounded border px-2 py-0.5 text-[11px] tabular-nums text-field-muted bg-field-raised border-field-hairline">
+                Lane B · Dev review
               </span>
             </div>
             <p
@@ -89,7 +97,7 @@ export default function KitchenSinkPage() {
           <div className="flex items-center gap-2 self-start sm:self-auto">
             <span
               className={cn(
-                "text-xs font-mono uppercase tracking-wider",
+                "text-xs text-field-muted",
                 isPaper ? "text-paper-muted" : "text-field-muted"
               )}
             >
@@ -113,7 +121,7 @@ export default function KitchenSinkPage() {
                     : "text-paper-muted hover:text-paper-ink"
                 )}
               >
-                Field (Dark Workspace)
+                Field (Dark workspace)
               </button>
               <button
                 type="button"
@@ -125,7 +133,7 @@ export default function KitchenSinkPage() {
                     : "text-field-muted hover:text-field-text"
                 )}
               >
-                Paper (Warm Dossier)
+                Paper (Warm dossier)
               </button>
             </div>
           </div>
@@ -134,43 +142,45 @@ export default function KitchenSinkPage() {
         {/* Quick Jump Navigation */}
         <nav
           className={cn(
-            "mb-8 flex flex-wrap gap-2 border-b pb-4 text-xs font-mono border-inherit",
+            "mb-8 flex flex-wrap gap-2 border-b pb-4 text-xs border-inherit",
             isPaper ? "text-paper-muted" : "text-field-muted"
           )}
         >
           <a href="#tokens" className="hover:underline">1. Tokens</a>
           <span>·</span>
-          <a href="#hash-display" className="hover:underline">2. HashDisplay</a>
+          <a href="#hash-display" className="hover:underline">2. Hash display</a>
           <span>·</span>
-          <a href="#severity-chip" className="hover:underline">3. SeverityChip</a>
+          <a href="#severity-chip" className="hover:underline">3. Severity chip</a>
           <span>·</span>
-          <a href="#verification-badge" className="hover:underline">4. VerificationBadge</a>
+          <a href="#verification-badge" className="hover:underline">4. Verification badge</a>
           <span>·</span>
-          <a href="#status-badge" className="hover:underline">5. StatusBadge</a>
+          <a href="#status-badge" className="hover:underline">5. Status badge</a>
           <span>·</span>
-          <a href="#bit-grid" className="hover:underline">6. BitGrid</a>
+          <a href="#bit-grid" className="hover:underline">6. Bit grid</a>
           <span>·</span>
-          <a href="#quorum-meter" className="hover:underline">7. QuorumMeter</a>
+          <a href="#quorum-meter" className="hover:underline">7. Quorum meter</a>
           <span>·</span>
-          <a href="#stepper-progress" className="hover:underline">8. StepperProgress</a>
+          <a href="#stepper-progress" className="hover:underline">8. Stepper progress</a>
           <span>·</span>
           <a href="#skeletons" className="hover:underline">9. Skeletons</a>
           <span>·</span>
-          <a href="#empty-state" className="hover:underline">10. EmptyState</a>
+          <a href="#empty-state" className="hover:underline">10. Empty state</a>
           <span>·</span>
-          <a href="#offline-banner" className="hover:underline">11. OfflineBanner</a>
+          <a href="#offline-banner" className="hover:underline">11. Offline banner</a>
           <span>·</span>
-          <a href="#auth-surfaces" className="hover:underline">12. Auth Surfaces</a>
+          <a href="#auth-surfaces" className="hover:underline">12. Auth surfaces</a>
           <span>·</span>
-          <a href="#atlas-surfaces" className="hover:underline text-signal font-semibold">13. Atlas &amp; Public Project</a>
+          <a href="#atlas-surfaces" className="hover:underline text-field-text font-medium">13. Atlas &amp; public project</a>
+          <span>·</span>
+          <a href="#lab-surfaces" className="hover:underline text-field-text font-medium">14. Evidence Lab</a>
         </nav>
 
         <div className="space-y-12">
           {/* SECTION 1: DESIGN TOKENS SWATCHES */}
           <section id="tokens" className="space-y-4">
             <div>
-              <h2 className="text-sm font-semibold tracking-wide uppercase font-mono">
-                1. Design Tokens &amp; Contrast Floor (docs/06 §2)
+              <h2 className="text-sm font-medium text-field-text">
+                1. Design tokens and contrast floor
               </h2>
               <p
                 className={cn(
@@ -185,42 +195,42 @@ export default function KitchenSinkPage() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6 text-xs font-mono">
               <div className="rounded border p-3 bg-field-abyss text-field-text border-field-hairline">
                 <div className="font-semibold">--field-abyss</div>
-                <div className="text-[11px] text-field-muted">#0C1413</div>
+                <div className="text-[11px] text-field-muted">#0A0C0B</div>
                 <div className="mt-1 text-[10px] text-field-inert">Page bg</div>
               </div>
               <div className="rounded border p-3 bg-field-canopy text-field-text border-field-hairline">
                 <div className="font-semibold">--field-canopy</div>
-                <div className="text-[11px] text-field-muted">#14201E</div>
+                <div className="text-[11px] text-field-muted">#121514</div>
                 <div className="mt-1 text-[10px] text-field-inert">Cards, panels</div>
               </div>
               <div className="rounded border p-3 bg-field-raised text-field-text border-field-hairline">
                 <div className="font-semibold">--field-raised</div>
-                <div className="text-[11px] text-field-muted">#1C2B28</div>
+                <div className="text-[11px] text-field-muted">#1A1E1C</div>
                 <div className="mt-1 text-[10px] text-field-inert">Hover, inputs</div>
               </div>
               <div className="rounded border p-3 bg-field-canopy border-field-hairline text-signal">
                 <div className="font-semibold">--signal</div>
-                <div className="text-[11px]">#D7F6B8</div>
+                <div className="text-[11px]">#C9F578</div>
                 <div className="mt-1 text-[10px] text-field-muted">1 action/screen</div>
               </div>
-              <div className="rounded border p-3 bg-verified text-[#0C1413] border-verified">
+              <div className="rounded border p-3 bg-verified text-[#0A0C0B] border-verified">
                 <div className="font-semibold">--verified (fill)</div>
-                <div className="text-[11px]">#3E9D80</div>
-                <div className="mt-1 text-[10px]">Text: #0C1413</div>
+                <div className="text-[11px]">#3DD6B0</div>
+                <div className="mt-1 text-[10px]">Text: #0A0C0B</div>
               </div>
               <div className="rounded border p-3 bg-field-canopy text-chain border-field-hairline">
                 <div className="font-semibold">--chain</div>
-                <div className="text-[11px]">#7C8CF8</div>
+                <div className="text-[11px]">#8B93FF</div>
                 <div className="mt-1 text-[10px] text-field-muted">Base Sepolia</div>
               </div>
               <div className="rounded border p-3 bg-field-canopy text-review border-field-hairline">
                 <div className="font-semibold">--review</div>
-                <div className="text-[11px]">#E8A33D</div>
+                <div className="text-[11px]">#F0A93B</div>
                 <div className="mt-1 text-[10px] text-field-muted">Human eye needed</div>
               </div>
               <div className="rounded border p-3 bg-field-canopy text-fraud border-field-hairline">
                 <div className="font-semibold">--fraud</div>
-                <div className="text-[11px]">#E2644F</div>
+                <div className="text-[11px]">#F2705C</div>
                 <div className="mt-1 text-[10px] text-field-muted">High severity</div>
               </div>
               <div className="rounded border p-3 bg-paper text-paper-ink border-paper-rule">
@@ -249,8 +259,8 @@ export default function KitchenSinkPage() {
           {/* SECTION 2: HASHDISPLAY */}
           <section id="hash-display" className="space-y-4">
             <div>
-              <h2 className="text-sm font-semibold tracking-wide uppercase font-mono">
-                2. HashDisplay (docs/06 §3.2, §7)
+              <h2 className="text-sm font-medium text-field-text">
+                2. Hash display
               </h2>
               <p
                 className={cn(
@@ -299,8 +309,8 @@ export default function KitchenSinkPage() {
           {/* SECTION 3: SEVERITYCHIP */}
           <section id="severity-chip" className="space-y-4">
             <div>
-              <h2 className="text-sm font-semibold tracking-wide uppercase font-mono">
-                3. SeverityChip (docs/06 §2.4)
+              <h2 className="text-sm font-medium text-field-text">
+                3. Severity chip
               </h2>
               <p
                 className={cn(
@@ -326,7 +336,7 @@ export default function KitchenSinkPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-inherit">
-                <span className="text-xs font-mono text-field-muted">From fixtures with counts:</span>
+                <span className="text-xs text-field-muted">From fixtures with counts:</span>
                 <SeverityChip {...severityChipFixtures.mediumWithCount} theme={activeTheme} />
                 <SeverityChip {...severityChipFixtures.highWithCount} theme={activeTheme} />
                 <SeverityChip severity="info" count={5} label="Metadata note" theme={activeTheme} />
@@ -337,8 +347,8 @@ export default function KitchenSinkPage() {
           {/* SECTION 4: VERIFICATIONBADGE */}
           <section id="verification-badge" className="space-y-4">
             <div>
-              <h2 className="text-sm font-semibold tracking-wide uppercase font-mono">
-                4. VerificationBadge (docs/06 §7, docs/14 §4)
+              <h2 className="text-sm font-medium text-field-text">
+                4. Verification badge
               </h2>
               <p
                 className={cn(
@@ -346,7 +356,7 @@ export default function KitchenSinkPage() {
                   isPaper ? "text-paper-muted" : "text-field-muted"
                 )}
               >
-                Four states: MATCH, MISMATCH, PENDING, UNAVAILABLE. Unreachable RPC is neutral grey (never a false red mismatch).
+                Four states: Match, Mismatch, Pending, Unavailable. Unreachable RPC is neutral grey (never a false red mismatch).
               </p>
             </div>
 
@@ -357,19 +367,19 @@ export default function KitchenSinkPage() {
               )}
             >
               <div className="space-y-1">
-                <span className="text-[11px] font-mono text-field-muted block">1. Confirmed Match:</span>
+                <span className="text-[11px] text-field-muted block">1. Confirmed match:</span>
                 <VerificationBadge {...verificationBadgeFixtures.matchFieldWithDetail} theme={activeTheme} />
               </div>
               <div className="space-y-1">
-                <span className="text-[11px] font-mono text-field-muted block">2. Tamper Mismatch:</span>
+                <span className="text-[11px] text-field-muted block">2. Tamper mismatch:</span>
                 <VerificationBadge {...verificationBadgeFixtures.mismatchField} theme={activeTheme} />
               </div>
               <div className="space-y-1">
-                <span className="text-[11px] font-mono text-field-muted block">3. Pending On-Chain:</span>
+                <span className="text-[11px] text-field-muted block">3. Pending on-chain:</span>
                 <VerificationBadge {...verificationBadgeFixtures.pendingField} theme={activeTheme} />
               </div>
               <div className="space-y-1">
-                <span className="text-[11px] font-mono text-field-muted block">4. RPC Unavailable:</span>
+                <span className="text-[11px] text-field-muted block">4. RPC unavailable:</span>
                 <VerificationBadge {...verificationBadgeFixtures.unavailableField} theme={activeTheme} />
               </div>
             </div>
@@ -378,8 +388,8 @@ export default function KitchenSinkPage() {
           {/* SECTION 5: STATUSBADGE */}
           <section id="status-badge" className="space-y-4">
             <div>
-              <h2 className="text-sm font-semibold tracking-wide uppercase font-mono">
-                5. StatusBadge (docs/01 §State machine, docs/16 §A1)
+              <h2 className="text-sm font-medium text-field-text">
+                5. Status badge
               </h2>
               <p
                 className={cn(
@@ -387,7 +397,7 @@ export default function KitchenSinkPage() {
                   isPaper ? "text-paper-muted" : "text-field-muted"
                 )}
               >
-                Full workflow lifecycle including ESCALATED (split decision awaiting verifier admin deciding vote).
+                Full workflow lifecycle including Escalated (split decision awaiting verifier admin deciding vote).
               </p>
             </div>
 
@@ -411,8 +421,8 @@ export default function KitchenSinkPage() {
           {/* SECTION 6: BITGRID */}
           <section id="bit-grid" className="space-y-4">
             <div>
-              <h2 className="text-sm font-semibold tracking-wide uppercase font-mono">
-                6. BitGrid (docs/17 §4)
+              <h2 className="text-sm font-medium text-field-text">
+                6. Bit grid
               </h2>
               <p
                 className={cn(
@@ -433,8 +443,8 @@ export default function KitchenSinkPage() {
           {/* SECTION 7: QUORUMMETER */}
           <section id="quorum-meter" className="space-y-4">
             <div>
-              <h2 className="text-sm font-semibold tracking-wide uppercase font-mono">
-                7. QuorumMeter (docs/17 §4, docs/16 §A1)
+              <h2 className="text-sm font-medium text-field-text">
+                7. Quorum meter
               </h2>
               <p
                 className={cn(
@@ -457,8 +467,8 @@ export default function KitchenSinkPage() {
           {/* SECTION 8: STEPPERPROGRESS */}
           <section id="stepper-progress" className="space-y-4">
             <div>
-              <h2 className="text-sm font-semibold tracking-wide uppercase font-mono">
-                8. StepperProgress (docs/15 §4)
+              <h2 className="text-sm font-medium text-field-text">
+                8. Stepper progress
               </h2>
               <p
                 className={cn(
@@ -479,8 +489,8 @@ export default function KitchenSinkPage() {
           {/* SECTION 9: SKELETONS */}
           <section id="skeletons" className="space-y-4">
             <div>
-              <h2 className="text-sm font-semibold tracking-wide uppercase font-mono">
-                9. Skeletons (docs/15 §3)
+              <h2 className="text-sm font-medium text-field-text">
+                9. Skeletons
               </h2>
               <p
                 className={cn(
@@ -494,16 +504,16 @@ export default function KitchenSinkPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <span className="text-xs font-mono text-field-muted">/lab Review Queue Skeleton:</span>
+                <span className="text-xs text-field-muted">/lab Review queue skeleton:</span>
                 <SkeletonSet.LabQueue theme={activeTheme} />
               </div>
               <div className="space-y-4">
                 <div>
-                  <span className="text-xs font-mono text-field-muted">Findings Pane Skeleton:</span>
+                  <span className="text-xs text-field-muted">Findings pane skeleton:</span>
                   <SkeletonSet.FindingsPane theme={activeTheme} className="mt-1" />
                 </div>
                 <div>
-                  <span className="text-xs font-mono text-field-muted">64-char Hash Skeleton (Zero Shift):</span>
+                  <span className="text-xs text-field-muted">64-char hash skeleton (zero shift):</span>
                   <div className="mt-1">
                     <SkeletonSet.Hash theme={activeTheme} />
                   </div>
@@ -512,7 +522,7 @@ export default function KitchenSinkPage() {
             </div>
 
             <div className="space-y-2 pt-2">
-              <span className="text-xs font-mono text-field-muted">Evidence Side-by-Side 4:3 Skeleton:</span>
+              <span className="text-xs text-field-muted">Evidence side-by-side 4:3 skeleton:</span>
               <SkeletonSet.EvidencePane theme={activeTheme} />
             </div>
           </section>
@@ -520,8 +530,8 @@ export default function KitchenSinkPage() {
           {/* SECTION 10: EMPTYSTATE */}
           <section id="empty-state" className="space-y-4">
             <div>
-              <h2 className="text-sm font-semibold tracking-wide uppercase font-mono">
-                10. EmptyState (docs/15 §2)
+              <h2 className="text-sm font-medium text-field-text">
+                10. Empty state
               </h2>
               <p
                 className={cn(
@@ -546,8 +556,8 @@ export default function KitchenSinkPage() {
           {/* SECTION 11: OFFLINEBANNER */}
           <section id="offline-banner" className="space-y-4">
             <div>
-              <h2 className="text-sm font-semibold tracking-wide uppercase font-mono">
-                11. OfflineBanner (docs/15 §5)
+              <h2 className="text-sm font-medium text-field-text">
+                11. Offline banner
               </h2>
               <p
                 className={cn(
@@ -566,17 +576,17 @@ export default function KitchenSinkPage() {
               )}
             >
               <div>
-                <span className="text-[11px] font-mono text-field-muted block mb-1">State: Offline with 2 queued submissions:</span>
+                <span className="text-[11px] text-field-muted block mb-1">State: Offline with 2 queued submissions:</span>
                 <OfflineBanner {...offlineBannerFixtures.offlineWithQueue} theme={activeTheme} />
               </div>
 
               <div>
-                <span className="text-[11px] font-mono text-field-muted block mb-1">State: Offline, queue empty (IndexedDB standby):</span>
+                <span className="text-[11px] text-field-muted block mb-1">State: Offline, queue empty (IndexedDB standby):</span>
                 <OfflineBanner {...offlineBannerFixtures.offlineZeroQueue} theme={activeTheme} />
               </div>
 
               <div>
-                <span className="text-[11px] font-mono text-field-muted block mb-1">State: Reconnected, actively syncing queue:</span>
+                <span className="text-[11px] text-field-muted block mb-1">State: Reconnected, actively syncing queue:</span>
                 <OfflineBanner {...offlineBannerFixtures.syncingQueue} theme={activeTheme} />
               </div>
             </div>
@@ -586,11 +596,11 @@ export default function KitchenSinkPage() {
           <section id="auth-surfaces" className="space-y-6 pt-6 border-t border-inherit">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold tracking-wide uppercase font-mono">
-                  12. Authentication &amp; Onboarding Surfaces (docs/15 §6)
+                <h2 className="text-sm font-medium text-field-text">
+                  12. Authentication and onboarding surfaces
                 </h2>
-                <span className="rounded border px-2 py-0.5 font-mono text-[10px] text-signal bg-field-raised border-field-hairline">
-                  45/55 Asymmetric Split
+                <span className="rounded border px-2 py-0.5 text-[10px] text-field-muted bg-field-raised border-field-hairline">
+                  45/55 asymmetric split
                 </span>
               </div>
               <p
@@ -607,31 +617,31 @@ export default function KitchenSinkPage() {
             <div className="flex flex-wrap items-center gap-3">
               <Link
                 href="/sign-in"
-                className="inline-flex items-center gap-1.5 rounded border border-field-hairline bg-field-raised px-3 py-1.5 text-xs font-mono text-field-text hover:border-signal transition-colors"
+                className="inline-flex items-center gap-1.5 rounded border border-field-hairline bg-field-raised px-3 py-1.5 text-xs text-field-text hover:border-field-muted transition-colors"
               >
                 <span>Route: /sign-in</span>
-                <span className="text-signal">→</span>
+                <span className="text-field-muted">→</span>
               </Link>
               <Link
                 href="/sign-up"
-                className="inline-flex items-center gap-1.5 rounded border border-field-hairline bg-field-raised px-3 py-1.5 text-xs font-mono text-field-text hover:border-signal transition-colors"
+                className="inline-flex items-center gap-1.5 rounded border border-field-hairline bg-field-raised px-3 py-1.5 text-xs text-field-text hover:border-field-muted transition-colors"
               >
-                <span>Route: /sign-up (2 Steps)</span>
-                <span className="text-signal">→</span>
+                <span>Route: /sign-up (2 steps)</span>
+                <span className="text-field-muted">→</span>
               </Link>
               <Link
                 href="/demo"
-                className="inline-flex items-center gap-1.5 rounded border border-field-hairline bg-field-raised px-3 py-1.5 text-xs font-mono text-field-text hover:border-signal transition-colors"
+                className="inline-flex items-center gap-1.5 rounded border border-field-hairline bg-field-raised px-3 py-1.5 text-xs text-field-text hover:border-field-muted transition-colors"
               >
-                <span>Route: /demo (4 Roles)</span>
-                <span className="text-signal">→</span>
+                <span>Route: /demo (4 roles)</span>
+                <span className="text-field-muted">→</span>
               </Link>
             </div>
 
             {/* ProofPreview Component (Desktop & Collapsed) */}
             <div className="space-y-3">
-              <span className="text-xs font-mono text-field-muted block">
-                ProofPreview Artifact (Left 45% Panel &amp; Collapsed Mobile Bar):
+              <span className="text-xs text-field-muted block">
+                Proof preview artifact (left 45% panel and collapsed mobile bar):
               </span>
               <div className="rounded-lg border border-field-hairline overflow-hidden">
                 <ProofPreview record={sampleAnchoredRecord} mode="collapsed" />
@@ -645,16 +655,16 @@ export default function KitchenSinkPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
               {/* Sign In Form Embed */}
               <div className="rounded-lg border border-field-hairline bg-field-abyss p-6">
-                <span className="text-xs font-mono text-signal block mb-3">
-                  Embedded Sign-In View:
+                <span className="text-xs text-field-muted block mb-3 font-medium">
+                  Embedded sign-in view:
                 </span>
                 <SignInPage />
               </div>
 
               {/* Demo Persona Switcher Embed */}
               <div className="rounded-lg border border-field-hairline bg-field-abyss p-6">
-                <span className="text-xs font-mono text-signal block mb-3">
-                  Embedded Demo Switcher View:
+                <span className="text-xs text-field-muted block mb-3 font-medium">
+                  Embedded demo switcher view:
                 </span>
                 <DemoPage onSelectPersona={(p) => alert(`Selected persona: ${p.roleTitle} (${p.organization})`)} />
               </div>
@@ -662,8 +672,8 @@ export default function KitchenSinkPage() {
 
             {/* Sign Up Two-Step Form Embed */}
             <div className="rounded-lg border border-field-hairline bg-field-abyss p-6 max-w-xl">
-              <span className="text-xs font-mono text-signal block mb-3">
-                Embedded Sign-Up View (Step 1 + Step 2 Type Cards):
+              <span className="text-xs text-field-muted block mb-3 font-medium">
+                Embedded sign-up view (Step 1 + Step 2 type cards):
               </span>
               <SignUpPage />
             </div>
@@ -673,11 +683,11 @@ export default function KitchenSinkPage() {
           <section id="atlas-surfaces" className="space-y-6 pt-6 border-t border-inherit">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold tracking-wide uppercase font-mono">
-                  13. Atlas &amp; Public Project Surfaces (docs/14 §2, §3 &amp; docs/15 §2)
+                <h2 className="text-sm font-medium text-field-text">
+                  13. Atlas and public project surfaces
                 </h2>
-                <span className="rounded border px-2 py-0.5 font-mono text-[10px] text-signal bg-field-raised border-field-hairline">
-                  Stage 3 Previews
+                <span className="rounded border px-2 py-0.5 text-[10px] text-field-muted bg-field-raised border-field-hairline">
+                  Stage 3 preview
                 </span>
               </div>
               <p
@@ -694,24 +704,24 @@ export default function KitchenSinkPage() {
             <div className="flex flex-wrap items-center gap-3">
               <Link
                 href="/p/sundarbans-corridor"
-                className="inline-flex items-center gap-1.5 rounded border border-field-hairline bg-field-raised px-3 py-1.5 text-xs font-mono text-field-text hover:border-signal transition-colors"
+                className="inline-flex items-center gap-1.5 rounded border border-field-hairline bg-field-raised px-3 py-1.5 text-xs text-field-text hover:border-field-muted transition-colors"
               >
-                <span>Route: /p/sundarbans-corridor (Verified Record)</span>
-                <span className="text-signal">→</span>
+                <span>Route: /p/sundarbans-corridor (Verified record)</span>
+                <span className="text-field-muted">→</span>
               </Link>
               <Link
                 href="/p/sylhet-reforestation"
-                className="inline-flex items-center gap-1.5 rounded border border-field-hairline bg-field-raised px-3 py-1.5 text-xs font-mono text-field-text hover:border-signal transition-colors"
+                className="inline-flex items-center gap-1.5 rounded border border-field-hairline bg-field-raised px-3 py-1.5 text-xs text-field-text hover:border-field-muted transition-colors"
               >
-                <span>Route: /p/sylhet-reforestation (Pending Quorum)</span>
-                <span className="text-signal">→</span>
+                <span>Route: /p/sylhet-reforestation (Pending quorum)</span>
+                <span className="text-field-muted">→</span>
               </Link>
               <Link
                 href="/p/empty"
-                className="inline-flex items-center gap-1.5 rounded border border-field-hairline bg-field-raised px-3 py-1.5 text-xs font-mono text-field-text hover:border-signal transition-colors"
+                className="inline-flex items-center gap-1.5 rounded border border-field-hairline bg-field-raised px-3 py-1.5 text-xs text-field-text hover:border-field-muted transition-colors"
               >
-                <span>Route: /p/empty (Empty State E2: No Proofs)</span>
-                <span className="text-signal">→</span>
+                <span>Route: /p/empty (Empty state E2: No proofs)</span>
+                <span className="text-field-muted">→</span>
               </Link>
             </div>
 
@@ -722,8 +732,8 @@ export default function KitchenSinkPage() {
                 isPaper ? "border-paper-rule bg-paper-card" : "border-field-hairline bg-field-canopy"
               )}
             >
-              <span className="text-xs font-mono text-field-muted block">
-                FilterPills Component (Standalone Interactive Pill Bar):
+              <span className="text-xs text-field-muted block font-medium">
+                FilterPills component (standalone interactive pill bar):
               </span>
               <FilterPills
                 filters={sampleFilters}
@@ -746,8 +756,8 @@ export default function KitchenSinkPage() {
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-mono text-field-muted block">
-                    ProjectDrawer Component (Slide-over on Desktop, Bottom Sheet on Mobile):
+                  <span className="text-xs text-field-muted block font-medium">
+                    ProjectDrawer component (slide-over on desktop, bottom sheet on mobile):
                   </span>
                   <span className="text-xs font-medium">
                     Testing with: {activeProjectForDrawer.title}
@@ -756,7 +766,7 @@ export default function KitchenSinkPage() {
                 <button
                   type="button"
                   onClick={() => setIsStandaloneDrawerOpen(true)}
-                  className="rounded bg-signal px-3 py-1.5 text-xs font-semibold text-[#0C1413] hover:bg-signal/90 transition-colors"
+                  className="rounded bg-field-raised border border-field-hairline px-3 py-1.5 text-xs font-medium text-field-text hover:bg-field-canopy transition-colors"
                 >
                   Open Standalone Drawer →
                 </button>
@@ -772,8 +782,8 @@ export default function KitchenSinkPage() {
 
             {/* Full-Bleed AtlasShell Embedded Container */}
             <div className="space-y-2">
-              <span className="text-xs font-mono text-field-muted block">
-                AtlasShell Component (Full-Bleed Map Layout Stub with Centroids, Top Overlays &amp; Drawer):
+              <span className="text-xs text-field-muted block font-medium">
+                AtlasShell component (full-bleed map layout stub with centroids, top overlays and drawer):
               </span>
               <div className="h-[520px] w-full rounded-xl border border-field-hairline overflow-hidden relative">
                 <AtlasShell
@@ -781,6 +791,203 @@ export default function KitchenSinkPage() {
                   theme={activeTheme}
                   initialSelectedSlug="sundarbans-corridor"
                 />
+              </div>
+            </div>
+          </section>
+
+          {/* 14. Evidence Lab Surfaces */}
+          <section id="lab-surfaces" className="space-y-6">
+            <div className="border-b border-inherit pb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-medium text-field-text">
+                  14. Evidence Lab surfaces
+                </h2>
+                <p className="text-xs text-field-muted mt-1">
+                  Three-pane verification workspace: severity-sorted queue, synchronized evidence comparison slider, literal forensic drawer, and consensus decision form.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/lab"
+                  className="rounded bg-signal px-3 py-1.5 text-xs font-semibold text-[#0A0C0B] hover:bg-signal/90 transition-colors flex items-center gap-1.5"
+                >
+                  Open full-screen /lab workspace →
+                </Link>
+              </div>
+            </div>
+
+            {/* Embedded 3-Pane Mini Lab Preview */}
+            <div className="rounded-xl border border-field-hairline bg-field-canopy overflow-hidden">
+              {/* Lab Preview Top Bar */}
+              <div className="p-3 border-b border-field-hairline bg-field-raised flex flex-wrap items-center justify-between gap-2 text-xs font-sans">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-field-text">Lab sub-surface interactive testbed</span>
+                  <span className="text-field-muted">·</span>
+                  <span className="text-field-muted">Selected ID: {selectedLabId.slice(0, 16)}…</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* Admin View Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => setLabAdminView(!labAdminView)}
+                    className={cn(
+                      "px-2 py-0.5 rounded border text-[11px] transition-colors",
+                      labAdminView
+                        ? "bg-chain/15 text-chain border-chain/40 font-medium"
+                        : "border-field-hairline text-field-muted hover:text-field-text"
+                    )}
+                  >
+                    Admin pinning: {labAdminView ? "Enabled" : "Disabled"}
+                  </button>
+
+                  {/* Empty State Selector */}
+                  <div className="flex items-center rounded border border-field-hairline p-0.5 bg-field-canopy text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setLabEmptyMode("none")}
+                      className={cn(
+                        "px-1.5 py-0.5 rounded transition-colors",
+                        labEmptyMode === "none" ? "bg-field-raised text-field-text font-medium" : "text-field-muted"
+                      )}
+                    >
+                      Queue
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLabEmptyMode("no-assignments")}
+                      className={cn(
+                        "px-1.5 py-0.5 rounded transition-colors",
+                        labEmptyMode === "no-assignments" ? "bg-field-raised text-field-text font-medium" : "text-field-muted"
+                      )}
+                    >
+                      E5
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLabEmptyMode("queue-clear")}
+                      className={cn(
+                        "px-1.5 py-0.5 rounded transition-colors",
+                        labEmptyMode === "queue-clear" ? "bg-field-raised text-field-text font-medium" : "text-field-muted"
+                      )}
+                    >
+                      E5b
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3-Pane Layout Preview Container */}
+              <div className="flex flex-col lg:flex-row h-[760px] overflow-hidden">
+                {/* 1. Queue Pane */}
+                <QueuePane
+                  submissions={sampleLabSubmissions}
+                  selectedId={selectedLabId}
+                  onSelect={(id) => setSelectedLabId(id)}
+                  isVerifierAdmin={labAdminView}
+                  emptyStateMode={labEmptyMode}
+                  theme={activeTheme}
+                  className="w-full lg:w-[300px]"
+                />
+
+                {labEmptyMode === "none" ? (
+                  <>
+                    {/* 2. Evidence Viewport */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4 border-r border-field-hairline bg-field-abyss">
+                      {(() => {
+                        const active =
+                          sampleLabSubmissions.find((s) => s.id === selectedLabId) ??
+                          sampleLabSubmissions[0];
+                        return (
+                          <>
+                            <EvidencePair
+                              before={active.beforeImage}
+                              after={active.afterImage}
+                              theme={activeTheme}
+                            />
+
+                            <div className="rounded-lg border border-field-hairline bg-field-canopy p-3 space-y-2 text-xs">
+                              <span className="font-medium text-field-text text-[11px] block">
+                                Submission EXIF and boundary telemetry
+                              </span>
+                              <div className="grid grid-cols-2 gap-2 text-[11px] text-field-muted">
+                                <div>GPS: {active.exif.gps ? `${active.exif.gps.lat.toFixed(4)}° N, ${active.exif.gps.lng.toFixed(4)}° E` : "None"}</div>
+                                <div>Containment: {active.exif.insideBoundary ? "Inside polygon" : "Outside"}</div>
+                                <div>Camera: {active.exif.cameraModel ?? "Sensor"}</div>
+                                <div>Capture: {active.afterImage.capturedAt}</div>
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+
+                    {/* 3. Findings & Decision Pane */}
+                    <div className="w-full lg:w-[360px] overflow-y-auto p-4 space-y-4 bg-field-canopy">
+                      {(() => {
+                        const active =
+                          sampleLabSubmissions.find((s) => s.id === selectedLabId) ??
+                          sampleLabSubmissions[0];
+                        return (
+                          <>
+                            <div className="space-y-3">
+                              <span className="text-xs font-medium text-field-muted block">
+                                Forensic findings ({active.findings.length})
+                              </span>
+                              {active.findings.length === 0 ? (
+                                <div className="rounded-lg border border-field-hairline bg-field-raised p-3 text-xs text-field-muted">
+                                  No findings — all 7 checks completed.
+                                </div>
+                              ) : (
+                                active.findings.map((f) => (
+                                  <FindingCard key={f.id} finding={f} theme={activeTheme} />
+                                ))
+                              )}
+                            </div>
+
+                            <div className="pt-2 border-t border-field-hairline">
+                              <DecisionForm
+                                submissionId={active.id}
+                                approvalsCount={active.approvalsCount}
+                                rejectionsCount={active.rejectionsCount}
+                                requiredQuorum={active.requiredQuorum}
+                                isEscalated={active.isEscalated || active.status === "ESCALATED"}
+                                userHasDecided={active.userHasDecided}
+                                userDecision={active.userDecision}
+                                onSubmitDecision={(payload) => {
+                                  alert(`Recorded decision for ${active.id}: ${payload.action} ("${payload.reason}")`);
+                                }}
+                                theme={activeTheme}
+                              />
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center p-8 bg-field-abyss">
+                    <EmptyState
+                      title={labEmptyMode === "no-assignments" ? "Your review queue" : "Queue clear"}
+                      reason={
+                        labEmptyMode === "no-assignments"
+                          ? "Your organisation is not assigned to any projects yet. A platform administrator assigns verifier organisations to the projects they audit."
+                          : "Nothing is awaiting your review. New submissions appear here automatically once forensic processing completes."
+                      }
+                      honestNote={labEmptyMode === "no-assignments" ? "Cannot be resolved by user. Platform admin assigns audit lanes." : "Last reviewed 14m ago."}
+                      action={
+                        labEmptyMode === "no-assignments"
+                          ? {
+                              label: "Contact Support",
+                              onClick: () => alert("Support contact triggered"),
+                            }
+                          : undefined
+                      }
+                      theme={activeTheme}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </section>

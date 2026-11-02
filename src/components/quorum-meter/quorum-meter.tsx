@@ -49,7 +49,7 @@ export function QuorumMeter({
     >
       {/* Header */}
       <div className="flex items-center justify-between border-b pb-2 mb-3 border-inherit">
-        <span className="font-sans font-medium text-xs">Review Quorum</span>
+        <span className="font-sans font-medium text-xs">Review quorum</span>
         <span
           className={cn(
             "font-mono tabular-nums text-[11px]",

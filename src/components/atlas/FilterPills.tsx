@@ -85,15 +85,15 @@ export function FilterPills({
         className
       )}
     >
-      <div className="flex items-center gap-1.5 px-2 font-mono text-[11px] text-field-muted uppercase">
-        <Filter className="size-3 text-signal" />
+      <div className="flex items-center gap-1.5 px-2 text-xs text-field-muted">
+        <Filter className="size-3.5 text-field-muted" />
         <span className="hidden sm:inline">Filters:</span>
       </div>
 
       {/* 1. Activity Type Selector */}
       <div className="flex items-center gap-1">
         <label htmlFor="filter-activity" className="sr-only">
-          Activity Type
+          Activity type
         </label>
         <select
           id="filter-activity"
@@ -102,11 +102,11 @@ export function FilterPills({
             onFilterChange({ ...filters, activityType: e.target.value })
           }
           className={cn(
-            "rounded border px-2.5 py-1 text-xs font-sans transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-signal cursor-pointer",
+            "rounded border px-2.5 py-1 text-xs font-sans transition-colors focus-visible:outline-none cursor-pointer",
             filters.activityType !== "All"
               ? isPaper
-                ? "border-paper-seal bg-paper-seal/10 text-paper-ink font-medium"
-                : "border-signal bg-signal/10 text-signal font-medium"
+                ? "border-paper-seal/40 bg-paper-seal/10 text-paper-seal font-medium"
+                : "border-[color-mix(in_srgb,var(--verified)_35%,transparent)] bg-[color-mix(in_srgb,var(--verified)_14%,transparent)] text-verified font-medium"
               : isPaper
               ? "border-paper-rule bg-paper text-paper-ink"
               : "border-field-hairline bg-field-raised text-field-text"
@@ -123,7 +123,7 @@ export function FilterPills({
       {/* 2. Verification Status Selector */}
       <div className="flex items-center gap-1">
         <label htmlFor="filter-status" className="sr-only">
-          Verification Status
+          Verification status
         </label>
         <select
           id="filter-status"
@@ -132,11 +132,11 @@ export function FilterPills({
             onFilterChange({ ...filters, verificationStatus: e.target.value })
           }
           className={cn(
-            "rounded border px-2.5 py-1 text-xs font-sans transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-signal cursor-pointer",
+            "rounded border px-2.5 py-1 text-xs font-sans transition-colors focus-visible:outline-none cursor-pointer",
             filters.verificationStatus !== "All"
               ? isPaper
-                ? "border-paper-seal bg-paper-seal/10 text-paper-ink font-medium"
-                : "border-signal bg-signal/10 text-signal font-medium"
+                ? "border-paper-seal/40 bg-paper-seal/10 text-paper-seal font-medium"
+                : "border-[color-mix(in_srgb,var(--verified)_35%,transparent)] bg-[color-mix(in_srgb,var(--verified)_14%,transparent)] text-verified font-medium"
               : isPaper
               ? "border-paper-rule bg-paper text-paper-ink"
               : "border-field-hairline bg-field-raised text-field-text"
@@ -162,11 +162,11 @@ export function FilterPills({
             onFilterChange({ ...filters, organization: e.target.value })
           }
           className={cn(
-            "rounded border px-2.5 py-1 text-xs font-sans transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-signal cursor-pointer max-w-[160px] truncate",
+            "rounded border px-2.5 py-1 text-xs font-sans transition-colors focus-visible:outline-none cursor-pointer max-w-[160px] truncate",
             filters.organization !== "All"
               ? isPaper
-                ? "border-paper-seal bg-paper-seal/10 text-paper-ink font-medium"
-                : "border-signal bg-signal/10 text-signal font-medium"
+                ? "border-paper-seal/40 bg-paper-seal/10 text-paper-seal font-medium"
+                : "border-[color-mix(in_srgb,var(--verified)_35%,transparent)] bg-[color-mix(in_srgb,var(--verified)_14%,transparent)] text-verified font-medium"
               : isPaper
               ? "border-paper-rule bg-paper text-paper-ink"
               : "border-field-hairline bg-field-raised text-field-text"
@@ -186,7 +186,7 @@ export function FilterPills({
           type="button"
           onClick={handleClear}
           className={cn(
-            "flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-mono transition-colors",
+            "flex items-center gap-1 rounded border px-2 py-1 text-[11px] transition-colors",
             isPaper
               ? "border-paper-rule bg-paper hover:bg-paper-rule/40 text-paper-muted"
               : "border-field-hairline bg-field-raised hover:bg-field-hairline text-field-muted hover:text-field-text"

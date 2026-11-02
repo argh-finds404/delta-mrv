@@ -102,7 +102,7 @@ export function EmptyState({
               "inline-flex items-center gap-2 rounded px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-signal",
               isPaper
                 ? "bg-paper-seal text-white hover:bg-paper-seal/90"
-                : "bg-signal text-[#0C1413] hover:bg-signal/90"
+                : "bg-signal text-[#0A0C0B] hover:bg-signal/90"
             )}
           >
             <span>{action.label}</span>
