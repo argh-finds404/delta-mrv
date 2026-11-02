@@ -4,12 +4,9 @@ import * as React from "react";
 import Link from "next/link";
 import {
   Compass,
-  Layers,
-  MapPin,
   Maximize2,
   Shield,
   RotateCcw,
-  ExternalLink,
 } from "lucide-react";
 import { ProjectDrawer } from "./ProjectDrawer";
 import { FilterPills, type FilterState } from "./FilterPills";

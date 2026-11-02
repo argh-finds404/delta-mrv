@@ -8,41 +8,33 @@ import {
   AlertCircle,
   ShieldCheck,
   ArrowRight,
-  ExternalLink,
   Compass,
 } from "lucide-react";
 import {
   VerificationBadge,
   StatusBadge,
   EmptyState,
+  ProofDossierSkeleton,
 } from "@/src/components";
 import {
   sampleAtlasProjects,
   emptyProofProject,
   type AtlasProject,
 } from "@/src/components/atlas/fixtures";
-import { cn } from "@/src/lib/utils";
 
 interface ProjectPageProps {
   params: Promise<{ slug: string }>;
 }
 
-export default async function PublicProjectPage({ params }: ProjectPageProps) {
-  const { slug } = await params;
+export function generateStaticParams() {
+  return [
+    ...sampleAtlasProjects.map((p) => ({ slug: p.slug })),
+    { slug: "empty" },
+    { slug: emptyProofProject.slug },
+  ];
+}
 
-  // Resolve project from fixtures (or fallback to empty proof project if requested)
-  let project: AtlasProject | undefined;
-  if (slug === "empty" || slug === emptyProofProject.slug) {
-    project = emptyProofProject;
-  } else {
-    project = sampleAtlasProjects.find((p) => p.slug === slug) ?? sampleAtlasProjects[0];
-  }
-
-  const totalSubmissions = Object.values(project.submissionCounts).reduce(
-    (a, b) => a + b,
-    0
-  );
-
+export default function PublicProjectPage({ params }: ProjectPageProps) {
   return (
     <div
       data-theme="paper"
@@ -73,8 +65,38 @@ export default async function PublicProjectPage({ params }: ProjectPageProps) {
         </div>
       </nav>
 
-      {/* Main Single-Column Paper Measure */}
-      <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
+      {/* Main Single-Column Paper Measure wrapped in Suspense for PPR streaming */}
+      <React.Suspense
+        fallback={
+          <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+            <ProofDossierSkeleton theme="paper" />
+          </div>
+        }
+      >
+        <ProjectContent params={params} />
+      </React.Suspense>
+    </div>
+  );
+}
+
+async function ProjectContent({ params }: ProjectPageProps) {
+  const { slug } = await params;
+
+  // Resolve project from fixtures (or fallback to empty proof project if requested)
+  let project: AtlasProject | undefined;
+  if (slug === "empty" || slug === emptyProofProject.slug) {
+    project = emptyProofProject;
+  } else {
+    project = sampleAtlasProjects.find((p) => p.slug === slug) ?? sampleAtlasProjects[0];
+  }
+
+  const totalSubmissions = Object.values(project.submissionCounts).reduce(
+    (a, b) => a + b,
+    0
+  );
+
+  return (
+    <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
         {/* 1. Header (docs/14-PAGE-SPEC.md §3) */}
         <header className="space-y-4 border-b border-paper-rule pb-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -341,6 +363,5 @@ export default async function PublicProjectPage({ params }: ProjectPageProps) {
           </p>
         </footer>
       </main>
-    </div>
   );
 }

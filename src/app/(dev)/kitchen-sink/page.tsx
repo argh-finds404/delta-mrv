@@ -24,6 +24,10 @@ import {
   offlineBannerFixtures,
   ProofPreview,
   sampleAnchoredRecord,
+  ProjectDrawer,
+  FilterPills,
+  AtlasShell,
+  sampleAtlasProjects,
 } from "@/src/components";
 import SignInPage from "@/src/app/(auth)/sign-in/page";
 import SignUpPage from "@/src/app/(auth)/sign-up/page";
@@ -32,6 +36,13 @@ import { cn } from "@/src/lib/utils";
 
 export default function KitchenSinkPage() {
   const [activeTheme, setActiveTheme] = React.useState<"field" | "paper">("field");
+  const [sampleFilters, setSampleFilters] = React.useState({
+    activityType: "All",
+    verificationStatus: "All",
+    organization: "All",
+  });
+  const [isStandaloneDrawerOpen, setIsStandaloneDrawerOpen] = React.useState(false);
+  const [activeProjectForDrawer] = React.useState(sampleAtlasProjects[0]);
 
   const isPaper = activeTheme === "paper";
 
@@ -149,7 +160,9 @@ export default function KitchenSinkPage() {
           <span>·</span>
           <a href="#offline-banner" className="hover:underline">11. OfflineBanner</a>
           <span>·</span>
-          <a href="#auth-surfaces" className="hover:underline text-signal font-semibold">12. Auth Surfaces</a>
+          <a href="#auth-surfaces" className="hover:underline">12. Auth Surfaces</a>
+          <span>·</span>
+          <a href="#atlas-surfaces" className="hover:underline text-signal font-semibold">13. Atlas &amp; Public Project</a>
         </nav>
 
         <div className="space-y-12">
@@ -653,6 +666,122 @@ export default function KitchenSinkPage() {
                 Embedded Sign-Up View (Step 1 + Step 2 Type Cards):
               </span>
               <SignUpPage />
+            </div>
+          </section>
+
+          {/* SECTION 13: ATLAS & PUBLIC PROJECT SURFACES */}
+          <section id="atlas-surfaces" className="space-y-6 pt-6 border-t border-inherit">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold tracking-wide uppercase font-mono">
+                  13. Atlas &amp; Public Project Surfaces (docs/14 §2, §3 &amp; docs/15 §2)
+                </h2>
+                <span className="rounded border px-2 py-0.5 font-mono text-[10px] text-signal bg-field-raised border-field-hairline">
+                  Stage 3 Previews
+                </span>
+              </div>
+              <p
+                className={cn(
+                  "text-xs mt-1",
+                  isPaper ? "text-paper-muted" : "text-field-muted"
+                )}
+              >
+                Cartographic shell with overlaid controls, instant client-side filter pills, slide-over drawer, claimed-vs-verified gap, and Empty States E1 and E2.
+              </p>
+            </div>
+
+            {/* Direct Route Links */}
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/p/sundarbans-corridor"
+                className="inline-flex items-center gap-1.5 rounded border border-field-hairline bg-field-raised px-3 py-1.5 text-xs font-mono text-field-text hover:border-signal transition-colors"
+              >
+                <span>Route: /p/sundarbans-corridor (Verified Record)</span>
+                <span className="text-signal">→</span>
+              </Link>
+              <Link
+                href="/p/sylhet-reforestation"
+                className="inline-flex items-center gap-1.5 rounded border border-field-hairline bg-field-raised px-3 py-1.5 text-xs font-mono text-field-text hover:border-signal transition-colors"
+              >
+                <span>Route: /p/sylhet-reforestation (Pending Quorum)</span>
+                <span className="text-signal">→</span>
+              </Link>
+              <Link
+                href="/p/empty"
+                className="inline-flex items-center gap-1.5 rounded border border-field-hairline bg-field-raised px-3 py-1.5 text-xs font-mono text-field-text hover:border-signal transition-colors"
+              >
+                <span>Route: /p/empty (Empty State E2: No Proofs)</span>
+                <span className="text-signal">→</span>
+              </Link>
+            </div>
+
+            {/* Standalone FilterPills Demo */}
+            <div
+              className={cn(
+                "rounded-lg border p-4 space-y-3",
+                isPaper ? "border-paper-rule bg-paper-card" : "border-field-hairline bg-field-canopy"
+              )}
+            >
+              <span className="text-xs font-mono text-field-muted block">
+                FilterPills Component (Standalone Interactive Pill Bar):
+              </span>
+              <FilterPills
+                filters={sampleFilters}
+                onFilterChange={setSampleFilters}
+                matchCount={3}
+                totalCount={4}
+                theme={activeTheme}
+              />
+              <div className="font-mono text-[11px] text-field-muted">
+                Active Filter State: {JSON.stringify(sampleFilters)}
+              </div>
+            </div>
+
+            {/* Standalone ProjectDrawer Trigger */}
+            <div
+              className={cn(
+                "rounded-lg border p-4 space-y-3",
+                isPaper ? "border-paper-rule bg-paper-card" : "border-field-hairline bg-field-canopy"
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-mono text-field-muted block">
+                    ProjectDrawer Component (Slide-over on Desktop, Bottom Sheet on Mobile):
+                  </span>
+                  <span className="text-xs font-medium">
+                    Testing with: {activeProjectForDrawer.title}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsStandaloneDrawerOpen(true)}
+                  className="rounded bg-signal px-3 py-1.5 text-xs font-semibold text-[#0C1413] hover:bg-signal/90 transition-colors"
+                >
+                  Open Standalone Drawer →
+                </button>
+              </div>
+
+              <ProjectDrawer
+                project={activeProjectForDrawer}
+                isOpen={isStandaloneDrawerOpen}
+                onClose={() => setIsStandaloneDrawerOpen(false)}
+                theme={activeTheme}
+              />
+            </div>
+
+            {/* Full-Bleed AtlasShell Embedded Container */}
+            <div className="space-y-2">
+              <span className="text-xs font-mono text-field-muted block">
+                AtlasShell Component (Full-Bleed Map Layout Stub with Centroids, Top Overlays &amp; Drawer):
+              </span>
+              <div className="h-[520px] w-full rounded-xl border border-field-hairline overflow-hidden relative">
+                <AtlasShell
+                  projects={sampleAtlasProjects}
+                  theme={activeTheme}
+                  initialSelectedSlug="sundarbans-corridor"
+                />
+              </div>
             </div>
           </section>
         </div>

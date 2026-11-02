@@ -267,3 +267,4 @@ export const emptyProofProject: AtlasProject = {
   ],
   timeline: [],
 };
+

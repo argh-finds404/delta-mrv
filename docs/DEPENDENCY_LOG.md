@@ -39,6 +39,7 @@ Then add the row below. A package in `package.json` without a row here is a
 | 2026-11-02 | `canonicalize` | 5.1.0 | No | registry check 2026-11-02 | RFC 8785 serialisation |
 | 2026-11-02 | `clsx` | 2.1.1 | No | registry check 2026-11-02 | `cn()` helper in src/lib/utils.ts (Lane B). Omitted from the §3 table by oversight, approved by maintainer |
 | 2026-11-02 | `tailwind-merge` | 3.7.0 | No | registry check 2026-11-02 | `cn()` helper in src/lib/utils.ts (Lane B). Same approval |
+| 2026-11-02 | `drizzle-kit` | 0.31.11 | No | registry check 2026-11-02 | Migration generator, stable 0.x. In the §3 table but missed in the first install; added with the schema (dev) |
 | 2026-11-02 | `vitest` | 5.0.5 | No | registry check 2026-11-02 | Unit and integration tests (dev) |
 | 2026-11-02 | `@vitest/coverage-v8` | 5.0.5 | No | registry check 2026-11-02 | Coverage, must match vitest (dev) |
 | 2026-11-02 | `@playwright/test` | 1.64.1 | No | registry check 2026-11-02 | End-to-end tests (dev) |
@@ -77,3 +78,4 @@ that forced it.
 | 2026-11-02 | `typescript` 5.9.3, not 7.0.2 | `latest` is a new major; compatibility with Next 16 and eslint-config-next unverified | Revisit when Next documents TS 7 |
 | 2026-11-02 | `allowBuilds` also lists `@google/genai`, `esbuild`, `protobufjs`, `unrs-resolver` as `false` | pnpm 11 exits 1 with `ERR_PNPM_IGNORED_BUILDS` for any build script not listed, which breaks `pnpm install` and `pnpm check` | `false` means reviewed and not run; only `sharp` runs scripts |
 | 2026-11-02 | `next.config.ts` dropped its `@tailwindcss/turbopack` loader rule | The package was never installed, and docs/07 §3 specifies `@tailwindcss/postcss` for Tailwind v4. `pnpm build` failed on the missing loader | Revisit if Tailwind v4 needs a Turbopack-specific loader |
+| 2026-11-02 | Geography columns are created bare (`geography`) and given their typmod by hand-written migration `0002_geography_typmod` | drizzle-kit double-quotes any custom type it does not know, so `geography(Point, 4326)` was emitted as an invalid type name | Revisit if drizzle-kit learns geography or custom types stop being quoted |

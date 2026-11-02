@@ -34,4 +34,10 @@ export * from "./offline-banner/fixtures";
 export * from "./auth/ProofPreview";
 export * from "./auth/fixtures";
 
+export * from "./atlas/ProjectDrawer";
+export * from "./atlas/FilterPills";
+export * from "./atlas/AtlasShell";
+export * from "./atlas/fixtures";
+
+
 

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Filter, X, Check } from "lucide-react";
+import { Filter, X } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 
 export interface FilterState {

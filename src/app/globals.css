@@ -139,6 +139,10 @@
   --radius-md: var(--radius);
   --radius-lg: var(--radius-lg);
   --radius: var(--radius);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-serif);
 }
 
 /* Base Body Styles */
