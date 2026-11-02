@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# .githooks/pre-commit — asserts maintainer authorship and blocks secrets.
+set -euo pipefail
+
+EXPECTED_EMAIL="orghodutta@gmail.com"
+EXPECTED_NAME="Shoumik Orgho"
+FAIL=0
+
+die() { printf '\n  ✗ %s\n' "$1" >&2; FAIL=1; }
+
+ACTUAL_EMAIL="$(git config user.email || true)"
+ACTUAL_NAME="$(git config user.name || true)"
+
+if [[ "$ACTUAL_EMAIL" != "$EXPECTED_EMAIL" ]]; then
+  die "git user.email is '${ACTUAL_EMAIL:-unset}', expected '$EXPECTED_EMAIL'"
+  printf '    fix: git config user.email "%s"\n' "$EXPECTED_EMAIL" >&2
+fi
+
+if [[ "$ACTUAL_NAME" != "$EXPECTED_NAME" ]]; then
+  die "git user.name is '${ACTUAL_NAME:-unset}', expected '$EXPECTED_NAME'"
+  printf '    fix: git config user.name "%s"\n' "$EXPECTED_NAME" >&2
+fi
+
+STAGED="$(git diff --cached --name-only --diff-filter=ACM)"
+
+while IFS= read -r f; do
+  [[ -z "$f" ]] && continue
+  case "$f" in
+    .env|.env.*|*/.env|*/.env.*)
+      [[ "$f" == *.example ]] || die "Refusing to commit env file: $f" ;;
+    package-lock.json|yarn.lock)
+      die "Forbidden lockfile: $f — this repo uses pnpm-lock.yaml only" ;;
+    middleware.ts|src/middleware.ts)
+      die "middleware.ts is forbidden on Next 16 — use src/proxy.ts" ;;
+  esac
+done <<<"$STAGED"
+
+# Secrets must never be staged. The anchor key may appear in exactly one source
+# file, and only as a process.env reference.
+if [[ -n "$STAGED" ]]; then
+  if git diff --cached -U0 -- $STAGED 2>/dev/null \
+      | grep -E '^\+' \
+      | grep -qE '(0x[a-fA-F0-9]{64}|AIza[0-9A-Za-z_-]{20,}|BLOB_READ_WRITE_TOKEN=|postgres(ql)?://[^$ ]*:[^$ @]+@)'; then
+    die "Possible hardcoded secret or key in the staged diff. Review before committing."
+  fi
+  if git diff --cached -U0 -- $STAGED 2>/dev/null \
+      | grep -E '^\+' | grep -q 'NEXT_PUBLIC_ANCHOR_PRIVATE_KEY'; then
+    die "ANCHOR_PRIVATE_KEY must never be exposed as NEXT_PUBLIC_."
+  fi
+fi
+
+if (( FAIL )); then
+  printf '\n  Commit rejected. See docs/12-AGENT-SCOPE.md §3 and §4.\n\n' >&2
+  exit 1
+fi
