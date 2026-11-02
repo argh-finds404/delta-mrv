@@ -1,7 +1,6 @@
 import * as React from "react";
 import {
   FileEdit,
-  Send,
   Cpu,
   Eye,
   AlertCircle,
@@ -14,7 +13,6 @@ import { cn } from "@/lib/utils";
 
 export type SubmissionStatus =
   | "DRAFT"
-  | "SUBMITTED"
   | "PENDING_FORENSICS"
   | "IN_REVIEW"
   | "NEEDS_MORE_PROOF"
@@ -56,16 +54,6 @@ const statusConfig: Record<
     paperClass: "bg-paper-card border-paper-rule",
     paperIconClass: "text-paper-muted",
     paperTextClass: "text-paper-muted",
-  },
-  SUBMITTED: {
-    label: "Submitted",
-    icon: Send,
-    fieldClass: "bg-field-raised border-field-hairline",
-    fieldIconClass: "text-field-text",
-    fieldTextClass: "text-field-text",
-    paperClass: "bg-paper-card border-paper-rule",
-    paperIconClass: "text-paper-ink",
-    paperTextClass: "text-paper-ink",
   },
   PENDING_FORENSICS: {
     label: "Pending forensics",

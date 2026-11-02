@@ -94,7 +94,14 @@ and in CI. Installing any of these fails the build.
 - Writing uploaded files to the local filesystem (`public/uploads/`,
   `fs.writeFile`). Serverless filesystems are ephemeral and `public/` is
   served from the build output — runtime writes are lost and never served.
-- A `risk_score` column on a submission. Score is derived from findings.
+- A `risk_score` that breaks any of the four cache conditions
+  (`docs/10-FORENSICS.md` §6). The cached columns `risk_score`, `risk_band`
+  and `scoring_version` on `evidence_submission` are allowed only when:
+  (1) they are written solely by the pure function in `src/lib/scoring/` —
+  never by hand, by the AI or by an admin; (2) `scoring_version` is stored
+  with them, so a weights change does not rewrite history; (3) they are never
+  rendered without their findings beside them; (4) they never gate a
+  transition.
 - `JSON.stringify` on anything that gets hashed. Use `canonicalize`.
 - Any secret reachable from a client bundle. Only `NEXT_PUBLIC_*` crosses.
 

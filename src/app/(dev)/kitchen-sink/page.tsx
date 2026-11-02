@@ -385,7 +385,6 @@ export default function KitchenSinkPage() {
               )}
             >
               <StatusBadge {...statusBadgeFixtures.draft} theme={activeTheme} />
-              <StatusBadge {...statusBadgeFixtures.submitted} theme={activeTheme} />
               <StatusBadge {...statusBadgeFixtures.pendingForensics} theme={activeTheme} />
               <StatusBadge {...statusBadgeFixtures.inReview} theme={activeTheme} />
               <StatusBadge {...statusBadgeFixtures.needsMoreProof} theme={activeTheme} />

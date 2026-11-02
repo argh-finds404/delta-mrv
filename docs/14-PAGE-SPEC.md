@@ -169,10 +169,15 @@ animation. No fly-to on load; that disorients.
 
 | Caller | Sees |
 |---|---|
-| Anonymous, funder | Approved submissions only. Fuzzed geometry. |
+| Anonymous | Approved submissions only. Fuzzed geometry. |
+| Funder member | Reads through `project_funder`: for a project linked to their organisation, approved submissions only, fuzzed geometry. For an unlinked project: same as anonymous. |
 | Owner member | Everything, including rejected and in-review. Exact geometry. |
 | Assigned verifier | Everything. Exact geometry. |
 | Unassigned verifier | Same as anonymous. |
+
+Exact geometry is read from `project_private_location`, joined explicitly and
+only for the owner and an assigned verifier. The anonymous, funder and
+unassigned-verifier paths never join to it.
 
 A rejected submission is never public. An organisation whose weak evidence was
 caught should not be publicly pilloried by a system that cannot prove intent.
@@ -434,7 +439,7 @@ One page, three shapes by `org_type`:
 | Org type | Shows |
 |---|---|
 | `OWNER` | Submissions needing more proof (first — it is actionable), projects, recent decisions, approved-and-anchored count |
-| `VERIFIER` | Queue depth by severity, assigned projects, your recent decisions, splits awaiting a third verifier |
+| `VERIFIER` | Queue depth by severity, assigned projects, your recent decisions, escalated splits awaiting a deciding vote (verifier administrators) |
 | `FUNDER` | Verified outcomes, recently anchored records, projects by organisation |
 
 **Every number is computed from the database at request time.** No animated

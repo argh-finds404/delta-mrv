@@ -5,10 +5,6 @@ export const statusBadgeFixtures: Record<string, StatusBadgeProps> = {
     status: "DRAFT",
     theme: "field",
   },
-  submitted: {
-    status: "SUBMITTED",
-    theme: "field",
-  },
   pendingForensics: {
     status: "PENDING_FORENSICS",
     theme: "field",

@@ -146,8 +146,9 @@ git commit -m "build: pin toolchain, add dependency guard and layer boundaries"
 > Paste the full generated SQL. STOP.
 
 **Read that SQL yourself.** This is the stage where a wrong column type costs
-you three days later. Specifically check: `geography` not `geometry`; no
-`risk_score` column anywhere; `audit_event` has a unique `(org_id, seq)`;
+you three days later. Specifically check: `geography` not `geometry`;
+`risk_score`, `risk_band` and `scoring_version` exist only on
+`evidence_submission`; `audit_event` has a unique `(org_id, seq)`;
 the HNSW indexes exist.
 
 ```bash
@@ -255,7 +256,7 @@ git commit -m "feat(atlas): add impact atlas, public project views and coordinat
 > - `test/integration/forensics-disclosure.test.ts` — no cross-organisation identifier appears in any payload reachable by an unprivileged caller
 > - the eval fixture set, committed
 >
-> There is no `risk_score` column. The score is derived at read time.
+> `risk_score`, `risk_band` and `scoring_version` on `evidence_submission` are a cache, written only by `src/lib/scoring/v1.ts`. Store the scoring version with them, never render the score without its findings beside it, and never let it gate a transition (`docs/10-FORENSICS.md` §6).
 >
 > Paste the disclosure test output. STOP.
 
@@ -363,7 +364,7 @@ Signs to watch for:
 | Sign | What it means |
 |---|---|
 | Proposes `@neondatabase/serverless` | Skipped `docs/03-DATABASE.md`. Restart the session. |
-| Adds a `risk_score` column | Skipped `docs/10-FORENSICS.md` §6. Restart. |
+| Writes `risk_score` from anywhere but `src/lib/scoring/`, renders it without its findings, or lets it gate a transition | Skipped the four conditions in `docs/10-FORENSICS.md` §6. Restart. |
 | Builds UI before the service passes tests | Broke the Stage ordering law. Revert and re-prompt. |
 | Adds an admin override on review | Broke M2. Revert immediately, this is the product. |
 | Says "done" without pasting test output | Do not believe it. Ask for the output. |

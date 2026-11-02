@@ -1,11 +1,5 @@
-import {
-  customType,
-  pgTable,
-  serial,
-  text,
-  timestamp,
-  doublePrecision,
-} from "drizzle-orm/pg-core";
+// Salvaged unchanged from src/server/db/schema.ts (pre-contract implementation). Reference only; nothing imports this.
+// Needs: customType from drizzle-orm/pg-core. geometry(Point) version; the contract uses geography.
 
 /**
  * Parses PostGIS geometry point representations (WKT, EWKB hex, GeoJSON).
@@ -75,31 +69,3 @@ export const geometryPoint = customType<{
     return parseGeometryPoint(value);
   },
 });
-
-/**
- * Custom pgvector bit(64) column type for 64-bit dHash perceptual hashes per drizzle-spatial-vector-ops skill.
- */
-export const bit64 = customType<{
-  data: string;
-  driverData: string;
-}>({
-  dataType() {
-    return "bit(64)";
-  },
-});
-
-export const verificationEvents = pgTable("verification_events", {
-  id: serial("id").primaryKey(),
-  projectSlug: text("project_slug").notNull(),
-  sha256Hash: text("sha256_hash").notNull(),
-  dHash: bit64("d_hash"),
-  location: geometryPoint("location"),
-  riskScore: doublePrecision("risk_score").notNull().default(0),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
-
-
-// Better Auth and Multi-Tenant Organization schema
-export * from "./auth-schema";

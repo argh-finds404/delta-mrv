@@ -164,7 +164,7 @@ Playwright runs this as `test/e2e/demo-path.spec.ts`.
 
 1. Owner cannot review their own organisation's submission
 2. Unassigned verifier cannot review
-3. Split decision requires a third reviewer
+3. A 1 approve / 1 reject split moves the submission to `ESCALATED`; only a verifier-org admin who has not yet voted can resolve it, and a platform admin cannot
 4. Cross-tenant read returns 404, not 403
 5. `UPDATE` on `audit_event` raises
 6. A tampered audit row breaks chain verification at its sequence number

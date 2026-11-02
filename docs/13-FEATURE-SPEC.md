@@ -211,8 +211,10 @@ and A3 chains.
 enough.
 
 **What it does.** Two approvals from distinct verifier users move a submission
-to `APPROVED`. Two rejections make it `REJECTED`, terminal. A 1/1 split stays
-`IN_REVIEW` and requires a third distinct verifier.
+to `APPROVED`. Two rejections make it `REJECTED`, terminal. A 1/1 split moves
+it to `ESCALATED`, resolved by a deciding vote from an `admin` of an assigned
+verifier organisation who has not yet voted in the round. A platform admin
+cannot vote. See `docs/01-FEATURE-LOCK.md` §State machine.
 
 **Implementation steps**
 
@@ -224,10 +226,14 @@ to `APPROVED`. Two rejections make it `REJECTED`, terminal. A 1/1 split stays
    `review_decision` → recount → transition if the threshold is met → append
    `audit_event`.
 4. Recount from rows, never from a cached counter. A counter can drift; rows
-   cannot.
-5. `NEEDS_MORE_PROOF` resets the tally. Prior decisions stay in the log.
-6. Every decision requires a non-empty written reason. Enforce at the
-   database level (`CHECK (length(trim(reason)) > 0)`) as well as in Zod.
+   cannot. Count the **current round only**.
+5. `NEEDS_MORE_PROOF` → owner adds a supplement → `round += 1` →
+   `IN_REVIEW`. Prior decisions stay in the table and the audit log, belong to
+   an earlier round, and do not count toward quorum. A reviewer may decide
+   again in the new round.
+6. Every decision requires a written reason of at least 20 characters. Enforce
+   at the database level (`CHECK (char_length(reason) >= 20)`) as well as in
+   Zod.
 
 **Why a reason instead of a confirmation dialog:** "Are you sure?" is clicked
 without reading. Typing *why* makes the reviewer think, and leaves an
@@ -332,7 +338,9 @@ same time as the Lab, not later.
 
 **Implementation steps**
 
-1. Store the project boundary as `geography(Polygon, 4326)`, GiST-indexed.
+1. Store the project boundary as `geography(Polygon, 4326)` in
+   `project_private_location` — not on `impact_project` — GiST-indexed. The
+   check joins to that table explicitly.
 2. Draw it on a map at project creation. Never ask a user to type coordinates.
 3. If EXIF GPS exists: `ST_Contains` for inside, `ST_Distance` for metres
    outside. `geography` gives metres on a sphere directly — no Haversine, no

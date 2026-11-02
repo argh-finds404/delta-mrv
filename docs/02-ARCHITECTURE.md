@@ -160,6 +160,10 @@ locationCommitment = SHA256("DELTA_LOC_V1:" + salt_hex + ":" + canonicalize(exac
   Every sort key is a field of the entry itself, so a browser verifier can
   reproduce the order from the manifest alone, with no database access. A
   manifest whose `files` are not in this order is invalid.
+- **Object shape of a `files` entry is fixed.** Every entry always carries all
+  four keys — `role`, `round`, `sha256`, `dhash`. Keys are never omitted. When
+  a file has no perceptual hash, `dhash` is JSON `null`, not absent and not an
+  empty string. The shape and the `null` rule are part of the frozen contract.
 - `manifestHash = SHA256(utf8Bytes(canonicalize(manifest)))`
 
 Timestamps are ISO 8601 UTC with `Z`, millisecond precision, no offset

@@ -70,8 +70,8 @@ submissions, not three.
   button. Never keyboard-only.
 - Queue shows only submissions the caller's org is assigned to and did not
   originate.
-- A decision requires a non-empty reason. The approve button is disabled
-  until the reason field has content.
+- A decision requires a written reason of at least 20 characters. The
+  approve button is disabled until the reason meets the minimum.
 - After a decision, advance to the next item automatically and show an undo
   window of a few seconds **before** the write commits. Once written, a
   decision is permanent — there is no edit.

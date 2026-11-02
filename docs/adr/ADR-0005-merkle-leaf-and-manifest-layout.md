@@ -26,6 +26,10 @@ supplement file can be committed to. Its order is part of the frozen contract:
 ascending, then `sha256` ascending. Every sort key is a field of the entry, so
 the order is reproducible from the manifest alone. `v1` was never anchored.
 
+The shape of an entry is also fixed: every entry always carries all four keys,
+and keys are never omitted. When a file has no perceptual hash, `dhash` is
+JSON `null`.
+
 **Leaf.**
 `StandardMerkleTree.of(leaves, ["bytes32","bytes32","uint256"])` where
 `leaf = [submissionIdBytes32, manifestHashBytes32, approvedTimestamp]`, sorted
