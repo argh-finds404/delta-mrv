@@ -245,7 +245,10 @@ Unique `(submission_id, manifest_version)` — prevents double-anchoring a versi
 
 ### Platform group
 `api_key` (`key_prefix`, `key_hash` SHA-256, `org_id`, `scopes`, `last_used_at`,
-`revoked_at`), `webhook_endpoint`, `webhook_delivery`.
+`revoked_at`, `created_at`).
+
+`webhook_endpoint`, `webhook_delivery` — **deferred — S10, columns undefined,
+specify before building.** Not in the schema, not in any migration.
 
 ## 5. Append-only enforcement
 
@@ -274,7 +277,7 @@ raises.
 
 | Index | Table | Purpose |
 |---|---|---|
-| GiST on `boundary` | `project_private_location` | `ST_Contains`, `ST_DWithin` |
+| GiST on `boundary` | `project_private_location` | `ST_Covers`, `ST_DWithin` |
 | HNSW `bit_hamming_ops` on `dhash` | `evidence_file` | duplicate search |
 | unique `(submission_id, role, round)` where `role IN ('BEFORE','AFTER')` | `evidence_file` | one before and one after per round |
 | unique `(submission_id, round, reviewer_user_id)` | `review_decision` | one decision per reviewer per round |
@@ -297,3 +300,26 @@ raises.
 - Never `drizzle-kit push` against the hosted database.
 - Review the generated SQL before applying. A generated `DROP COLUMN` on a
   hash or audit column is a stop-and-ask.
+
+### 7.1 Geography typmod drift guard
+
+drizzle-kit double-quotes any custom type it does not recognise, and
+`"geography(Point, 4326)"` is not a valid identifier. So the schema declares
+the custom types with a bare `geography` data type, and `drizzle-kit generate`
+emits bare `geography` columns. `drizzle/0002_geography_typmod.sql` applies the
+real typmod:
+
+| Column | Type after `0002` |
+|---|---|
+| `impact_project.fuzzed_centroid` | `geography(Point,4326)` |
+| `project_private_location.boundary` | `geography(Polygon,4326)` |
+| `evidence_file.gps` | `geography(Point,4326)` |
+
+Any future `drizzle-kit generate` that touches one of these columns may emit an
+`ALTER COLUMN ... TYPE geography` that silently reverts the typmod. Read every
+generated migration for that statement before applying it.
+
+The guard is `scripts/check-geography-typmod.mjs` (`pnpm db:check-typmod`). It
+reads PostGIS's `geography_columns` view (`information_schema` does not carry
+typmod) and fails if any of the three columns has lost its geometry type or
+SRID. Run it after every migration, against any database.

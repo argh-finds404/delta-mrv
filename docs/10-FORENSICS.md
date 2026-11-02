@@ -128,10 +128,17 @@ column null. Absent metadata is not a mismatch and is never treated as one.
 
 ```sql
 SELECT
-  ST_Contains(boundary::geometry, $1::geometry)           AS inside,
+  ST_Covers(boundary, $1::geography)                      AS inside,
   ST_Distance(boundary, $1::geography)                    AS distance_m
 FROM project_private_location WHERE project_id = $2;
 ```
+
+`ST_Covers`, not `ST_Contains`. `ST_Contains` has no `geography` form, so it
+needs a `::geometry` cast, which makes planar lon/lat decisions and cannot use
+the GiST index on `boundary`. `ST_Covers` is `geography`-native, uses the index,
+and is true for a point exactly on the boundary, which is the behaviour a
+geofence wants. The "within tolerance" outcome uses
+`ST_DWithin(boundary, $1::geography, tolerance_meters)`.
 
 `geography` gives metres on a sphere directly. No Haversine implementation
 and no reprojection — the database already does this correctly, and a

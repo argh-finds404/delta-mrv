@@ -59,6 +59,7 @@ export const apiKey = pgTable("api_key", {
   scopes: text("scopes").array().notNull().default([]),
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // webhook_endpoint and webhook_delivery are NOT built: docs/03-DATABASE.md §4

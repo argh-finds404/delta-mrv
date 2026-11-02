@@ -162,7 +162,7 @@ git commit -m "feat(db): add schema, extensions, append-only enforcement and ind
 > Read `docs/11-IMPLEMENTATION.md` §Stage 1.
 >
 > Write and run exactly three integration tests against the local Docker database:
-> 1. Insert a `geography(Polygon,4326)`, then query `ST_Contains` and `ST_DWithin` through a Drizzle `sql` fragment and assert correct results for a point inside, a point just outside, and a point far outside.
+> 1. Insert a `geography(Polygon,4326)`, then query `ST_Covers` and `ST_DWithin` through a Drizzle `sql` fragment and assert correct results for a point inside, a point just outside, and a point far outside.
 > 2. Insert several `bit(64)` values, then query for Hamming distance below 8 through Drizzle and assert the right rows come back.
 > 3. Attempt a direct `UPDATE` on `audit_event` and assert that it raises.
 >

@@ -1,7 +1,7 @@
 -- Hand-written. Every index in docs/03-DATABASE.md §6, and only those; the
 -- generated schema declares none of them.
 
--- ST_Contains, ST_DWithin on the exact boundary
+-- ST_Covers, ST_DWithin on the exact boundary
 CREATE INDEX project_private_location_boundary_gist ON project_private_location USING gist (boundary);
 --> statement-breakpoint
 -- duplicate search: dhash <~> $1::bit(64)

@@ -228,7 +228,8 @@ CREATE TABLE "api_key" (
 	"org_id" uuid NOT NULL,
 	"scopes" text[] DEFAULT '{}' NOT NULL,
 	"last_used_at" timestamp with time zone,
-	"revoked_at" timestamp with time zone
+	"revoked_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "job" (

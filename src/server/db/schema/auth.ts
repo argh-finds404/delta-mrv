@@ -1,12 +1,17 @@
 import { boolean, index, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Hand-ported from the Better Auth CLI output of the pre-contract build, NOT
-// freshly generated. Differences from that output:
-//   - uuid ids, because docs/03-DATABASE.md §4 makes every FK to user and
-//     organization a uuid. Stage 1e must set advanced.database.generateId = "uuid"
-//     and re-run `better-auth generate` (never `migrate`) to diff against this.
-//   - organization.org_type / country / website (docs/03-DATABASE.md §4).
-//   - dropped the redundant organization_slug_uidx; slug is already unique.
+// Hand-ported from the Better Auth CLI output of the pre-contract build, then
+// diffed (Stage 1e, 2026-11-02) against `auth@1.7.13 generate` run on the real
+// config in src/server/auth/index.ts (generateId "uuid", organization plugin with
+// orgType/country/website). Tables, columns, nullability, defaults, FKs and indexes
+// all match. Deliberate differences, kept on this side:
+//   - organization.org_type is the pgEnum below; the CLI emits plain text.
+//   - session.active_organization_id is uuid; the CLI emits text.
+//   - no drizzle `relations()` blocks; Better Auth only reads them when database
+//     joins are enabled, which they are not.
+//   - ids use defaultRandom() (gen_random_uuid()); the CLI writes the same default
+//     as pg_catalog.gen_random_uuid().
+// Never run Better Auth's `migrate`; drizzle-kit owns migrations.
 
 export const orgType = pgEnum("org_type", ["OWNER", "VERIFIER", "FUNDER"]);
 

@@ -28,10 +28,13 @@ green. "Day" is a unit of work, not a promise about the calendar.
   `pnpm check`
 - `docker-compose.yml` with the PostGIS + pgvector image
 - Extension migration
-- **The spike, before anything else is built.** Two Vitest integration tests:
-  1. Insert a `geography(Polygon,4326)`, query `ST_Contains` and
+- **The spike, before anything else is built.** Three Vitest integration tests
+  (`test/integration/spike.test.ts`, run with `pnpm test:integration`):
+  1. Insert a `geography(Polygon,4326)`, query `ST_Covers` and
      `ST_DWithin` through a Drizzle `sql` fragment
   2. Insert a `bit(64)`, query Hamming distance below 8 through Drizzle
+  3. A direct `UPDATE` on an append-only table raises (`audit_event`,
+     `review_decision` and `anchor_leaf`, each also for `DELETE` and `TRUNCATE`)
 - Full Drizzle schema, append-only triggers and grants, every index from
   `docs/03-DATABASE.md`
 - Better Auth with the organization plugin and `org_type`
@@ -40,6 +43,12 @@ green. "Day" is a unit of work, not a promise about the calendar.
 
 **Gate:** both spike tests pass. A direct `UPDATE` on `audit_event` raises.
 `pnpm check` green.
+
+**Spike status: PASSED 2026-11-02** — 18 of 18 tests, against a Neon dev branch
+(`dev-spike`, PostgreSQL 18.6, PostGIS 3.6.4, pgvector 0.8.6) with all five
+migrations applied. Not yet run against the local Docker image (Docker is not
+installed on the build machine). Result that changed the spec: `ST_Contains`
+has no `geography` form, so the geofence check is `ST_Covers`.
 
 If the spike fights you, stop and report. Finding out on Stage 1 that the
 geospatial or vector layer does not work through the ORM is cheap. Finding
@@ -159,6 +168,12 @@ Playwright runs this as `test/e2e/demo-path.spec.ts`.
 | Contract | Foundry | Access control, duplicate batches, ownership, proofs, fuzz |
 | End to end | Playwright | Demo path, proof verification, keyboard review |
 | Empirical | Eval harness, k6 | Precision/recall, p95 latency |
+
+**Integration test isolation.** Each integration test runs inside a transaction
+and rolls back; none truncates a table. `review_decision`, `audit_event` and
+`anchor_leaf` cannot be truncated by design (revoked grant plus a
+`BEFORE TRUNCATE` trigger, `drizzle/0003_append_only.sql`), so rollback is the
+only cleanup that works for them and it is used everywhere for consistency.
 
 ### Tests that must exist and never be weakened
 

@@ -12,7 +12,9 @@
     "start": "next start",
     "check": "eslint . && tsc --noEmit && vitest run && node scripts/check-forbidden-deps.mjs",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "db:check-typmod": "node scripts/check-geography-typmod.mjs",
+    "test:integration": "NODE_OPTIONS=--network-family-autoselection-attempt-timeout=5000 vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
     "@google/genai": "2.31.0",

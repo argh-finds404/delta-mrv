@@ -6,3 +6,4 @@ allowBuilds:
   esbuild: false
   protobufjs: false
   unrs-resolver: false
+shellEmulator: true # lets package.json scripts use VAR=value cmd on Windows

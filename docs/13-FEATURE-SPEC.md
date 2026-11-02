@@ -342,7 +342,7 @@ same time as the Lab, not later.
    `project_private_location` — not on `impact_project` — GiST-indexed. The
    check joins to that table explicitly.
 2. Draw it on a map at project creation. Never ask a user to type coordinates.
-3. If EXIF GPS exists: `ST_Contains` for inside, `ST_Distance` for metres
+3. If EXIF GPS exists: `ST_Covers` for inside, `ST_Distance` for metres
    outside. `geography` gives metres on a sphere directly — no Haversine, no
    reprojection.
 4. Four outcomes: inside (`INFO`), within tolerance (`INFO`), outside
