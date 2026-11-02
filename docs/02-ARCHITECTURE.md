@@ -147,11 +147,19 @@ locationCommitment = SHA256("DELTA_LOC_V1:" + salt_hex + ":" + canonicalize(exac
 - Fields: `schema`, `submissionId`, `projectId`, `ownerOrgId`, `verifierOrgId`,
   `files`, `locationCommitment`, `fuzzedLocation`, `approvedAtIso`,
   `quorumReviewIds`, `orgAuditChainHead`
-- `files` is an ordered array of `{role, sha256, dhash}`, one entry per row of
-  `evidence_file` (`docs/03-DATABASE.md`), sorted by `(role, round)`. It
-  replaces the four flat `before*`/`after*` fields of `v1`, so a supplement
+- `files` is an ordered array with one entry per row of `evidence_file`
+  (`docs/03-DATABASE.md`). Each entry is exactly `{role, round, sha256, dhash}`.
+  It replaces the four flat `before*`/`after*` fields of `v1`, so a supplement
   file can be committed to. The bump to `v2` lands before any anchoring
   exists.
+- **Ordering of `files`** — part of the frozen contract. Sort by:
+  1. `role` in the fixed order `BEFORE`, `AFTER`, `SUPPLEMENT` (this order,
+     not alphabetical)
+  2. then `round`, ascending numerically
+  3. then `sha256`, ascending, as the final tiebreak
+  Every sort key is a field of the entry itself, so a browser verifier can
+  reproduce the order from the manifest alone, with no database access. A
+  manifest whose `files` are not in this order is invalid.
 - `manifestHash = SHA256(utf8Bytes(canonicalize(manifest)))`
 
 Timestamps are ISO 8601 UTC with `Z`, millisecond precision, no offset

@@ -87,7 +87,7 @@ async function assertCanReview(userId: string, submissionId: string) {
   if (!row.isAssigned)
     throw new ForbiddenError("organisation is not assigned to this project");
   if (row.alreadyDecidedByThisUser)
-    throw new ConflictError("this user has already decided on this submission");
+    throw new ConflictError("this user has already decided in this round");
 }
 ```
 
@@ -129,7 +129,8 @@ wrong. Stop and ask.
 | VERIFIER member reviews unassigned project | `ForbiddenError` |
 | FUNDER member attempts review | `ForbiddenError` |
 | Assigned verifier reviews | succeeds |
-| Same verifier user decides twice | `ConflictError` |
+| Same verifier user decides twice in the same round | `ConflictError` |
+| Same verifier user decides again in a later round | succeeds |
 | Two distinct verifier users approve | status → `APPROVED` |
 | Two reject | status → `REJECTED`, terminal |
 | One approve + one reject | status → `ESCALATED` |
@@ -152,7 +153,7 @@ Every read is scoped. Default to invisible.
 | OWNER member | Own org's projects, submissions, findings, exact geometry |
 | Assigned VERIFIER member | Assigned projects, their submissions, findings, exact geometry |
 | Unassigned VERIFIER | Same as unauthenticated |
-| FUNDER member | Approved, anchored records. Never pending or rejected |
+| FUNDER member | Approved, anchored records of projects linked to their organisation through `project_funder`. Never pending or rejected, never an unlinked project |
 | Admin | Metadata, queue health, assignments. **Not** review powers |
 
 Cross-tenant requests return **404**, never 403. A 403 confirms the resource

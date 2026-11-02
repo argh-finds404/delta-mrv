@@ -12,13 +12,19 @@ proof. Any drift breaks every historical anchor.
 
 ## Decision
 
-**Manifest.** Schema `"delta.manifest.v1"`, serialised with `canonicalize`
+**Manifest.** Schema `"delta.manifest.v2"`, serialised with `canonicalize`
 (RFC 8785). `manifestHash = SHA256(utf8Bytes(canonicalize(manifest)))`.
 
 Fields: `schema`, `submissionId`, `projectId`, `ownerOrgId`, `verifierOrgId`,
-`beforeSha256`, `afterSha256`, `beforeDHash`, `afterDHash`,
-`locationCommitment`, `fuzzedLocation`, `approvedAtIso`, `quorumReviewIds`,
-`orgAuditChainHead`.
+`files`, `locationCommitment`, `fuzzedLocation`, `approvedAtIso`,
+`quorumReviewIds`, `orgAuditChainHead`.
+
+`files` is an array of `{role, round, sha256, dhash}`, one entry per
+`evidence_file` row, replacing the flat before/after fields of `v1` so that a
+supplement file can be committed to. Its order is part of the frozen contract:
+`role` in the fixed order `BEFORE`, `AFTER`, `SUPPLEMENT`, then `round`
+ascending, then `sha256` ascending. Every sort key is a field of the entry, so
+the order is reproducible from the manifest alone. `v1` was never anchored.
 
 **Leaf.**
 `StandardMerkleTree.of(leaves, ["bytes32","bytes32","uint256"])` where
@@ -55,4 +61,4 @@ ascending by `submissionId`.
 **Including exact geometry in the manifest** — would publish sensitive site
 coordinates permanently and irrevocably.
 **One leaf per evidence file** — doubles tree size with no verification gain;
-the manifest already commits to both file hashes.
+the manifest already commits to every file hash.

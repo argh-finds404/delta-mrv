@@ -198,4 +198,5 @@ no amendments file, because the numbered docs now contain decisions that have
 been superseded.
 
 **Schema-affecting amendments — must land before Stage 1c generates any
-migration:** A2, A3, A5, A9, A12, A15.
+migration:** none remain. A2, A3, A5, A9, A12 and A15 have been applied to
+the numbered documents.

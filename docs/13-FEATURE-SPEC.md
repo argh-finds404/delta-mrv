@@ -37,31 +37,43 @@ Features are grouped by capability, not by screen. Screens come in
 **Problem.** If the stored file can be swapped, every hash downstream is
 theatre.
 
-**What it does.** Accepts a before/after image pair, writes the raw bytes to
-a private blob store, and never modifies them. All derived values are computed
-from the bytes read *back out* of storage, never from what the client sent.
+**What it does.** Accepts a before/after image pair (plus supplements when
+more proof is requested), stores the raw bytes in a private blob store, and
+never modifies them. Files go from the browser straight to the store — not
+through a Server Action, because serverless body limits are low and a dropped
+connection would lose the whole request. All derived values are computed from
+the bytes read *back out* of storage, never from what the client sent.
 
 **Implementation steps**
 
 1. Define `StoragePort` in `src/server/storage/port.ts` — `put`, `get`,
    `signedUrl`, `delete`. No provider types in the signature.
 2. Implement `BlobStorageAdapter` against the private blob store.
-3. Validate before writing: size ≤ 5 MB, and MIME **sniffed from the first
-   bytes**, not from the filename. A `.jpg` extension on a PDF is the
-   simplest upload attack there is.
-4. Write with a key of `org/{orgId}/project/{projectId}/{uuid}.{ext}`. Never
-   a user-supplied filename — that is a path traversal vector.
-5. Read the bytes back and hash *those*. This is the step people skip.
-6. Only then create the `evidence_submission` row.
+3. `submissions.createDraft(actor, projectId)` creates the submission in
+   status `DRAFT` and returns its id.
+4. A route handler issues a scoped client-upload token restricted to the
+   allowed MIME types and 5 MB. The browser uploads each file directly to
+   private blob storage. The token's content-type restriction is a
+   convenience, **not** a validation.
+5. Keys are `org/{orgId}/project/{projectId}/{uuid}.{ext}`. Never a
+   user-supplied filename — that is a path traversal vector.
+6. `submissions.finalize(actor, submissionId)` runs in **one transaction**:
+   verify every expected file exists and is within limits (size ≤ 5 MB, MIME
+   **sniffed from the first bytes**, not from the filename — a `.jpg`
+   extension on a PDF is the simplest upload attack there is); read the bytes
+   back and hash *those* — the step people skip; `DRAFT → PENDING_FORENSICS`;
+   insert the forensics job; append the audit event.
+7. A `DRAFT` older than 24 hours with no files is swept by a job.
 
-**Order matters:** blob write → read back → hash → row insert. If the process
-dies between steps, you have an orphan blob (harmless, cleanable) rather than
-a row pointing at nothing (corrupt).
+**Order matters:** draft row → direct upload → read back → hash → state
+transition. If the process dies between steps, you have an orphan blob or an
+abandoned `DRAFT` (harmless, swept) rather than a submission pointing at
+nothing (corrupt). See `docs/01-FEATURE-LOCK.md` §State machine.
 
 **Connects to:** A2 consumes the bytes. Every forensic check reads through
 this port. D2 compares a visitor's file against the hash this produces.
 
-**Done when:** a submission's `before_sha256` is reproducible by downloading
+**Done when:** a file's `evidence_file.sha256` is reproducible by downloading
 the signed URL and hashing it locally.
 
 ## A2 — Canonical manifest and manifest hash
@@ -274,7 +286,7 @@ reference. Only an admin can resolve it, and resolving writes an audit event.
 **Implementation steps**
 
 1. Search globally:
-   `WHERE (before_dhash <~> $1::bit(64)) < 8`, HNSW-indexed.
+   `WHERE (evidence_file.dhash <~> $1::bit(64)) < 8`, HNSW-indexed.
 2. Classify the match by relationship: same project → `LOW`; same org,
    different project → `HIGH`; different org → `HIGH`.
 3. For a cross-org match, the finding's `evidence` holds the distance, the
@@ -398,7 +410,7 @@ browser hashes it locally and compares to the manifest.
 **Implementation steps**
 
 1. `crypto.subtle.digest("SHA-256", bytes)` in the browser.
-2. Compare to `beforeSha256` / `afterSha256`.
+2. Compare to the `sha256` of each entry in the manifest's `files` array.
 3. Animate the comparison character-group by character-group, settling green.
    This is the one place animation genuinely explains something.
 4. **State next to the dropzone that the file never leaves the device.** Not
@@ -497,7 +509,7 @@ A field worker in the Sundarbans has no signal. Capture → hash on device with
    IndexedDB.
 3. Queue UI showing each pending item with its state.
 4. Sync on `online`, with retry and visible per-item status.
-5. The client hash travels as `client_hash_before/after` and is recorded as an
+5. The client hash travels as `client_sha256` (per file) and is recorded as an
    **earliest-known-existence signal, explicitly labelled weak**. The server
    recomputes from stored bytes and that is authoritative.
 6. A mismatch between client and server hash is a `MEDIUM` finding.

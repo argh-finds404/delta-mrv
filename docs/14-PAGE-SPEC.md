@@ -296,6 +296,10 @@ scarcest resource in the system, so spend it on the riskiest cases first.
 Each row: project, submitted time, finding count by severity, current status,
 and whether this user has already decided.
 
+**`ESCALATED` items.** A verifier administrator sees escalated submissions
+pinned to the top of their queue, above the severity ordering. Other
+verifiers see them as ordinary rows, marked as awaiting a deciding vote.
+
 ## Evidence pane
 
 `EvidencePair` with a comparison slider and synced zoom and pan. Below it, the
@@ -332,8 +336,9 @@ failure, not a power feature.
 ## Quorum display
 
 Show the tally explicitly: *"1 of 2 approvals · awaiting a second verifier"*.
-On a 1/1 split: *"Split decision — a third verifier is required"*. Never leave
-a reviewer guessing whether their decision concluded anything.
+On a 1/1 split, the submission is `ESCALATED` and the banner reads:
+*"Split decision — awaiting a deciding vote from a verifier administrator."*
+Never leave a reviewer guessing whether their decision concluded anything.
 
 ---
 
@@ -355,16 +360,33 @@ This is the one page where mobile is the primary target, not a consideration.
 4. Per-image preview with the client-computed SHA-256 shown as it is computed
 5. Optional note
 6. Optional device location, labelled *weak signal*
-7. Submit
+7. Submit — runs `submissions.finalize` (see *Draft and direct upload*)
 8. **Offline queue**, when anything is pending
 
 ## Client-side hashing
 
-Hash on selection, display it, send it as `client_hash_*`. Label it in the UI:
+Hash on selection, display it, send it as `client_sha256`. Label it in the UI:
 *"computed on your device — the server will recompute from the stored file"*.
 
 Showing the hash forming is the first moment a field worker sees that this
 system takes their evidence seriously.
+
+## Draft and direct upload
+
+Files do not travel through a Server Action. The page works against a `DRAFT`
+submission:
+
+1. `submissions.createDraft` returns the submission id; its status is `DRAFT`.
+2. Each file goes **directly from the browser to private blob storage** with a
+   scoped upload token (allowed MIME types, 5 MB).
+3. Submit calls `submissions.finalize`, which verifies the files, hashes the
+   stored bytes on the server and moves the submission to
+   `PENDING_FORENSICS`.
+
+Show upload state per file, so a dropped connection costs one file, not the
+whole submission. The server's hash is authoritative; the client hash shown on
+this page is only a convenience. A `DRAFT` with no files is swept after 24
+hours. See `docs/01-FEATURE-LOCK.md` §State machine.
 
 ## Offline (E2)
 

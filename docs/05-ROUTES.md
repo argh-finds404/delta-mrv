@@ -114,7 +114,7 @@ An unreachable RPC showing red would be a lie. `UNAVAILABLE` is neutral grey.
 
 - Before/after pair in one submission. Both required.
 - Client-side: compute SHA-256 with `crypto.subtle` at selection time, show
-  it, send it as `client_hash_*`. Labelled in the UI as an unverified
+  it, send it as `client_sha256`. Labelled in the UI as an unverified
   convenience value — the server recomputes from stored bytes and that is
   authoritative.
 - Offline: if the network is down, queue the submission in IndexedDB with its

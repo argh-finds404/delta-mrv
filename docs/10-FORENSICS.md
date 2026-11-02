@@ -100,12 +100,13 @@ that drift is how an eval harness starts lying.
 ### Perceptual search
 
 ```sql
-SELECT id, project_id, owner_org_id,
-       (before_dhash <~> $1::bit(64)) AS distance
-FROM evidence_submission
-WHERE before_dhash IS NOT NULL
-  AND id <> $2
-  AND (before_dhash <~> $1::bit(64)) < 8
+SELECT f.id, f.submission_id, s.project_id, s.owner_org_id,
+       (f.dhash <~> $1::bit(64)) AS distance
+FROM evidence_file f
+JOIN evidence_submission s ON s.id = f.submission_id
+WHERE f.dhash IS NOT NULL
+  AND f.id <> $2
+  AND (f.dhash <~> $1::bit(64)) < 8
 ORDER BY distance ASC
 LIMIT 5;
 ```
@@ -129,7 +130,7 @@ column null. Absent metadata is not a mismatch and is never treated as one.
 SELECT
   ST_Contains(boundary::geometry, $1::geometry)           AS inside,
   ST_Distance(boundary, $1::geography)                    AS distance_m
-FROM impact_project WHERE id = $2;
+FROM project_private_location WHERE project_id = $2;
 ```
 
 `geography` gives metres on a sphere directly. No Haversine implementation
