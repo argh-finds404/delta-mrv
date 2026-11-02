@@ -142,12 +142,16 @@ locationCommitment = SHA256("DELTA_LOC_V1:" + salt_hex + ":" + canonicalize(exac
 
 ### 4.4 Canonical evidence manifest
 
-- Schema version string: `"delta.manifest.v1"`
+- Schema version string: `"delta.manifest.v2"`
 - Serialised with `canonicalize` (RFC 8785). Never `JSON.stringify`.
 - Fields: `schema`, `submissionId`, `projectId`, `ownerOrgId`, `verifierOrgId`,
-  `beforeSha256`, `afterSha256`, `beforeDHash`, `afterDHash`,
-  `locationCommitment`, `fuzzedLocation`, `approvedAtIso`, `quorumReviewIds`,
-  `orgAuditChainHead`
+  `files`, `locationCommitment`, `fuzzedLocation`, `approvedAtIso`,
+  `quorumReviewIds`, `orgAuditChainHead`
+- `files` is an ordered array of `{role, sha256, dhash}`, one entry per row of
+  `evidence_file` (`docs/03-DATABASE.md`), sorted by `(role, round)`. It
+  replaces the four flat `before*`/`after*` fields of `v1`, so a supplement
+  file can be committed to. The bump to `v2` lands before any anchoring
+  exists.
 - `manifestHash = SHA256(utf8Bytes(canonicalize(manifest)))`
 
 Timestamps are ISO 8601 UTC with `Z`, millisecond precision, no offset

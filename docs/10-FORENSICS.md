@@ -159,6 +159,24 @@ const AI_FACTOR = 0.25;
   can approve; a reviewer with a `clear` band can reject. Both must write a
   reason.
 
+### Cached columns
+
+Sorting a 5,000-row Lab queue by a score computed from a join over findings is
+slow, and queue ordering is a core interaction, so the result is cached on
+`evidence_submission` as `risk_score`, `risk_band` and `scoring_version`
+(`docs/03-DATABASE.md`). Four conditions:
+
+1. The value is **only ever written by the pure function** in
+   `src/lib/scoring/`. Never by hand, never by the AI, never by an admin.
+2. `scoring_version` is stored with it, so a weights change does not silently
+   rewrite history. Old submissions keep their original version.
+3. It is **never rendered without its findings beside it**.
+4. It never gates a transition (above).
+
+What this prevents is an unexplainable number that decides outcomes. A
+versioned cache of an explainable function, always shown with its inputs, is
+not that.
+
 ## 7. Deterministic replay
 
 `scripts/replay-forensics.ts <submissionId>` re-reads the stored bytes,

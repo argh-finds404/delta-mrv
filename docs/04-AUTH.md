@@ -47,7 +47,7 @@ without an admin action that writes an audit event.
 | Role | Capability |
 |---|---|
 | `owner` | Manage the org, invite members, create projects |
-| `admin` | Invite members, create projects |
+| `admin` | Invite members, create projects. In a `VERIFIER` org assigned to a project: casts the deciding vote on an `ESCALATED` submission (§4) |
 | `member` | Submit evidence (OWNER orgs) or review (VERIFIER orgs) |
 
 Both must be satisfied. A `member` of a `FUNDER` org can never review,
@@ -91,6 +91,25 @@ async function assertCanReview(userId: string, submissionId: string) {
 }
 ```
 
+### Escalation — the deciding vote
+
+A 1 approve / 1 reject split moves the submission to `ESCALATED`. It is
+resolved by one further vote, to `APPROVED` or `REJECTED`, from a verifier-org
+administrator.
+
+This is not an override. A platform admin tie-break would breach the
+conflict-of-interest rule; an `admin` **inside an assigned verifier
+organisation** is independent of the project owner, and their vote is
+attributable and hash-chained like any other.
+
+- The escalation voter must pass the full `assertCanReview` gate, plus
+  `member.role === 'admin'` within a `VERIFIER` org assigned to the project.
+- They must not have already voted in this round. An admin who already voted
+  cannot break their own tie.
+- A **platform** admin still cannot vote.
+- The escalation decision requires a written reason of at least 20 characters,
+  like any other decision.
+
 ### Where it is **not** enforced
 
 Not in the UI alone. Not in `proxy.ts`. Not by hiding a button. Those are
@@ -113,8 +132,12 @@ wrong. Stop and ask.
 | Same verifier user decides twice | `ConflictError` |
 | Two distinct verifier users approve | status → `APPROVED` |
 | Two reject | status → `REJECTED`, terminal |
-| One approve + one reject | stays `IN_REVIEW`, third reviewer required |
-| Admin attempts to approve | `ForbiddenError` |
+| One approve + one reject | status → `ESCALATED` |
+| Verifier-org admin (assigned, not yet voted) casts deciding vote | succeeds; status → `APPROVED` or `REJECTED` |
+| Verifier-org non-admin member votes on `ESCALATED` | `ForbiddenError` |
+| Verifier-org admin who already voted this round votes on `ESCALATED` | `ConflictError` |
+| Admin of an unassigned verifier org votes on `ESCALATED` | `ForbiddenError` |
+| Platform admin attempts to approve | `ForbiddenError` |
 | Org A reads Org B's submission by id | 404, not 403 — no existence disclosure |
 
 This suite must pass before any reviewer UI is built.

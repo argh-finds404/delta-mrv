@@ -97,18 +97,37 @@ organization.website     text
 | `activity_type` | enum | `MANGROVE`, `WETLAND`, `RIVER_CLEANUP`, `TREE_PLANTING`, `COASTAL_BELT` |
 | `claimed_quantity` | numeric | |
 | `claimed_unit` | text | |
-| `boundary` | geography(Polygon,4326) | **GiST index** |
 | `fuzzed_centroid` | geography(Point,4326) | public-safe |
-| `location_salt` | bytea | never leaves authorised endpoints |
 | `location_commitment` | char(64) | |
 | `tolerance_meters` | integer | default 100 |
 | `status` | enum | `DRAFT`,`ACTIVE`,`CLOSED` |
 | `created_at`/`updated_at` | timestamptz | |
 
+`impact_project` holds nothing exact. The boundary and the salt live in
+`project_private_location`, so a careless `SELECT *` here cannot leak them.
+
+**`project_private_location`** — exact geometry, kept out of `impact_project`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `project_id` | uuid PK, FK → impact_project | |
+| `boundary` | geography(Polygon,4326) | **GiST index** |
+| `location_salt` | bytea | never leaves authorised endpoints |
+
+Spatial checks join to this table explicitly, which makes every exact-geometry
+read visible in review.
+
 **`project_assignment`** — the only way a verifier org reaches a project.
 
 `id`, `project_id`, `verifier_org_id`, `assigned_by_user_id`, `created_at`.
 Unique `(project_id, verifier_org_id)`.
+
+**`project_funder`** — the only way a funder org reaches a project in the
+funder portal. Created by the project owner.
+
+`id`, `project_id`, `funder_org_id`, `created_by_user_id`, `created_at`.
+Unique `(project_id, funder_org_id)`. Funder portal reads join through it. The
+public proof dossiers are unaffected — this scopes the portal, not the proofs.
 
 ### Evidence group
 
@@ -121,17 +140,39 @@ Unique `(project_id, verifier_org_id)`.
 | `submitted_by_user_id` | uuid FK | |
 | `owner_org_id` | uuid FK | denormalised for fast tenancy filters |
 | `status` | enum | see state machine |
-| `before_storage_key` / `after_storage_key` | text | |
-| `before_sha256` / `after_sha256` | char(64) | |
-| `before_dhash` / `after_dhash` | bit(64) | **HNSW `bit_hamming_ops`** |
-| `exif_before` / `exif_after` | jsonb | raw, as extracted |
-| `captured_at_before` / `captured_at_after` | timestamptz | nullable |
-| `exif_point_before` / `exif_point_after` | geography(Point,4326) | nullable |
-| `client_hash_before` / `client_hash_after` | char(64) | PWA capture, weak signal |
+| `round` | integer | review round, starts at 1. Increments when more proof is supplied |
+| `risk_score` | numeric | nullable until forensics completes. Cached, see below |
+| `risk_band` | enum | `clear`,`review`,`concern`. Nullable until forensics completes |
+| `scoring_version` | text | e.g. `scoring.v1`. Nullable until forensics completes |
 | `manifest` | jsonb | nullable until approved |
 | `manifest_hash` | char(64) | nullable until approved |
 | `manifest_version` | integer | default 1 |
 | `submitted_at` | timestamptz | |
+
+The files of a submission are rows in `evidence_file`, not columns here.
+
+**`evidence_file`** — one row per file. A before/after pair cannot hold the
+supplementary file that `NEEDS_MORE_PROOF` requires; a table can.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `submission_id` | uuid FK | |
+| `role` | enum | `BEFORE`,`AFTER`,`SUPPLEMENT` |
+| `storage_key` | text | |
+| `mime` | text | |
+| `size_bytes` | integer | |
+| `sha256` | char(64) | server-computed from stored bytes |
+| `client_sha256` | char(64) | nullable. PWA capture, weak signal |
+| `dhash` | bit(64) | nullable. **HNSW `bit_hamming_ops`** |
+| `exif` | jsonb | raw, as extracted |
+| `gps` | geography(Point,4326) | nullable |
+| `captured_at` | timestamptz | nullable |
+| `round` | integer | the review round this file belongs to |
+| `created_at` | timestamptz | |
+
+Unique `(submission_id, role, round)` for `BEFORE` and `AFTER` (a partial
+unique index). `SUPPLEMENT` rows are unconstrained in count.
 
 Nullable EXIF and GPS columns are correct. **Missing metadata is a finding,
 never an error and never an inferred value.** Never write a coordinate the
@@ -143,6 +184,7 @@ file did not contain.
 |---|---|
 | `id` | uuid PK |
 | `submission_id` | uuid FK |
+| `evidence_file_id` | uuid FK → evidence_file, nullable — the specific file the finding concerns |
 | `kind` | enum — see `docs/10-FORENSICS.md` |
 | `severity` | enum `INFO`,`LOW`,`MEDIUM`,`HIGH` |
 | `reason` | text — human-readable, shown verbatim in the Lab |
@@ -153,16 +195,27 @@ file did not contain.
 `evidence` is what powers the "why was this flagged?" drill-down. It must
 contain enough to recompute the verdict by hand.
 
-**There is no `risk_score` column on `evidence_submission`.** The score is
-derived from findings at read time by a versioned pure function in
-`src/lib/`, and is always rendered alongside the findings that produced it.
+**`risk_score`, `risk_band` and `scoring_version` on `evidence_submission` are
+a cache of a pure function of the findings**, stored so a Lab queue of
+thousands of rows can be sorted without a join. Four conditions:
+
+1. They are **only ever written by the pure function** in
+   `src/lib/scoring/`. Never by hand, never by the AI, never by an admin.
+2. `scoring_version` is stored with them, so a weights change does not
+   silently rewrite history. Old submissions keep their original version.
+3. They are **never rendered without the findings beside them.**
+4. They never gate a transition.
+
+See `docs/10-FORENSICS.md` §6.
 
 ### Governance group — append-only
 
 **`review_decision`**
-`id`, `submission_id`, `reviewer_user_id`, `reviewer_org_id`,
-`decision` (`APPROVE`,`REJECT`,`REQUEST_MORE_PROOF`), `reason` (NOT NULL,
-non-empty), `created_at`.
+`id`, `submission_id`, `round` (integer), `reviewer_user_id`,
+`reviewer_org_id`, `decision` (`APPROVE`,`REJECT`,`REQUEST_MORE_PROOF`),
+`reason` (NOT NULL, `CHECK (char_length(reason) >= 20)`), `created_at`.
+Unique `(submission_id, round, reviewer_user_id)` — one decision per reviewer
+per round. The 20-character minimum is also enforced in Zod.
 
 **`audit_event`**
 `id`, `org_id`, `seq` (bigint), `event_type`, `payload` (jsonb),
@@ -221,8 +274,11 @@ raises.
 
 | Index | Table | Purpose |
 |---|---|---|
-| GiST on `boundary` | `impact_project` | `ST_Contains`, `ST_DWithin` |
-| HNSW `bit_hamming_ops` on `before_dhash`, `after_dhash` | `evidence_submission` | duplicate search |
+| GiST on `boundary` | `project_private_location` | `ST_Contains`, `ST_DWithin` |
+| HNSW `bit_hamming_ops` on `dhash` | `evidence_file` | duplicate search |
+| unique `(submission_id, role, round)` where `role IN ('BEFORE','AFTER')` | `evidence_file` | one before and one after per round |
+| unique `(submission_id, round, reviewer_user_id)` | `review_decision` | one decision per reviewer per round |
+| unique `(project_id, funder_org_id)` | `project_funder` | |
 | btree `(status, run_at)` | `job` | queue poll |
 | btree `(org_id, seq DESC)` | `audit_event` | chain head lookup |
 | btree `(project_id, status)` | `evidence_submission` | Lab queue |
