@@ -1,0 +1,184 @@
+@import "tailwindcss";
+
+/*
+  Delta MRV Design System — Living Earth & Paper Tokens
+  Authority: docs/06-DESIGN-SYSTEM.md
+  Override from maintainer:
+  --verified and --paper-seal are fill, border and large-icon colours only.
+  Never use them for normal-size text — mid-tone greens on a near-black background fail WCAG AA.
+  Text sitting on a --verified fill is white or --field-abyss, whichever measures higher contrast.
+  Small "verified" text uses --field-text with a --verified icon beside it.
+*/
+
+:root {
+  /* 2.1 Field Tokens (Default Authenticated Workspace) */
+  --field-abyss: #0C1413;    /* Page background */
+  --field-canopy: #14201E;   /* Cards, panels */
+  --field-raised: #1C2B28;   /* Hover, raised surfaces, inputs */
+  --field-hairline: #273A36; /* Borders, dividers */
+  --field-text: #E8EDE9;     /* Primary text */
+  --field-muted: #8CA39C;    /* Secondary text, labels */
+  --field-inert: #5B6D68;    /* Disabled, placeholder */
+
+  /* 2.2 Semantic Tokens — Shared Meaning in Both Themes */
+  --signal: #D7F6B8;         /* Primary action. ONE per screen */
+  --verified: #3E9D80;       /* A hash matched, a check passed (fill/border/icon only) */
+  --chain: #7C8CF8;          /* On-chain state. The ONLY place chain language lives */
+  --review: #E8A33D;         /* A human must look at this */
+  --fraud: #E2644F;          /* High-severity finding, mismatch, rejected */
+
+  /* 2.3 Paper Tokens (Public Proof Dossier) */
+  --paper: #F7F3EA;          /* Page background */
+  --paper-card: #FFFDF8;     /* Raised card */
+  --paper-rule: #DED6C6;     /* Hairline, dividers */
+  --paper-ink: #1B1D1A;      /* Primary text */
+  --paper-muted: #5E6460;    /* Secondary text */
+  --paper-seal: #1F6B55;     /* Verified, on paper (fill/border/icon only) */
+  --paper-chain: #4A4FA8;    /* On-chain, on paper */
+
+  /* Section 4: Space and Shape */
+  --radius-sm: 4px;          /* Badges, inputs, small controls */
+  --radius: 8px;             /* Buttons, fields */
+  --radius-lg: 12px;         /* Cards, panels */
+
+  /* Active Theme Defaults (Field) */
+  --theme-bg: var(--field-abyss);
+  --theme-surface: var(--field-canopy);
+  --theme-surface-raised: var(--field-raised);
+  --theme-border: var(--field-hairline);
+  --theme-text: var(--field-text);
+  --theme-text-muted: var(--field-muted);
+  --theme-text-inert: var(--field-inert);
+
+  /* Component library token mappings */
+  --background: var(--field-abyss);
+  --foreground: var(--field-text);
+  --card: var(--field-canopy);
+  --card-foreground: var(--field-text);
+  --popover: var(--field-canopy);
+  --popover-foreground: var(--field-text);
+  --primary: var(--signal);
+  --primary-foreground: #0C1413;
+  --secondary: var(--field-raised);
+  --secondary-foreground: var(--field-text);
+  --muted: var(--field-raised);
+  --muted-foreground: var(--field-muted);
+  --accent: var(--field-raised);
+  --accent-foreground: var(--field-text);
+  --destructive: var(--fraud);
+  --destructive-foreground: #FFFFFF;
+  --border: var(--field-hairline);
+  --input: var(--field-hairline);
+  --ring: var(--signal);
+}
+
+/* 2.3 Paper Theme Scope */
+.theme-paper,
+[data-theme="paper"] {
+  --theme-bg: var(--paper);
+  --theme-surface: var(--paper-card);
+  --theme-surface-raised: #EFE9DC;
+  --theme-border: var(--paper-rule);
+  --theme-text: var(--paper-ink);
+  --theme-text-muted: var(--paper-muted);
+  --theme-text-inert: #8A918C;
+
+  --background: var(--paper);
+  --foreground: var(--paper-ink);
+  --card: var(--paper-card);
+  --card-foreground: var(--paper-ink);
+  --popover: var(--paper-card);
+  --popover-foreground: var(--paper-ink);
+  --primary: var(--paper-seal);
+  --primary-foreground: #FFFFFF;
+  --secondary: #EFE9DC;
+  --secondary-foreground: var(--paper-ink);
+  --muted: #EFE9DC;
+  --muted-foreground: var(--paper-muted);
+  --accent: #EFE9DC;
+  --accent-foreground: var(--paper-ink);
+  --destructive: var(--fraud);
+  --destructive-foreground: #FFFFFF;
+  --border: var(--paper-rule);
+  --input: var(--paper-rule);
+  --ring: var(--paper-seal);
+}
+
+@theme inline {
+  --color-field-abyss: var(--field-abyss);
+  --color-field-canopy: var(--field-canopy);
+  --color-field-raised: var(--field-raised);
+  --color-field-hairline: var(--field-hairline);
+  --color-field-text: var(--field-text);
+  --color-field-muted: var(--field-muted);
+  --color-field-inert: var(--field-inert);
+
+  --color-signal: var(--signal);
+  --color-verified: var(--verified);
+  --color-chain: var(--chain);
+  --color-review: var(--review);
+  --color-fraud: var(--fraud);
+
+  --color-paper: var(--paper);
+  --color-paper-card: var(--paper-card);
+  --color-paper-rule: var(--paper-rule);
+  --color-paper-ink: var(--paper-ink);
+  --color-paper-muted: var(--paper-muted);
+  --color-paper-seal: var(--paper-seal);
+  --color-paper-chain: var(--paper-chain);
+
+  --color-theme-bg: var(--theme-bg);
+  --color-theme-surface: var(--theme-surface);
+  --color-theme-surface-raised: var(--theme-surface-raised);
+  --color-theme-border: var(--theme-border);
+  --color-theme-text: var(--theme-text);
+  --color-theme-text-muted: var(--theme-text-muted);
+  --color-theme-text-inert: var(--theme-text-inert);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius-lg);
+  --radius: var(--radius);
+}
+
+/* Base Body Styles */
+body {
+  background-color: var(--theme-bg);
+  color: var(--theme-text);
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Monospace telemetry numbers rule per docs/06-DESIGN-SYSTEM.md §3.1 */
+.font-mono,
+code,
+kbd,
+samp {
+  font-family: var(--font-geist-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Section 5: Hard Prohibitions
+   No glowing orbs, no glassmorphism backdrop filters, no box-shadow elevation
+*/
+* {
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Reduced Motion floor per docs/06-DESIGN-SYSTEM.md §6 & §9 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
