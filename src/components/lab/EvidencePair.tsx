@@ -43,6 +43,11 @@ export interface EvidencePairProps {
   className?: string;
 }
 
+/** Matches the grid gap-4 between the two pictures in side-by-side mode */
+const SIDE_GAP = 16;
+/** 8px gap plus two 20px caption lines */
+const CAPTION_RESERVE = 48;
+const useIsoLayoutEffect = typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
 const STEP = 2;
 const BIG_STEP = 10;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
@@ -67,8 +72,8 @@ function formatCoordinate(gps: { lat: number; lng: number }): string {
  * EvidencePair — the comparison, and the primary interaction in the Lab.
  * Authority: docs/19-LAYOUT-SPEC.md §2, §5, §7; docs/18-VISUAL-CORRECTION.md §2–§3.
  *
- * Top to bottom: a 40px control row, the image area (takes everything left over),
- * captions that sit BELOW the image and never inside it, and a 32px detail strip.
+ * Top to bottom: a 40px control row, the image area (takes everything left over) with
+ * captions directly beneath the picture and never inside it, and a 32px detail strip.
  */
 export function EvidencePair({
   before,
@@ -89,6 +94,20 @@ export function EvidencePair({
   const [showStrip, setShowStrip] = React.useState<boolean>(false);
 
   const imageBoxRef = React.useRef<HTMLDivElement>(null);
+  const stageRef = React.useRef<HTMLDivElement>(null);
+  const [stage, setStage] = React.useState<{ w: number; h: number } | null>(null);
+
+  // Container-query units mis-resolve when the stage sits at its min-height, so the
+  // picture is sized in pixels from the stage actually on screen.
+  useIsoLayoutEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setStage({ w: Math.floor(entry.contentRect.width), h: Math.floor(entry.contentRect.height) });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const drag = React.useRef<{
     mode: "slider" | "pan";
     startX: number;
@@ -106,6 +125,9 @@ export function EvidencePair({
   };
 
   const aspect = (before.width ?? 800) / (before.height ?? 600);
+  // Largest picture that fits `availableWidth` once the caption beneath it is reserved
+  const fitWidth = (availableWidth: number) =>
+    stage ? Math.max(0, Math.floor(Math.min(availableWidth, (stage.h - CAPTION_RESERVE) * aspect))) : 0;
 
   const setZoomLevel = (next: number) => {
     const z = clamp(next, 1, 4);
@@ -235,7 +257,7 @@ export function EvidencePair({
     <div className={cn("flex min-h-0 flex-col gap-2", className)}>
       {/* Controls: one 40px row */}
       <div className="flex h-10 shrink-0 items-center justify-between gap-4 select-none">
-        <div role="group" aria-label="View mode" className="flex items-center rounded-lg border border-field-hairline bg-field-canopy p-0.5">
+        <div role="group" aria-label="View mode" className="flex items-center rounded-lg border border-field-hairline bg-field-canopy p-1">
           <button type="button" aria-pressed={sliderMode} onClick={() => setViewMode("slider")} className={segment(sliderMode)}>
             <SlidersHorizontal className="size-3.5" aria-hidden="true" /> Slider
           </button>
@@ -244,7 +266,7 @@ export function EvidencePair({
           </button>
         </div>
 
-        <div role="group" aria-label="Zoom" className="flex items-center rounded-lg border border-field-hairline bg-field-canopy p-0.5">
+        <div role="group" aria-label="Zoom" className="flex items-center rounded-lg border border-field-hairline bg-field-canopy p-1">
           <button type="button" title="Zoom out" aria-label="Zoom out" disabled={zoom <= 1} onClick={() => setZoomLevel(zoom - 0.5)} className={iconButton}>
             <ZoomOut className="size-4" aria-hidden="true" />
           </button>
@@ -267,80 +289,84 @@ export function EvidencePair({
         </div>
       </div>
 
-      {/* Image area. It sizes itself to the picture's aspect ratio and fills the space left,
-          so the divider and the pills sit on the photograph, never on empty ground. */}
-      <div className="relative min-h-[320px] flex-1 overflow-hidden rounded-lg border border-field-hairline bg-field-abyss [container-type:size]">
+      {/* Image area. The picture sizes itself to its aspect ratio inside the space left, and its
+          captions sit directly beneath it at the same width, outside its box (docs/19 §7). */}
+      <div ref={stageRef} className={cn("relative min-h-[320px] flex-1", !stage && "invisible")}>
         {sliderMode ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div
-              ref={imageBoxRef}
-              role="slider"
-              tabIndex={0}
-              aria-label={`Compare ${beforeLabel.toLowerCase()} and ${afterLabel.toLowerCase()}`}
-              aria-orientation="horizontal"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={position}
-              aria-valuetext={`${position}% ${beforeLabel.toLowerCase()}`}
-              onPointerDown={onPointerDown}
-              onPointerMove={onPointerMove}
-              onPointerUp={endPointer}
-              onPointerCancel={endPointer}
-              onKeyDown={onKeyDown}
-              style={{ aspectRatio: aspect, width: `min(100cqw, calc(100cqh * ${aspect}))` }}
-              className={cn(
-                "relative touch-none select-none overflow-hidden outline-none",
-                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal",
-                cursor
-              )}
-            >
-              <div className="absolute inset-0">{picture(before, beforeLabel, "left")}</div>
-              {/* After image, clipped to everything right of the divider */}
-              <div className="absolute inset-0" style={{ clipPath: `inset(0 0 0 ${position}%)` }}>
-                {picture(after, afterLabel, "right")}
+          <div className="absolute inset-0 flex items-start justify-center">
+            <div className="flex flex-col gap-2" style={{ width: fitWidth(stage?.w ?? 0) }}>
+              <div
+                ref={imageBoxRef}
+                role="slider"
+                tabIndex={0}
+                aria-label={`Compare ${beforeLabel.toLowerCase()} and ${afterLabel.toLowerCase()}`}
+                aria-orientation="horizontal"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={position}
+                aria-valuetext={`${position}% ${beforeLabel.toLowerCase()}`}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={endPointer}
+                onPointerCancel={endPointer}
+                onKeyDown={onKeyDown}
+                style={{ aspectRatio: aspect }}
+                className={cn(
+                  "relative w-full touch-none select-none overflow-hidden rounded-lg border border-field-hairline bg-field-abyss",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal",
+                  cursor
+                )}
+              >
+                <div className="absolute inset-0">{picture(before, beforeLabel, "left")}</div>
+                {/* After image, clipped to everything right of the divider */}
+                <div className="absolute inset-0" style={{ clipPath: `inset(0 0 0 ${position}%)` }}>
+                  {picture(after, afterLabel, "right")}
+                </div>
+
+                {/* Divider: a 4px line and a 32px grab target that appears on hover */}
+                <div data-handle className="group absolute inset-y-0 z-20 w-8 -translate-x-1/2 cursor-ew-resize" style={{ left: `${position}%` }}>
+                  <div className="absolute inset-y-0 left-1/2 w-1 -translate-x-1/2 bg-field-text/60" />
+                  <div
+                    className={cn(
+                      "absolute left-1/2 top-1/2 flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full transition-colors duration-[120ms]",
+                      interaction === "slider" ? "bg-field-raised/90" : "bg-transparent group-hover:bg-field-raised/90"
+                    )}
+                  >
+                    <ChevronsLeftRight className="size-4 text-field-text/70" aria-hidden="true" />
+                  </div>
+                </div>
               </div>
 
-              {/* Divider: a 4px line and a 32px grab target that appears on hover */}
-              <div data-handle className="group absolute inset-y-0 z-20 w-8 -translate-x-1/2 cursor-ew-resize" style={{ left: `${position}%` }}>
-                <div className="absolute inset-y-0 left-1/2 w-1 -translate-x-1/2 bg-field-text/60" />
-                <div
-                  className={cn(
-                    "absolute left-1/2 top-1/2 flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full transition-colors duration-[120ms]",
-                    interaction === "slider" ? "bg-field-raised/90" : "bg-transparent group-hover:bg-field-raised/90"
-                  )}
-                >
-                  <ChevronsLeftRight className="size-4 text-field-text/70" aria-hidden="true" />
-                </div>
+              <div className="grid grid-cols-2 gap-4 select-none">
+                {caption(before, beforeLabel, "left")}
+                {caption(after, afterLabel, "right")}
               </div>
             </div>
           </div>
         ) : (
-          <div className="absolute inset-0 grid grid-cols-2 gap-2">
+          <div className="absolute inset-0 grid grid-cols-2 grid-rows-1 gap-4">
             {[
               { img: before, label: beforeLabel, side: "left" as const },
               { img: after, label: afterLabel, side: "right" as const },
             ].map(({ img, label, side }) => (
-              <div key={label} className="relative flex items-center justify-center [container-type:size]">
-                <div
-                  onPointerDown={onPointerDown}
-                  onPointerMove={onPointerMove}
-                  onPointerUp={endPointer}
-                  onPointerCancel={endPointer}
-                  style={{ aspectRatio: aspect, width: `min(100cqw, calc(100cqh * ${aspect}))` }}
-                  className={cn("relative touch-none select-none overflow-hidden", cursor)}
-                >
-                  {picture(img, label, side)}
+              <div key={label} className="relative flex items-start justify-center">
+                <div className="flex flex-col gap-2" style={{ width: fitWidth(((stage?.w ?? 0) - SIDE_GAP) / 2) }}>
+                  <div
+                    onPointerDown={onPointerDown}
+                    onPointerMove={onPointerMove}
+                    onPointerUp={endPointer}
+                    onPointerCancel={endPointer}
+                    style={{ aspectRatio: aspect }}
+                    className={cn("relative w-full touch-none select-none overflow-hidden rounded-lg border border-field-hairline bg-field-abyss", cursor)}
+                  >
+                    {picture(img, label, side)}
+                  </div>
+                  <div className="select-none">{caption(img, label, side)}</div>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </div>
-
-      {/* Captions sit below the image, outside its box (docs/19 §7) */}
-      <div className="grid shrink-0 grid-cols-2 gap-4 select-none">
-        {caption(before, beforeLabel, "left")}
-        {caption(after, afterLabel, "right")}
       </div>
 
       {/* Detail strip: 32px when closed */}

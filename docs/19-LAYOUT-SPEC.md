@@ -139,8 +139,14 @@ kitchen sink behind a "dev state" toggle; nowhere else.
 
 The current list reads as static rows. Four changes:
 
-**Selected row** gets a 2px `--signal` left border, `--field-raised`
+**Selected row** gets a 2px `--field-muted` left border, `--field-raised`
 background, and no other decoration. One selected row at a time.
+
+> **Decided 2026-11-03: the border is neutral, not `--signal`.** An earlier draft
+> used `--signal`, which put a second lime element on the screen next to the
+> primary action and broke the "one accent per screen" rule of doc 18. Doc 18 wins.
+> `--signal` on this screen is exactly two things: the Approve button, and the
+> transient keyboard focus ring below. Do not reintroduce it on selection.
 
 **Hover** lifts to `--field-raised` with a 120ms background transition. No
 transform, no shadow.

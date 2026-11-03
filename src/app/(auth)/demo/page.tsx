@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Building2,
   ShieldCheck,
@@ -10,6 +11,7 @@ import {
   Info,
 } from "lucide-react";
 import { cn } from "@/src/lib/utils";
+import { signInAsDemo } from "./actions";
 
 export interface DemoPersona {
   id: string;
@@ -31,7 +33,7 @@ export const DEMO_PERSONAS: DemoPersona[] = [
     roleTitle: "Field submitter",
     organization: "Sundarbans Restoration Trust",
     orgType: "OWNER",
-    email: "field@sundarbans.org",
+    email: "submitter@delta-demo.example",
     whatToTry:
       "Submit before/after evidence against a project site and observe real-time perceptual hashing.",
   },
@@ -40,7 +42,7 @@ export const DEMO_PERSONAS: DemoPersona[] = [
     roleTitle: "Independent verifier one",
     organization: "Delta Independent Audit",
     orgType: "VERIFIER",
-    email: "verifier1@delta-audit.org",
+    email: "verifier1@delta-demo.example",
     whatToTry:
       "Review a queue with a flagged duplicate, inspect forensic drill-downs, then approve.",
     note: "Approval needs two verifiers. Sign in as verifier two afterwards to complete it.",
@@ -50,7 +52,7 @@ export const DEMO_PERSONAS: DemoPersona[] = [
     roleTitle: "Independent verifier two",
     organization: "Delta Independent Audit",
     orgType: "VERIFIER",
-    email: "verifier2@delta-audit.org",
+    email: "verifier2@delta-demo.example",
     whatToTry:
       "Provide the second independent approval to satisfy quorum and reach APPROVED status.",
   },
@@ -59,7 +61,7 @@ export const DEMO_PERSONAS: DemoPersona[] = [
     roleTitle: "Funder",
     organization: "Coastal Resilience Fund",
     orgType: "FUNDER",
-    email: "director@coastalresilience.org",
+    email: "funder@delta-demo.example",
     whatToTry:
       "Inspect verified ecological outcomes, audit trails, and anchored Merkle proofs across portfolio projects.",
   },
@@ -80,13 +82,27 @@ export const DEMO_SIX_STEPS = [
  * No password fields, no synthetic logins. Each persona enters a seeded role.
  */
 export default function DemoPage({ onSelectPersona }: DemoPageProps) {
+  const router = useRouter();
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const handleSelect = (persona: DemoPersona) => {
+  const handleSelect = async (persona: DemoPersona) => {
     setSelectedId(persona.id);
+    setError(null);
     if (onSelectPersona) {
       onSelectPersona(persona);
+      return;
     }
+    // A real session for a seeded user. The server action checks DEMO_MODE itself and is
+    // given only the persona id, so it cannot be used to sign in as anyone else.
+    const res = await signInAsDemo(persona.id);
+    if (!res.success) {
+      setError(res.error ?? "Could not start the demo session.");
+      setSelectedId(null);
+      return;
+    }
+    // shortcut: everyone lands on /lab until Stage 3 builds /dashboard (docs/05 §3)
+    router.push("/lab");
   };
 
   return (
@@ -130,6 +146,12 @@ export default function DemoPage({ onSelectPersona }: DemoPageProps) {
           ))}
         </ol>
       </div>
+
+      {error && (
+        <p role="alert" className="rounded border border-[color-mix(in_srgb,var(--fraud)_35%,transparent)] bg-[color-mix(in_srgb,var(--fraud)_14%,transparent)] p-3 text-xs text-fraud">
+          {error}
+        </p>
+      )}
 
       {/* Four Persona Cards */}
       <div className="space-y-3">

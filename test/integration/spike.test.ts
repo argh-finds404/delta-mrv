@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { eq, like, sql } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 import {
   anchorBatch,
@@ -88,11 +88,12 @@ describe("spike 1: geography(Polygon,4326) through Drizzle", () => {
         locationSalt: Buffer.alloc(32, 7),
       });
 
-      const [loc] = await tx.select().from(projectPrivateLocation);
+      // by id: the table also holds the seeded projects
+      const [loc] = await tx.select().from(projectPrivateLocation).where(eq(projectPrivateLocation.projectId, project.id));
       expect(loc!.boundary).toEqual(BOUNDARY);
       expect(loc!.locationSalt).toEqual(Buffer.alloc(32, 7));
 
-      const [proj] = await tx.select().from(impactProject);
+      const [proj] = await tx.select().from(impactProject).where(eq(impactProject.id, project.id));
       expect(proj!.fuzzedCentroid).toEqual({ type: "Point", coordinates: [90.405, 23.805] });
     }));
 
@@ -144,6 +145,7 @@ describe("spike 2: bit(64) Hamming distance through Drizzle", () => {
         select storage_key, (dhash <~> ${BASE}::bit(64)) as d
         from evidence_file
         where dhash <~> ${BASE}::bit(64) < 8
+          and storage_key like 'spike/%'
         order by d, storage_key`);
       expect(rows.map((r) => [r.storage_key, Number(r.d)])).toEqual([
         ["spike/0", 0],
@@ -155,7 +157,8 @@ describe("spike 2: bit(64) Hamming distance through Drizzle", () => {
   it("reads bit(64) back as the same 64-character string", () =>
     inRollback(async (tx) => {
       await seedHashes(tx);
-      const rows = await tx.select({ k: evidenceFile.storageKey, h: evidenceFile.dhash }).from(evidenceFile);
+      // only this test's rows: the table also holds the seeded evidence files
+      const rows = await tx.select({ k: evidenceFile.storageKey, h: evidenceFile.dhash }).from(evidenceFile).where(like(evidenceFile.storageKey, "spike/%"));
       expect(rows.find((r) => r.k === "spike/3")!.h).toBe(flip(3));
       expect(rows.find((r) => r.k === "spike/null")!.h).toBeNull();
     }));

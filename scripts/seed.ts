@@ -12,7 +12,8 @@ import { hashPassword } from "better-auth/crypto";
 import postgres from "postgres";
 import sharp from "sharp";
 import { locationCommitment } from "../src/lib/crypto/location";
-import { hammingDistance, packDHash } from "../src/lib/forensics/dhash";
+import { DEMO_PASSWORD } from "../src/lib/demo-accounts";
+import { DHASH_RESIZE, hammingDistance, packDHash } from "../src/lib/forensics/dhash";
 import { fuzzCentroid, polygonCentroid, type LonLat } from "../src/lib/geo/fuzz";
 
 try {
@@ -29,7 +30,6 @@ if (!process.env.NEON_BRANCH || process.env.NEON_BRANCH === "production") {
 
 type Row = Record<string, unknown>;
 const SUBMISSIONS = 5200;
-export const DEMO_PASSWORD = "delta-demo-2026"; // demo accounts only; this script never touches production
 
 // ---- deterministic randomness ------------------------------------------------------------
 function mulberry32(seed: number) {
@@ -46,8 +46,8 @@ const pick = <T>(xs: readonly T[]) => xs[Math.floor(rng() * xs.length)]!;
 
 // ---- the image pool ----------------------------------------------------------------------
 // Eight synthetic photos. Hashes are real: sha256 of the bytes, dHash by the §4.2 pipeline
-// (grayscale first, then resize to 9x8; the kernel is sharp's default, which the contract
-// leaves open). Stage 4 moves the sharp half into the forensics service; packDHash is shared.
+// (grayscale first, then DHASH_RESIZE: 9x8, lanczos3, named in the contract). Stage 4 moves the
+// sharp half into the forensics service; DHASH_RESIZE and packDHash are the shared parts.
 async function makePool() {
   const pool: { key: string; bytes: number; sha256: string; dhash: string }[] = [];
   for (let k = 0; k < 8; k++) {
@@ -60,7 +60,7 @@ async function makePool() {
         for (let c = 0; c < 3; c++)
           raw[(y * W + x) * 3 + c] = Math.round(blocks[Math.floor(y / B) * (W / B) + Math.floor(x / B)]![c]!);
     const jpeg = await sharp(raw, { raw: { width: W, height: H, channels: 3 } }).jpeg({ quality: 80 }).toBuffer();
-    const { data, info } = await sharp(jpeg).grayscale().resize(9, 8, { fit: "fill" }).raw().toBuffer({ resolveWithObject: true });
+    const { data, info } = await sharp(jpeg).grayscale().resize(DHASH_RESIZE).raw().toBuffer({ resolveWithObject: true });
     if (info.channels !== 1) throw new Error(`expected 1 channel after grayscale, got ${info.channels}`);
     pool.push({
       key: `seed/pool/${k}.jpg`,

@@ -1,27 +1,32 @@
 "use client";
 
 import * as React from "react";
-import {
-  Pin,
-  Search,
-} from "lucide-react";
+import { Pin, Search } from "lucide-react";
 import { StatusBadge } from "@/src/components/status-badge/status-badge";
 import { SeverityChip } from "@/src/components/severity-chip/severity-chip";
 import { EmptyState } from "@/src/components/empty-state/empty-state";
 import type { LabSubmission } from "./fixtures";
 import { cn } from "@/src/lib/utils";
 
+/** What a queue row needs. A LabSubmission satisfies it; so does a real queue item with no images. */
+export type QueueItem = Pick<
+  LabSubmission,
+  "id" | "projectTitle" | "ownerOrgName" | "activityType" | "submittedAt" | "status" | "userHasDecided" | "isEscalated" | "findingCounts"
+>;
+
 export interface QueuePaneProps {
   /** Submissions awaiting review */
-  submissions: LabSubmission[];
+  submissions: QueueItem[];
   /** Currently selected submission id */
   selectedId?: string;
   /** Selection handler */
   onSelect: (submissionId: string) => void;
+  /** How many are waiting in all, when `submissions` is a capped page of them */
+  totalCount?: number;
   /** Whether the active viewer is a Verifier Administrator (pins ESCALATED items) */
   isVerifierAdmin?: boolean;
   /** Empty state mode */
-  emptyStateMode?: "none" | "no-assignments" | "queue-clear";
+  emptyStateMode?: "none" | "no-assignments" | "queue-clear" | "not-a-verifier";
   /** Optional theme */
   theme?: "field" | "paper";
   /** Additional CSS class names */
@@ -32,39 +37,28 @@ export interface QueuePaneProps {
  * Severity weight comparator for sorting:
  * HIGH findings first, then MEDIUM, then LOW, then newest submittedAt.
  */
-function compareSeverity(a: LabSubmission, b: LabSubmission): number {
-  if (b.findingCounts.high !== a.findingCounts.high) {
-    return b.findingCounts.high - a.findingCounts.high;
-  }
-  if (b.findingCounts.medium !== a.findingCounts.medium) {
-    return b.findingCounts.medium - a.findingCounts.medium;
-  }
-  if (b.findingCounts.low !== a.findingCounts.low) {
-    return b.findingCounts.low - a.findingCounts.low;
-  }
+export function compareSeverity(a: QueueItem, b: QueueItem): number {
+  if (b.findingCounts.high !== a.findingCounts.high) return b.findingCounts.high - a.findingCounts.high;
+  if (b.findingCounts.medium !== a.findingCounts.medium) return b.findingCounts.medium - a.findingCounts.medium;
+  if (b.findingCounts.low !== a.findingCounts.low) return b.findingCounts.low - a.findingCounts.low;
   return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
 }
 
-/**
- * Formats ISO date to compact monospace timestamp.
- */
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "18 Oct 09:42", in UTC so the server render and the browser agree. */
 function formatTimestamp(iso: string): string {
-  try {
-    const d = new Date(iso);
-    const m = d.toLocaleString("en-US", { month: "short" });
-    const day = d.getDate().toString().padStart(2, "0");
-    const h = d.getHours().toString().padStart(2, "0");
-    const min = d.getMinutes().toString().padStart(2, "0");
-    return `${m} ${day} ${h}:${min}`;
-  } catch {
-    return iso;
-  }
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 }
 
 export function QueuePane({
   submissions,
   selectedId,
   onSelect,
+  totalCount,
   isVerifierAdmin = false,
   emptyStateMode = "none",
   theme = "field",
@@ -73,21 +67,21 @@ export function QueuePane({
   const isPaper = theme === "paper";
   const [filterQuery, setFilterQuery] = React.useState("");
   const [severityFilter, setSeverityFilter] = React.useState<"ALL" | "HIGH" | "MEDIUM">("ALL");
+  const listRef = React.useRef<HTMLDivElement>(null);
 
   // Client-side quick filter
   const filtered = React.useMemo(() => {
+    const q = filterQuery.trim().toLowerCase();
     return submissions.filter((sub) => {
       const matchesText =
-        filterQuery.trim() === "" ||
-        sub.projectTitle.toLowerCase().includes(filterQuery.toLowerCase()) ||
-        sub.ownerOrgName.toLowerCase().includes(filterQuery.toLowerCase()) ||
-        sub.activityType.toLowerCase().includes(filterQuery.toLowerCase());
-
+        q === "" ||
+        sub.projectTitle.toLowerCase().includes(q) ||
+        sub.ownerOrgName.toLowerCase().includes(q) ||
+        sub.activityType.toLowerCase().includes(q);
       const matchesSeverity =
         severityFilter === "ALL" ||
         (severityFilter === "HIGH" && sub.findingCounts.high > 0) ||
         (severityFilter === "MEDIUM" && sub.findingCounts.medium > 0);
-
       return matchesText && matchesSeverity;
     });
   }, [submissions, filterQuery, severityFilter]);
@@ -95,38 +89,63 @@ export function QueuePane({
   // Partition escalated items if verifier admin
   const { pinnedItems, regularItems } = React.useMemo(() => {
     if (isVerifierAdmin) {
-      const pinned = filtered
-        .filter((s) => s.status === "ESCALATED" || s.isEscalated)
-        .sort(compareSeverity);
-      const regular = filtered
-        .filter((s) => s.status !== "ESCALATED" && !s.isEscalated)
-        .sort(compareSeverity);
-      return { pinnedItems: pinned, regularItems: regular };
+      return {
+        pinnedItems: filtered.filter((s) => s.status === "ESCALATED" || s.isEscalated).sort(compareSeverity),
+        regularItems: filtered.filter((s) => s.status !== "ESCALATED" && !s.isEscalated).sort(compareSeverity),
+      };
     }
-    return {
-      pinnedItems: [],
-      regularItems: [...filtered].sort(compareSeverity),
-    };
+    return { pinnedItems: [], regularItems: [...filtered].sort(compareSeverity) };
   }, [filtered, isVerifierAdmin]);
+
+  // j/k change the selection from outside the list; keep the row in view.
+  React.useEffect(() => {
+    listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+  }, [selectedId]);
+
+  // Up / Down / Home / End move FOCUS between rows without selecting; Enter selects.
+  const onListKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const keys = ["ArrowDown", "ArrowUp", "Home", "End"];
+    if (!keys.includes(e.key)) return;
+    const rows = Array.from(listRef.current?.querySelectorAll<HTMLElement>('[role="option"]') ?? []);
+    if (rows.length === 0) return;
+    e.preventDefault();
+    const at = rows.indexOf(document.activeElement as HTMLElement);
+    const next =
+      e.key === "Home" ? 0
+      : e.key === "End" ? rows.length - 1
+      : e.key === "ArrowDown" ? Math.min(rows.length - 1, at + 1)
+      : Math.max(0, at <= 0 ? 0 : at - 1);
+    rows[next]?.focus();
+  };
+
+  const paneClass = cn(
+    "flex min-h-0 min-w-0 flex-col border-r",
+    isPaper ? "border-paper-rule bg-paper" : "border-field-hairline bg-field-canopy",
+    className
+  );
 
   // Empty state handling per docs/15-UI-STATES.md §2
   if (emptyStateMode === "no-assignments") {
     return (
-      <aside
-        className={cn(
-          "w-full sm:w-[280px] lg:w-[320px] flex-shrink-0 flex flex-col border-r p-4",
-          isPaper ? "border-paper-rule bg-paper" : "border-field-hairline bg-field-canopy",
-          className
-        )}
-      >
+      <aside className={cn(paneClass, "px-5 py-4")}>
         <EmptyState
           title="Your review queue"
           reason="Your organisation is not assigned to any projects yet. A platform administrator assigns verifier organisations to the projects they audit."
           honestNote="Independent verifier organizations only review assigned workloads. Platform administrators assign audit lanes."
-          action={{
-            label: "Contact support",
-            onClick: () => alert("Redirecting to administrator support..."),
-          }}
+          action={{ label: "Contact support", onClick: () => alert("Redirecting to administrator support...") }}
+          theme={theme}
+        />
+      </aside>
+    );
+  }
+
+  if (emptyStateMode === "not-a-verifier") {
+    return (
+      <aside className={cn(paneClass, "px-5 py-4")}>
+        <EmptyState
+          title="No review queue"
+          reason="The Evidence Lab is for verifier organisations. Your organisation does not review submissions, so there is nothing to show here."
+          honestNote="Project owners submit evidence and funders read verified outcomes. Both are on your dashboard."
           theme={theme}
         />
       </aside>
@@ -135,13 +154,7 @@ export function QueuePane({
 
   if (emptyStateMode === "queue-clear" || (submissions.length === 0 && filterQuery === "")) {
     return (
-      <aside
-        className={cn(
-          "w-full sm:w-[280px] lg:w-[320px] flex-shrink-0 flex flex-col border-r p-4",
-          isPaper ? "border-paper-rule bg-paper" : "border-field-hairline bg-field-canopy",
-          className
-        )}
-      >
+      <aside className={cn(paneClass, "px-5 py-4")}>
         <EmptyState
           title="Queue clear"
           reason="Nothing is awaiting your review. New submissions appear here automatically once forensic processing completes."
@@ -152,66 +165,47 @@ export function QueuePane({
     );
   }
 
-  return (
-    <aside
-      className={cn(
-        "w-full sm:w-[280px] lg:w-[320px] flex-shrink-0 flex flex-col border-r transition-colors select-none",
-        isPaper ? "border-paper-rule bg-paper" : "border-field-hairline bg-field-canopy",
-        className
-      )}
-    >
-      {/* Pane Header */}
-      <div
-        className={cn(
-          "p-3.5 border-b space-y-2.5",
-          isPaper ? "border-paper-rule bg-paper-card" : "border-field-hairline bg-field-canopy"
-        )}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h3
-              className={cn(
-                "text-xs font-medium",
-                isPaper ? "text-paper-ink" : "text-field-text"
-              )}
-            >
-              Review queue
-            </h3>
-            <span className="font-mono text-[11px] tabular-nums text-field-muted">
-              ({filtered.length})
-            </span>
-          </div>
+  const chip = (active: boolean, tone?: "fraud" | "review") =>
+    cn(
+      "flex h-6 items-center gap-1 rounded-sm border px-2 text-xs transition-colors duration-[120ms]",
+      active && tone === "fraud" && "border-[color-mix(in_srgb,var(--fraud)_35%,transparent)] bg-[color-mix(in_srgb,var(--fraud)_14%,transparent)] text-fraud",
+      active && tone === "review" && "border-[color-mix(in_srgb,var(--review)_35%,transparent)] bg-[color-mix(in_srgb,var(--review)_14%,transparent)] text-review",
+      active && !tone && "border-field-muted bg-field-raised text-field-text",
+      !active && "border-field-hairline text-field-muted hover:text-field-text"
+    );
 
+  return (
+    <aside className={cn(paneClass, "select-none")}>
+      {/* Header: heading, then its content 16px below, rows of controls 8px apart */}
+      <div className={cn("shrink-0 border-b px-5 py-4", isPaper ? "border-paper-rule" : "border-field-hairline")}>
+        <div className="flex h-6 items-center justify-between">
+          <h2 className={cn("text-base font-medium leading-6", isPaper ? "text-paper-ink" : "text-field-text")}>
+            Review queue
+            <span className="ml-2 font-mono text-[13px] font-normal tabular-nums text-field-muted">
+              {filtered.length}
+              {totalCount !== undefined && totalCount > submissions.length ? ` of ${totalCount}` : ""}
+            </span>
+          </h2>
           {isVerifierAdmin && (
             <span
               title="Escalated submissions are pinned to the top for administrator review"
-              className={cn(
-                "flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border select-none",
-                isPaper
-                  ? "bg-[color-mix(in_srgb,var(--paper-chain)_14%,transparent)] border-[color-mix(in_srgb,var(--paper-chain)_35%,transparent)] text-paper-chain"
-                  : "bg-[color-mix(in_srgb,var(--chain)_14%,transparent)] border-[color-mix(in_srgb,var(--chain)_35%,transparent)] text-chain"
-              )}
+              className="flex items-center gap-1 rounded-sm border border-[color-mix(in_srgb,var(--chain)_35%,transparent)] bg-[color-mix(in_srgb,var(--chain)_14%,transparent)] px-2 text-xs leading-5 text-chain"
             >
-              <Pin className="size-3" /> Admin view
+              <Pin className="size-3" aria-hidden="true" /> Admin view
             </span>
           )}
         </div>
 
-        {/* Quick Filter Bar */}
-        <div className="relative">
-          <Search
-            className={cn(
-              "absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5",
-              isPaper ? "text-paper-muted" : "text-field-inert"
-            )}
-          />
+        <div className="relative mt-4">
+          <Search aria-hidden="true" className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-field-inert" />
           <input
             type="text"
-            placeholder="Filter queue (j/k to move)..."
+            aria-label="Filter the review queue"
+            placeholder="Filter queue"
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
             className={cn(
-              "w-full rounded border pl-8 pr-3 py-1.5 text-xs transition-colors focus:outline-none",
+              "h-8 w-full rounded-sm border pl-9 pr-3 text-[13px] outline-none transition-colors duration-[120ms]",
               isPaper
                 ? "border-paper-rule bg-paper text-paper-ink placeholder:text-paper-muted focus:border-paper-seal"
                 : "border-field-hairline bg-field-raised text-field-text placeholder:text-field-inert focus:border-field-muted"
@@ -219,59 +213,29 @@ export function QueuePane({
           />
         </div>
 
-        {/* Filter Pills (Tint rule, sentence case, no solid fills) */}
-        <div className="flex items-center gap-1 text-[11px] pt-0.5">
-          <button
-            type="button"
-            onClick={() => setSeverityFilter("ALL")}
-            className={cn(
-              "px-2 py-0.5 rounded border transition-colors flex items-center gap-1",
-              severityFilter === "ALL"
-                ? isPaper
-                  ? "bg-paper-card border-paper-rule text-paper-ink font-medium"
-                  : "bg-field-raised border-field-muted text-field-text font-medium"
-                : isPaper
-                ? "border-paper-rule text-paper-muted hover:text-paper-ink"
-                : "border-field-hairline text-field-muted hover:text-field-text"
-            )}
-          >
-            <span>All</span>
-            <span className="font-mono tabular-nums text-[10px]">({submissions.length})</span>
+        <div className="mt-2 flex items-center gap-2">
+          <button type="button" aria-pressed={severityFilter === "ALL"} onClick={() => setSeverityFilter("ALL")} className={chip(severityFilter === "ALL")}>
+            All <span className="font-mono tabular-nums">{submissions.length}</span>
           </button>
-          <button
-            type="button"
-            onClick={() => setSeverityFilter("HIGH")}
-            className={cn(
-              "px-2 py-0.5 rounded border transition-colors flex items-center gap-1",
-              severityFilter === "HIGH"
-                ? "bg-[color-mix(in_srgb,var(--fraud)_14%,transparent)] border-[color-mix(in_srgb,var(--fraud)_35%,transparent)] text-fraud font-medium"
-                : "border-field-hairline text-field-muted hover:text-field-text"
-            )}
-          >
-            <span className="size-1 rounded-full bg-fraud" />
-            <span>High risk</span>
+          <button type="button" aria-pressed={severityFilter === "HIGH"} onClick={() => setSeverityFilter("HIGH")} className={chip(severityFilter === "HIGH", "fraud")}>
+            <span className="size-1 rounded-full bg-fraud" aria-hidden="true" /> High risk
           </button>
-          <button
-            type="button"
-            onClick={() => setSeverityFilter("MEDIUM")}
-            className={cn(
-              "px-2 py-0.5 rounded border transition-colors flex items-center gap-1",
-              severityFilter === "MEDIUM"
-                ? "bg-[color-mix(in_srgb,var(--review)_14%,transparent)] border-[color-mix(in_srgb,var(--review)_35%,transparent)] text-review font-medium"
-                : "border-field-hairline text-field-muted hover:text-field-text"
-            )}
-          >
-            <span className="size-1 rounded-full bg-review" />
-            <span>Medium</span>
+          <button type="button" aria-pressed={severityFilter === "MEDIUM"} onClick={() => setSeverityFilter("MEDIUM")} className={chip(severityFilter === "MEDIUM", "review")}>
+            <span className="size-1 rounded-full bg-review" aria-hidden="true" /> Medium
           </button>
         </div>
       </div>
 
-      {/* Queue Item List */}
-      <div className="flex-1 overflow-y-auto divide-y divide-inherit">
-        {/* Filtered-to-nothing empty state */}
+      {/* Rows */}
+      <div
+        ref={listRef}
+        role="listbox"
+        aria-label="Submissions awaiting review"
+        onKeyDown={onListKeyDown}
+        className="min-h-0 flex-1 overflow-y-auto"
+      >
         {filtered.length === 0 && (
-          <div className="p-4">
+          <div className="p-5">
             <EmptyState
               title="No submissions match these filters"
               reason={`${submissions.length} submissions are in your queue. None match "${filterQuery}".`}
@@ -287,43 +251,34 @@ export function QueuePane({
           </div>
         )}
 
-        {/* Pinned Escalations Section (Verifier Admin) */}
         {pinnedItems.length > 0 && (
-          <div className="border-b border-chain/30">
-            <div
-              className={cn(
-                "px-3 py-1.5 text-[11px] flex items-center justify-between",
-                isPaper
-                  ? "bg-paper-card text-paper-chain"
-                  : "bg-field-canopy text-chain"
-              )}
-            >
-              <span className="flex items-center gap-1 font-medium">
-                <Pin className="size-3" /> Pinned escalations
+          <div role="group" aria-label="Pinned escalations">
+            <div className="flex h-8 items-center justify-between px-5 text-[13px] text-chain">
+              <span className="flex items-center gap-1">
+                <Pin className="size-3" aria-hidden="true" /> Pinned escalations
               </span>
-              <span className="font-mono tabular-nums text-[10px]">
-                {pinnedItems.length} awaiting deciding vote
-              </span>
+              <span className="font-mono tabular-nums">{pinnedItems.length} awaiting</span>
             </div>
             {pinnedItems.map((sub) => (
               <QueueRow
                 key={sub.id}
                 submission={sub}
                 isSelected={sub.id === selectedId}
+                isTabStop={sub.id === selectedId}
                 onSelect={() => onSelect(sub.id)}
-                isPinned
                 theme={theme}
               />
             ))}
           </div>
         )}
 
-        {/* Regular Queue Items */}
-        {regularItems.map((sub) => (
+        {regularItems.map((sub, i) => (
           <QueueRow
             key={sub.id}
             submission={sub}
             isSelected={sub.id === selectedId}
+            // exactly one row is in the tab order: the selected one, else the first
+            isTabStop={sub.id === selectedId || (selectedId === undefined && i === 0 && pinnedItems.length === 0)}
             onSelect={() => onSelect(sub.id)}
             theme={theme}
           />
@@ -334,52 +289,29 @@ export function QueuePane({
 }
 
 interface QueueRowProps {
-  submission: LabSubmission;
+  submission: QueueItem;
   isSelected: boolean;
+  isTabStop: boolean;
   onSelect: () => void;
-  isPinned?: boolean;
   theme?: "field" | "paper";
 }
 
 /**
- * QueueRow — Exactly four elements per docs/18-VISUAL-CORRECTION.md §2:
- * 1. Project title
- * 2. Submitted time (monospace)
- * 3. One severity summary chip (not three separate pills)
- * 4. Status
+ * QueueRow — fixed 72px (docs/19-LAYOUT-SPEC.md §6) so j/k never makes the list jump.
+ * Line one: the project title, ellipsised. Line two: one severity chip, the time, the status.
  */
-function QueueRow({
-  submission,
-  isSelected,
-  onSelect,
-  isPinned = false,
-  theme = "field",
-}: QueueRowProps) {
+function QueueRow({ submission, isSelected, isTabStop, onSelect, theme = "field" }: QueueRowProps) {
   const isPaper = theme === "paper";
+  const c = submission.findingCounts;
 
-  // Single severity summary determination
-  const summarySeverity: "high" | "medium" | "low" | "info" =
-    submission.findingCounts.high > 0
-      ? "high"
-      : submission.findingCounts.medium > 0
-      ? "medium"
-      : submission.findingCounts.low > 0
-      ? "low"
-      : "info";
-
-  const summaryLabel =
-    submission.findingCounts.high > 0
-      ? "High"
-      : submission.findingCounts.medium > 0
-      ? "Medium"
-      : submission.findingCounts.low > 0
-      ? "Low"
-      : "Clean";
+  const severity: "high" | "medium" | "low" | "info" = c.high > 0 ? "high" : c.medium > 0 ? "medium" : c.low > 0 ? "low" : "info";
+  const label = c.high > 0 ? "High" : c.medium > 0 ? "Medium" : c.low > 0 ? "Low" : "Clean";
 
   return (
     <div
-      role="button"
-      tabIndex={0}
+      role="option"
+      aria-selected={isSelected}
+      tabIndex={isTabStop ? 0 : -1}
       onClick={onSelect}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -388,57 +320,40 @@ function QueueRow({
         }
       }}
       className={cn(
-        "p-3 text-left transition-colors cursor-pointer border-l-2 outline-none select-none",
+        "flex h-[72px] cursor-pointer flex-col justify-between border-l-2 py-3 pl-[18px] pr-4 transition-colors duration-[120ms]",
+        // keyboard focus is its own signal: an inset ring, distinct from the selected state
+        "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-signal",
         isSelected
           ? isPaper
-            ? "bg-paper-card border-l-paper-seal"
-            : "bg-field-raised border-l-field-text"
-          : isPinned
-          ? isPaper
-            ? "border-l-paper-chain hover:bg-paper-card"
-            : "border-l-chain hover:bg-field-raised/50"
+            ? "border-l-paper-seal bg-paper-card"
+            : "border-l-field-muted bg-field-raised"
           : isPaper
           ? "border-l-transparent hover:bg-paper-card"
-          : "border-l-transparent hover:bg-field-raised/50"
+          : "border-l-transparent hover:bg-field-raised"
       )}
     >
-      {/* Element 1: Project title */}
-      <div className="flex items-baseline justify-between gap-2">
-        <h4
-          className={cn(
-            "text-xs leading-snug line-clamp-1",
-            isSelected ? "font-semibold text-field-text" : "font-normal text-field-text"
-          )}
-        >
+      <span className="flex items-center gap-2">
+        <span className={cn("min-w-0 flex-1 truncate text-[15px] leading-[21px]", isPaper ? "text-paper-ink" : "text-field-text")}>
           {submission.projectTitle}
-        </h4>
-
-        {/* Element 2: Submitted time (in monospace) */}
-        <span className="font-mono text-[11px] tabular-nums text-field-muted shrink-0">
-          {formatTimestamp(submission.submittedAt)}
         </span>
-      </div>
+        {submission.userHasDecided && (
+          <span title="You have decided" className="size-1.5 shrink-0 rounded-full bg-verified">
+            <span className="sr-only">You have decided</span>
+          </span>
+        )}
+      </span>
 
-      {/* Row 2: Element 3 (One severity summary chip) & Element 4 (Status) */}
-      <div className="flex items-center justify-between pt-2">
-        {/* Element 3: ONE severity summary chip */}
-        <SeverityChip
-          severity={summarySeverity}
-          label={summaryLabel}
-          theme={theme}
-        />
-
-        {/* Element 4: Status badge */}
-        <div className="flex items-center gap-1.5">
-          {submission.userHasDecided && (
-            <span
-              title="You decided"
-              className="size-1.5 rounded-full bg-verified shrink-0"
-            />
-          )}
+      <span className="flex h-6 items-center">
+        <span className="flex min-w-0 items-center gap-2">
+          <SeverityChip severity={severity} label={label} theme={theme} />
+          <time dateTime={submission.submittedAt} title={submission.submittedAt} className="min-w-0 truncate font-mono text-[13px] tabular-nums text-field-muted">
+            {formatTimestamp(submission.submittedAt)}
+          </time>
+        </span>
+        <span className="ml-auto shrink-0 pl-1">
           <StatusBadge status={submission.status} theme={theme} />
-        </div>
-      </div>
+        </span>
+      </span>
     </div>
   );
 }

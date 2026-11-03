@@ -123,12 +123,20 @@ verifier, and the Solidity contract. These definitions live in
 Pipeline, via `sharp`, identical in intake, seed script and eval harness:
 
 1. Convert to grayscale
-2. Resize to exactly **9 columns × 8 rows**
+2. Resize to exactly **9 columns × 8 rows** with sharp's **`lanczos3`** kernel and
+   `fit: "fill"`. The kernel is part of the frozen contract: a different kernel
+   produces different pixels, so a different hash, and duplicate detection between
+   rows hashed by different code paths would silently miss. The exact options are
+   exported as `DHASH_RESIZE` from `src/lib/forensics/dhash.ts`; every caller passes
+   that object and none writes its own.
 3. For each row, compare adjacent horizontal pixels: `bit = left > right ? 1 : 0`
 4. Pack row-major, MSB first, into a 64-character `'0'|'1'` string
 5. Store in a Postgres `bit(64)` column, HNSW-indexed with `bit_hamming_ops`
 
 ### 4.3 Location commitment and fuzzing
+
+The commitment is implemented in `src/lib/crypto/location.ts`, approved and frozen
+2026-11-03.
 
 ```
 locationCommitment = SHA256("DELTA_LOC_V1:" + salt_hex + ":" + canonicalize(exactGeoJson))

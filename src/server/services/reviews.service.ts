@@ -1,9 +1,17 @@
 import "server-only";
-import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
+import { and, asc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { assertTransition, InvalidTransitionError, type SubmissionStatus } from "../../lib/state-machine";
 import { db } from "../db/client";
-import { decision as decisionEnum, evidenceSubmission, impactProject, projectAssignment, reviewDecision } from "../db/schema";
+import {
+  decision as decisionEnum,
+  evidenceSubmission,
+  forensicFinding,
+  impactProject,
+  organization,
+  projectAssignment,
+  reviewDecision,
+} from "../db/schema";
 import { actorContext, assignedVerifierOrgs, isUuid, parseInput, type Actor, type Executor } from "./access";
 import { ConflictError, ConflictOfInterestError, ForbiddenError } from "./errors";
 import { toSummary, type SubmissionSummary } from "./submissions.service";
@@ -182,4 +190,68 @@ export async function listReviewQueue(actor: Actor, x: Executor = db): Promise<S
     )
     .orderBy(asc(evidenceSubmission.submittedAt));
   return rows.map(({ s }) => toSummary(s));
+}
+
+export type ReviewQueueItem = SubmissionSummary & {
+  projectTitle: string;
+  ownerOrgName: string;
+  activityType: string;
+  /** Votes in the current round only; never who cast them. */
+  approvals: number;
+  rejections: number;
+  userDecision: "APPROVE" | "REJECT" | "REQUEST_MORE_PROOF" | null;
+  findingCounts: { high: number; medium: number; low: number; info: number };
+};
+
+export type ReviewQueueOverview = {
+  /** Why the list may be empty: not a verifier at all, verifier with no assignments, or all caught up. */
+  isVerifier: boolean;
+  hasAssignments: boolean;
+  total: number;
+  items: ReviewQueueItem[];
+};
+
+/**
+ * Everything the Lab's queue pane needs in one call. Scoped exactly like listReviewQueue, so a
+ * caller outside an assigned verifier org gets an empty overview, never an error.
+ */
+export async function reviewQueueOverview(actor: Actor, limit = 100, x: Executor = db): Promise<ReviewQueueOverview> {
+  const ctx = await actorContext(x, actor);
+  if (!ctx.verifierOrgIds.length) return { isVerifier: false, hasAssignments: false, total: 0, items: [] };
+
+  const [assignment] = await x
+    .select({ id: projectAssignment.id })
+    .from(projectAssignment)
+    .where(inArray(projectAssignment.verifierOrgId, ctx.verifierOrgIds))
+    .limit(1);
+  const queue = await listReviewQueue(actor, x);
+  const page = queue.slice(0, limit);
+  if (page.length === 0) return { isVerifier: true, hasAssignments: Boolean(assignment), total: 0, items: [] };
+
+  const ids = page.map((s) => s.id);
+  const [projects, orgs, votes, findings] = await Promise.all([
+    x.select({ id: impactProject.id, title: impactProject.title, activityType: impactProject.activityType }).from(impactProject).where(inArray(impactProject.id, [...new Set(page.map((s) => s.projectId))])),
+    x.select({ id: organization.id, name: organization.name }).from(organization).where(inArray(organization.id, [...new Set(page.map((s) => s.ownerOrgId))])),
+    x.select({ submissionId: reviewDecision.submissionId, round: reviewDecision.round, decision: reviewDecision.decision, reviewer: reviewDecision.reviewerUserId }).from(reviewDecision).where(inArray(reviewDecision.submissionId, ids)),
+    x.select({ submissionId: forensicFinding.submissionId, severity: forensicFinding.severity, n: sql<number>`count(*)::int` }).from(forensicFinding).where(inArray(forensicFinding.submissionId, ids)).groupBy(forensicFinding.submissionId, forensicFinding.severity),
+  ]);
+  const project = new Map(projects.map((p) => [p.id, p]));
+  const org = new Map(orgs.map((o) => [o.id, o.name]));
+
+  const items = page.map((s): ReviewQueueItem => {
+    const current = votes.filter((v) => v.submissionId === s.id && v.round === s.round);
+    const counts = { high: 0, medium: 0, low: 0, info: 0 };
+    for (const f of findings) if (f.submissionId === s.id) counts[f.severity.toLowerCase() as keyof typeof counts] = f.n;
+    return {
+      ...s,
+      projectTitle: project.get(s.projectId)?.title ?? "Unknown project",
+      activityType: project.get(s.projectId)?.activityType ?? "",
+      ownerOrgName: org.get(s.ownerOrgId) ?? "Unknown organisation",
+      approvals: current.filter((v) => v.decision === "APPROVE").length,
+      rejections: current.filter((v) => v.decision === "REJECT").length,
+      userDecision: current.find((v) => v.reviewer === actor.userId)?.decision ?? null,
+      findingCounts: counts,
+    };
+  });
+  return { isVerifier: true, hasAssignments: true, total: queue.length, items };
 }

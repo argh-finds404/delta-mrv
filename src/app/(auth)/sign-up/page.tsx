@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Eye,
   EyeOff,
@@ -13,6 +14,8 @@ import {
   ShieldCheck,
   Coins,
 } from "lucide-react";
+import { authClient } from "@/src/lib/auth-client";
+import { safeNext } from "@/src/lib/safe-next";
 import { cn } from "@/src/lib/utils";
 
 export type OrgType = "OWNER" | "VERIFIER" | "FUNDER";
@@ -30,6 +33,35 @@ export interface SignUpData {
 export interface SignUpPageProps {
   /** Optional submit handler */
   onSubmit?: (data: SignUpData) => Promise<{ success: boolean; error?: string }>;
+}
+
+/**
+ * The real registration: create the user (which signs them in), then their organisation
+ * with its org_type. Better Auth reports failures as { error }, not as exceptions.
+ */
+async function registerWithAuth(data: SignUpData): Promise<{ success: boolean; error?: string }> {
+  const account = await authClient.signUp.email({
+    name: data.name.trim(),
+    email: data.email.trim(),
+    password: data.password,
+  });
+  if (account.error) return { success: false, error: account.error.message ?? "Could not create the account." };
+
+  const base = data.organizationName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "organisation";
+  const org = await authClient.organization.create({
+    name: data.organizationName.trim(),
+    slug: `${base}-${crypto.randomUUID().slice(0, 6)}`, // slugs are unique; two orgs may share a name
+    orgType: data.organizationType,
+    country: data.country.trim(),
+    website: data.website.trim() || undefined,
+  });
+  if (org.error) {
+    return {
+      success: false,
+      error: `Your account was created, but the organisation was not: ${org.error.message ?? "unknown error"}. Sign in to try again.`,
+    };
+  }
+  return { success: true };
 }
 
 /**
@@ -69,6 +101,7 @@ function evaluatePasswordStrength(password: string): {
  * Step 2: Organisation details and 3-card type selector (never a dropdown).
  */
 export default function SignUpPage({ onSubmit }: SignUpPageProps) {
+  const router = useRouter();
   const [step, setStep] = React.useState<1 | 2>(1);
 
   // Step 1: User state
@@ -151,9 +184,13 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
           setGlobalError(res.error ?? "Registration failed. Please try again.");
         }
       } else {
-        // Presentation fixture mock delay
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        // Simulated success or redirect notification
+        const res = await registerWithAuth(payload);
+        if (!res.success) {
+          setGlobalError(res.error ?? "Registration failed. Please try again.");
+        } else {
+          // shortcut: everyone lands on /lab until Stage 3 builds /dashboard (docs/05 §3)
+          router.push(safeNext(new URLSearchParams(window.location.search).get("next")) ?? "/lab");
+        }
       }
     } catch {
       setGlobalError("Could not connect to the authentication service. Please try again.");
@@ -207,7 +244,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
 
       {/* STEP 1: USER DETAILS */}
       {step === 1 && (
-        <form onSubmit={handleProceedToStep2} noValidate className="space-y-4">
+        <form method="post" onSubmit={handleProceedToStep2} noValidate className="space-y-4">
           {/* Full Name */}
           <div className="space-y-1.5">
             <label
@@ -366,7 +403,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
 
       {/* STEP 2: ORGANISATION & TYPE CARDS */}
       {step === 2 && (
-        <form onSubmit={handleFinalSubmit} noValidate className="space-y-5">
+        <form method="post" onSubmit={handleFinalSubmit} noValidate className="space-y-5">
           {/* Organisation Name */}
           <div className="space-y-1.5">
             <label

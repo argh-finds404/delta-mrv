@@ -40,6 +40,8 @@ src/lib/forensics/**
 src/lib/geo/**
 src/lib/auth-client.ts
 src/lib/org-type.ts
+src/lib/safe-next.ts
+src/lib/demo-accounts.ts
 src/env.ts
 src/proxy.ts
 contracts/**

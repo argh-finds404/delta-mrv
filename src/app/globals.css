@@ -178,17 +178,21 @@ samp {
   Evidence Lab geometry (docs/19-LAYOUT-SPEC.md §1–§2).
   Below 1280px the findings pane stacks under the evidence pane; the page markup
   wraps the two in a box that is `display: contents` from 1280px up.
-  Findings is clamp(400px, 30vw, 480px), not the spec's clamp(380px, 28vw, 460px):
-  at 380px a 15px verdict wraps to two lines, which breaks the 64–80px card budget.
+  Two deliberate departures from the spec's numbers, both found by measuring:
+  - Findings is clamp(400px, 30vw, 480px), not clamp(380px, 28vw, 460px): at 380px
+    most 15px verdicts wrap to two lines, which breaks the 64–80px card budget.
+  - Queue is clamp(300px, 22vw, 340px), not clamp(260px, 22vw, 320px): a 72px row
+    (severity chip, time, status) needs about 260px of content, and below that the
+    timestamp is clipped.
 */
 .lab-grid {
   display: grid;
-  grid-template-columns: clamp(260px, 24vw, 320px) minmax(0, 1fr);
+  grid-template-columns: clamp(300px, 22vw, 340px) minmax(0, 1fr);
 }
 @media (min-width: 1280px) {
   .lab-grid {
     grid-template-columns:
-      clamp(260px, 22vw, 320px)
+      clamp(300px, 22vw, 340px)
       minmax(480px, 1fr)
       clamp(400px, 30vw, 480px);
   }

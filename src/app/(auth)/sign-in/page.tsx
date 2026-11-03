@@ -2,7 +2,10 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2, ArrowRight } from "lucide-react";
+import { authClient } from "@/src/lib/auth-client";
+import { safeNext } from "@/src/lib/safe-next";
 import { cn } from "@/src/lib/utils";
 
 export interface SignInCredentials {
@@ -16,12 +19,26 @@ export interface SignInPageProps {
 }
 
 /**
+ * The real sign-in. A failed attempt never says which half was wrong or whether the
+ * account exists (docs/15-UI-STATES.md §6); only a rate limit or an outage is told apart,
+ * because the person can do something different about those.
+ */
+async function signInWithAuth({ email, password }: SignInCredentials): Promise<{ success: boolean; error?: string }> {
+  const result = await authClient.signIn.email({ email: email.trim(), password });
+  if (!result.error) return { success: true };
+  if (result.error.status === 429) return { success: false, error: "Too many attempts. Wait a moment and try again." };
+  if (result.error.status >= 500) return { success: false, error: "Sign-in is unavailable right now. Try again shortly." };
+  return { success: false, error: "Email or password is incorrect" };
+}
+
+/**
  * SignInPage — High-integrity authentication form.
  * Authority: docs/15-UI-STATES.md §6.
  * Enforces no placeholder-as-label, validate on blur, uniform failure message,
  * and zero keystroke shaming.
  */
 export default function SignInPage({ onSubmit }: SignInPageProps) {
+  const router = useRouter();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [showPassword, setShowPassword] = React.useState(false);
@@ -102,13 +119,13 @@ export default function SignInPage({ onSubmit }: SignInPageProps) {
           setGlobalError(res.error ?? "Email or password is incorrect");
         }
       } else {
-        // Presentation fixture mock delay
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        // Deterministic fixture behavior: if email is demo@delta-mrv.test it simulates failure
-        if (email.includes("fail") || password === "wrong") {
-          setGlobalError("Email or password is incorrect");
+        const res = await signInWithAuth({ email, password });
+        if (!res.success) {
+          setGlobalError(res.error ?? "Email or password is incorrect");
         } else {
-          setGlobalError("Email or password is incorrect"); // Simulated presentation state
+          // next= is where the proxy caught them; read from the address bar so this page
+          // needs no Suspense boundary. shortcut: everyone lands on /lab until Stage 3 builds /dashboard.
+          router.push(safeNext(new URLSearchParams(window.location.search).get("next")) ?? "/lab");
         }
       }
     } catch {
@@ -141,7 +158,8 @@ export default function SignInPage({ onSubmit }: SignInPageProps) {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} noValidate className="space-y-4">
+      {/* A submit before hydration must POST: a GET would put the password in the address bar, history and logs. */}
+      <form method="post" onSubmit={handleSubmit} noValidate className="space-y-4">
         {/* Email Field */}
         <div className="space-y-1.5">
           <label

@@ -11,7 +11,7 @@ import {
   listProjects,
   updateProject,
 } from "../../src/server/services/projects.service";
-import { listReviewQueue } from "../../src/server/services/reviews.service";
+import { castDecision, listReviewQueue, reviewQueueOverview } from "../../src/server/services/reviews.service";
 import { getSubmission, listSubmissionsForProject } from "../../src/server/services/submissions.service";
 import { client, inRollback, type Tx } from "./db";
 import { actor, addSubmission, INSIDE_SQUARE, OUTSIDE_SQUARE, SQUARE, world, type World } from "./fixtures";
@@ -244,5 +244,44 @@ describe("reviews: listReviewQueue", () => {
     expect(ids).toContain(w.submission.id);
     expect(ids).not.toContain(draft.id);
     expect(ids).not.toContain(done.id);
+  });
+});
+
+describe("reviews: reviewQueueOverview (what the Lab shows)", () => {
+  scenario("an owner or a funder gets an empty overview that says why, never an error", async (tx, w) => {
+    for (const who of [w.u.ownerAdmin, w.u.ownerMember, w.u.funder, w.u.outsider, w.u.platformAdmin]) {
+      expect(await reviewQueueOverview(actor(who), 100, tx)).toEqual({ isVerifier: false, hasAssignments: false, total: 0, items: [] });
+    }
+  });
+
+  scenario("a verifier whose organisation has no assignments is told so", async (tx, w) => {
+    expect(await reviewQueueOverview(actor(w.u.rivalMember), 100, tx)).toEqual({ isVerifier: true, hasAssignments: false, total: 0, items: [] });
+  });
+
+  scenario("an assigned verifier gets real titles, organisation names and current-round votes", async (tx, w) => {
+    const before = await reviewQueueOverview(actor(w.u.v1), 100, tx);
+    expect(before).toMatchObject({ isVerifier: true, hasAssignments: true, total: 1 });
+    expect(before.items[0]).toMatchObject({
+      id: w.submission.id,
+      projectTitle: w.project.title,
+      ownerOrgName: w.org.owner.name,
+      approvals: 0,
+      rejections: 0,
+      userDecision: null,
+      findingCounts: { high: 0, medium: 0, low: 0, info: 0 },
+    });
+
+    await castDecision(actor(w.u.v1), w.submission.id, { decision: "APPROVE", reason: "Reviewed the pair against the boundary." }, tx);
+    const after = await reviewQueueOverview(actor(w.u.v1), 100, tx);
+    expect(after.items[0]).toMatchObject({ approvals: 1, userDecision: "APPROVE" });
+    // a colleague sees the count, and that they have not decided
+    expect((await reviewQueueOverview(actor(w.u.v2), 100, tx)).items[0]).toMatchObject({ approvals: 1, userDecision: null });
+  });
+
+  scenario("the cap limits the page but not the total", async (tx, w) => {
+    await addSubmission(tx, { projectId: w.project.id, ownerOrgId: w.org.owner.id, userId: w.u.ownerMember.id });
+    const capped = await reviewQueueOverview(actor(w.u.v1), 1, tx);
+    expect(capped.items).toHaveLength(1);
+    expect(capped.total).toBe(2);
   });
 });

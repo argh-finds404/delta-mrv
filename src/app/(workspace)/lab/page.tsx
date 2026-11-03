@@ -2,57 +2,173 @@
 
 import * as React from "react";
 import Link from "next/link";
-import {
-  Camera,
-  Compass,
-  Keyboard,
-  ShieldCheck,
-  UserCheck,
-  X,
-} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ImageOff, Keyboard, ShieldCheck, UserCheck, X } from "lucide-react";
 import {
   QueuePane,
   EvidencePair,
   FindingCard,
   DecisionForm,
+  compareSeverity,
+  type DecisionAction,
   type DecisionPayload,
+  type QueueItem,
 } from "@/src/components/lab";
-import {
-  sampleLabSubmissions,
-  type LabSubmission,
-} from "@/src/components/lab/fixtures";
-import { HashDisplay } from "@/src/components/hash-display/hash-display";
+import { sampleLabSubmissions, type LabSubmission } from "@/src/components/lab/fixtures";
 import { StatusBadge } from "@/src/components/status-badge/status-badge";
 import { EmptyState } from "@/src/components/empty-state/empty-state";
 import { cn } from "@/src/lib/utils";
 
+const SHORTCUTS: { label: string; keys: string[] }[] = [
+  { label: "Next submission in queue", keys: ["j"] },
+  { label: "Previous submission in queue", keys: ["k"] },
+  { label: "Move focus through the queue", keys: ["↑", "↓"] },
+  { label: "Open the focused submission", keys: ["Enter"] },
+  { label: "Write the reason, then approve", keys: ["a"] },
+  { label: "Write the reason, then reject", keys: ["r"] },
+  { label: "Write the reason, then request more proof", keys: ["m"] },
+  { label: "Step the comparison slider 2%", keys: ["←", "→"] },
+  { label: "Step the comparison slider 10%", keys: ["Shift", "←", "→"] },
+  { label: "Jump the slider to either end", keys: ["Home", "End"] },
+  { label: "Show or hide this sheet", keys: ["?"] },
+  { label: "Close", keys: ["Esc"] },
+];
+
+/** A queue row plus what the decision bar needs. Real items have no images yet (Stage 3: storage). */
+type RealItem = QueueItem & {
+  round: number;
+  approvalsCount: number;
+  rejectionsCount: number;
+  requiredQuorum: number;
+  userDecision?: DecisionAction;
+};
+
+/** The shape of GET /api/lab/queue (dates arrive as strings). */
+type ApiOverview = {
+  isVerifier: boolean;
+  hasAssignments: boolean;
+  total: number;
+  items: {
+    id: string;
+    status: QueueItem["status"];
+    round: number;
+    submittedAt: string;
+    projectTitle: string;
+    ownerOrgName: string;
+    activityType: string;
+    approvals: number;
+    rejections: number;
+    userDecision: DecisionAction | null;
+    findingCounts: QueueItem["findingCounts"];
+  }[];
+};
+
+type Source =
+  | { kind: "loading" }
+  | { kind: "fixtures" } // development only, ?fixtures: the design-review data
+  | { kind: "real" }
+  | { kind: "error"; message: string; signedOut: boolean };
+
+type QueueState = "ok" | "not-a-verifier" | "no-assignments" | "queue-clear";
+
+const QUORUM = 2; // docs/01-FEATURE-LOCK.md
+
+const sentenceCase = (enumName: string) => {
+  const s = enumName.toLowerCase().replaceAll("_", " ");
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
 export default function EvidenceLabPage() {
-  const [submissions, setSubmissions] = React.useState<LabSubmission[]>(sampleLabSubmissions);
-  const [selectedId, setSelectedId] = React.useState<string>(sampleLabSubmissions[0].id);
+  const router = useRouter();
+  const [source, setSource] = React.useState<Source>({ kind: "loading" });
+  const [queueState, setQueueState] = React.useState<QueueState>("ok");
+  const [items, setItems] = React.useState<RealItem[]>([]);
+  const [total, setTotal] = React.useState<number>(0); // everything waiting; items is a capped page of it
+  const [fixtureSubs, setFixtureSubs] = React.useState<LabSubmission[]>(sampleLabSubmissions);
+  const [selectedId, setSelectedId] = React.useState<string>("");
+  const [decisionError, setDecisionError] = React.useState<string | null>(null);
   const [isVerifierAdmin, setIsVerifierAdmin] = React.useState<boolean>(false);
-  const [emptyStateMode, setEmptyStateMode] = React.useState<"none" | "no-assignments" | "queue-clear">("none");
+  const [previewMode, setPreviewMode] = React.useState<"none" | "no-assignments" | "queue-clear">("none");
   const [isShortcutsOpen, setIsShortcutsOpen] = React.useState<boolean>(false);
 
-  // Active selected submission
-  const activeSubmission = React.useMemo(() => {
-    return submissions.find((s) => s.id === selectedId) ?? submissions[0];
-  }, [submissions, selectedId]);
+  // Bumping this re-fetches the queue (after a decision, or "Try again").
+  const [reloadKey, setReloadKey] = React.useState(0);
+  const reload = () => setReloadKey((k) => k + 1);
+
+  React.useEffect(() => {
+    let ignore = false;
+    async function load() {
+      await Promise.resolve(); // yield: state is never set synchronously inside the effect
+      if (ignore) return;
+      // ?fixtures swaps in the design-review data. Development builds only.
+      if (process.env.NODE_ENV === "development" && new URLSearchParams(window.location.search).has("fixtures")) {
+        setSource({ kind: "fixtures" });
+        setSelectedId((cur) => cur || sampleLabSubmissions[0].id);
+        return;
+      }
+      try {
+        const res = await fetch("/api/lab/queue", { cache: "no-store" });
+        if (ignore) return;
+        if (res.status === 401) {
+          setSource({ kind: "error", message: "Your session has expired.", signedOut: true });
+          return;
+        }
+        if (!res.ok) throw new Error(String(res.status));
+        const data = (await res.json()) as ApiOverview;
+        if (ignore) return;
+        const mapped: RealItem[] = data.items
+          .map((s) => ({
+            id: s.id,
+            projectTitle: s.projectTitle,
+            ownerOrgName: s.ownerOrgName,
+            activityType: sentenceCase(s.activityType),
+            submittedAt: s.submittedAt,
+            status: s.status,
+            round: s.round,
+            findingCounts: s.findingCounts,
+            userHasDecided: s.userDecision !== null,
+            userDecision: s.userDecision ?? undefined,
+            isEscalated: s.status === "ESCALATED",
+            approvalsCount: s.approvals,
+            rejectionsCount: s.rejections,
+            requiredQuorum: QUORUM,
+          }))
+          .sort(compareSeverity);
+        setItems(mapped);
+        setTotal(data.total);
+        setQueueState(!data.isVerifier ? "not-a-verifier" : !data.hasAssignments ? "no-assignments" : mapped.length === 0 ? "queue-clear" : "ok");
+        setSelectedId((cur) => (mapped.some((i) => i.id === cur) ? cur : (mapped[0]?.id ?? "")));
+        setSource({ kind: "real" });
+      } catch {
+        if (!ignore) setSource({ kind: "error", message: "The review queue could not be loaded. Nothing was changed.", signedOut: false });
+      }
+    }
+    void load();
+    return () => {
+      ignore = true;
+    };
+  }, [reloadKey]);
+
+  const isFixtures = source.kind === "fixtures";
+  const list: QueueItem[] = isFixtures ? fixtureSubs : items;
+  const activeFixture = isFixtures ? (fixtureSubs.find((s) => s.id === selectedId) ?? fixtureSubs[0]) : undefined;
+  const activeReal = !isFixtures ? items.find((i) => i.id === selectedId) : undefined;
+  const active: QueueItem | undefined = activeFixture ?? activeReal;
+
+  // What the queue and the centre show when there is nothing to review
+  const emptyMode: "none" | "no-assignments" | "queue-clear" | "not-a-verifier" =
+    previewMode !== "none" ? previewMode : source.kind === "real" && queueState !== "ok" ? queueState : "none";
 
   // Global Keyboard Navigation
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Do not intercept keystrokes if typing inside an input or textarea
       const target = e.target as HTMLElement;
-      if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable
-      ) {
-        if (e.key === "Escape") {
-          target.blur();
-        }
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
+        if (e.key === "Escape") target.blur();
         return;
       }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       if (e.key === "?") {
         e.preventDefault();
@@ -62,360 +178,315 @@ export default function EvidenceLabPage() {
           e.preventDefault();
           setIsShortcutsOpen(false);
         }
-      } else if (e.key === "j") {
-        // Move to next submission
+      } else if (e.key === "j" || e.key === "k") {
         e.preventDefault();
-        const currentIndex = submissions.findIndex((s) => s.id === selectedId);
-        if (currentIndex < submissions.length - 1) {
-          setSelectedId(submissions[currentIndex + 1].id);
-        }
-      } else if (e.key === "k") {
-        // Move to previous submission
+        const i = list.findIndex((s) => s.id === selectedId);
+        const next = e.key === "j" ? i + 1 : i - 1;
+        if (next >= 0 && next < list.length) setSelectedId(list[next].id);
+      } else if (e.key === "a" || e.key === "r" || e.key === "m") {
+        // Every decision needs a written reason first: send the reviewer there.
         e.preventDefault();
-        const currentIndex = submissions.findIndex((s) => s.id === selectedId);
-        if (currentIndex > 0) {
-          setSelectedId(submissions[currentIndex - 1].id);
-        }
-      } else if (e.key === "a") {
-        // Focus reason textarea for approval
-        e.preventDefault();
-        const reasonInput = document.getElementById("decision-reason");
-        if (reasonInput) {
-          reasonInput.focus();
-        }
-      } else if (e.key === "r") {
-        // Focus reason textarea for reject
-        e.preventDefault();
-        const reasonInput = document.getElementById("decision-reason");
-        if (reasonInput) {
-          reasonInput.focus();
-        }
-      } else if (e.key === "m") {
-        // Focus reason textarea for request more proof
-        e.preventDefault();
-        const reasonInput = document.getElementById("decision-reason");
-        if (reasonInput) {
-          reasonInput.focus();
-        }
+        document.getElementById("decision-reason")?.focus();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [submissions, selectedId, isShortcutsOpen]);
+  }, [list, selectedId, isShortcutsOpen]);
 
-  // Handle recorded review decisions
-  const handleDecision = (payload: DecisionPayload) => {
-    setSubmissions((prev) =>
-      prev.map((sub) => {
-        if (sub.id === selectedId) {
-          const isApprove = payload.action === "APPROVE";
-          const isReject = payload.action === "REJECT";
-          const newApprovals = isApprove ? sub.approvalsCount + 1 : sub.approvalsCount;
-          const newRejections = isReject ? sub.rejectionsCount + 1 : sub.rejectionsCount;
-          const newStatus =
-            newApprovals >= sub.requiredQuorum
-              ? "APPROVED"
-              : newRejections >= sub.requiredQuorum
-              ? "REJECTED"
-              : newApprovals === 1 && newRejections === 1
-              ? "ESCALATED"
-              : sub.status;
-
-          return {
-            ...sub,
-            userHasDecided: true,
-            userDecision: payload.action,
-            approvalsCount: newApprovals,
-            rejectionsCount: newRejections,
-            status: newStatus,
-          };
-        }
-        return sub;
-      })
-    );
+  // A committed decision. Real items go to the server; the queue then reloads, because the
+  // server (not this page) decides whether the submission is approved, escalated or still open.
+  const handleDecision = async (payload: DecisionPayload) => {
+    if (isFixtures) {
+      setFixtureSubs((prev) =>
+        prev.map((sub) => {
+          if (sub.id !== selectedId) return sub;
+          const approvals = payload.action === "APPROVE" ? sub.approvalsCount + 1 : sub.approvalsCount;
+          const rejections = payload.action === "REJECT" ? sub.rejectionsCount + 1 : sub.rejectionsCount;
+          const status =
+            approvals >= sub.requiredQuorum ? "APPROVED" : rejections >= sub.requiredQuorum ? "REJECTED" : approvals === 1 && rejections === 1 ? "ESCALATED" : sub.status;
+          return { ...sub, userHasDecided: true, userDecision: payload.action, approvalsCount: approvals, rejectionsCount: rejections, status };
+        })
+      );
+      return;
+    }
+    setDecisionError(null);
+    try {
+      const res = await fetch("/api/lab/decision", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ submissionId: selectedId, decision: payload.action, reason: payload.reason }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        setDecisionError(body?.error ?? `The decision was not recorded (error ${res.status}). Nothing was changed.`);
+        return;
+      }
+      reload();
+    } catch {
+      setDecisionError("The decision could not be sent. Nothing was recorded. Check your connection and try again.");
+    }
   };
 
-  return (
-    <div className="flex flex-col h-screen bg-field-abyss text-field-text overflow-hidden font-sans">
-      {/* Top Workspace Header Bar (Chrome is neutral per §1, no signal color) */}
-      <header className="h-12 border-b border-field-hairline bg-field-canopy px-4 flex items-center justify-between shrink-0 select-none">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/kitchen-sink"
-            className="flex items-center gap-2 group text-field-muted hover:text-field-text transition-colors"
-          >
-            <div className="flex size-6 items-center justify-center rounded bg-field-raised border border-field-hairline font-serif font-bold text-field-text text-xs">
-              Δ
-            </div>
-            <span className="font-medium text-xs tracking-tight text-field-text">
-              Delta MRV
-            </span>
-            <span className="text-field-inert">/</span>
-            <span className="text-xs text-field-muted">Evidence Lab</span>
-          </Link>
-        </div>
+  const headerButton =
+    "flex h-8 items-center gap-2 rounded-sm border border-field-hairline bg-field-raised px-3 text-[13px] text-field-muted transition-colors duration-[120ms] hover:text-field-text";
 
-        {/* Workspace Controls & State Toggles */}
-        <div className="flex items-center gap-2 text-xs">
-          {/* Admin Role Toggle (Tint rule, sentence case) */}
+  const centreMessage = (() => {
+    if (source.kind === "loading") return { title: "Loading the review queue", reason: "Fetching the submissions assigned to your organisation." };
+    if (source.kind === "error") return { title: source.signedOut ? "Sign in again" : "The queue did not load", reason: source.message };
+    if (emptyMode === "no-assignments") return { title: "Your review queue", reason: "Your organisation is not assigned to any projects yet. A platform administrator assigns verifier organisations to the projects they audit." };
+    if (emptyMode === "not-a-verifier") return { title: "No review queue", reason: "The Evidence Lab is for verifier organisations. Your organisation does not review submissions, so there is nothing to show here." };
+    return { title: "Queue clear", reason: "Nothing is awaiting your review. New submissions appear here automatically once forensic processing completes." };
+  })();
+
+  const showDetail = source.kind !== "loading" && source.kind !== "error" && emptyMode === "none" && active !== undefined;
+
+  return (
+    <div className="flex h-screen flex-col overflow-hidden bg-field-abyss font-sans text-field-text">
+      {/* Workspace bar: neutral chrome, no signal colour */}
+      <header className="flex h-12 shrink-0 select-none items-center justify-between border-b border-field-hairline bg-field-canopy px-5">
+        <Link href="/kitchen-sink" className="flex items-center gap-3 text-field-muted transition-colors duration-[120ms] hover:text-field-text">
+          <span className="flex size-6 items-center justify-center rounded-sm border border-field-hairline bg-field-raised font-serif text-xs font-medium text-field-text">
+            Δ
+          </span>
+          <span className="text-[13px] font-medium text-field-text">Delta MRV</span>
+          <span className="text-field-inert" aria-hidden="true">/</span>
+          <span className="text-[13px]">Evidence Lab</span>
+        </Link>
+
+        <div className="flex items-center gap-2">
           <button
             type="button"
+            aria-pressed={isVerifierAdmin}
             onClick={() => setIsVerifierAdmin(!isVerifierAdmin)}
-            className={cn(
-              "px-2.5 py-1 rounded border transition-colors flex items-center gap-1.5",
-              isVerifierAdmin
-                ? "bg-[color-mix(in_srgb,var(--chain)_14%,transparent)] border-[color-mix(in_srgb,var(--chain)_35%,transparent)] text-chain font-medium"
-                : "bg-field-raised text-field-muted border-field-hairline hover:text-field-text"
-            )}
             title="Toggle between regular verifier and verifier administrator (pins escalated cases)"
+            className={cn(
+              headerButton,
+              isVerifierAdmin &&
+                "border-[color-mix(in_srgb,var(--chain)_35%,transparent)] bg-[color-mix(in_srgb,var(--chain)_14%,transparent)] text-chain hover:text-chain"
+            )}
           >
-            <UserCheck className="size-3.5" />
-            <span className="hidden sm:inline">Admin view:</span>
-            <span>{isVerifierAdmin ? "On" : "Off"}</span>
+            <UserCheck className="size-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Admin view</span>
+            <span>{isVerifierAdmin ? "on" : "off"}</span>
           </button>
 
-          {/* Empty State Simulator (Neutral surface shifts) */}
-          <div className="hidden md:flex items-center rounded border border-field-hairline bg-field-raised p-0.5">
-            <button
-              type="button"
-              onClick={() => setEmptyStateMode("none")}
-              className={cn(
-                "px-2 py-0.5 rounded text-[11px] transition-colors",
-                emptyStateMode === "none" ? "bg-field-canopy text-field-text font-medium" : "text-field-muted"
-              )}
-            >
-              Queue
-            </button>
-            <button
-              type="button"
-              onClick={() => setEmptyStateMode("no-assignments")}
-              className={cn(
-                "px-2 py-0.5 rounded text-[11px] transition-colors",
-                emptyStateMode === "no-assignments" ? "bg-field-canopy text-field-text font-medium" : "text-field-muted"
-              )}
-            >
-              E5
-            </button>
-            <button
-              type="button"
-              onClick={() => setEmptyStateMode("queue-clear")}
-              className={cn(
-                "px-2 py-0.5 rounded text-[11px] transition-colors",
-                emptyStateMode === "queue-clear" ? "bg-field-canopy text-field-text font-medium" : "text-field-muted"
-              )}
-            >
-              E5b
-            </button>
-          </div>
+          {/* Empty-state preview: design review only, absent from production builds */}
+          {process.env.NODE_ENV === "development" && (
+            <div role="group" aria-label="Preview empty states" className="hidden items-center rounded-sm border border-field-hairline bg-field-raised p-1 md:flex">
+              {([
+                ["none", "Queue"],
+                ["no-assignments", "E5"],
+                ["queue-clear", "E5b"],
+              ] as const).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={previewMode === mode}
+                  onClick={() => setPreviewMode(mode)}
+                  className={cn(
+                    "h-6 rounded-sm px-3 text-[13px] transition-colors duration-[120ms]",
+                    previewMode === mode ? "bg-field-canopy text-field-text" : "text-field-muted hover:text-field-text"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
 
-          {/* Keyboard Shortcuts Button */}
-          <button
-            type="button"
-            onClick={() => setIsShortcutsOpen(true)}
-            className="px-2.5 py-1 rounded border border-field-hairline bg-field-raised text-field-muted hover:text-field-text flex items-center gap-1.5 transition-colors"
-            title="View keyboard shortcuts (?)"
-          >
-            <Keyboard className="size-3.5" />
+          <button type="button" onClick={() => setIsShortcutsOpen(true)} title="View keyboard shortcuts (?)" className={headerButton}>
+            <Keyboard className="size-4" aria-hidden="true" />
             <span className="hidden sm:inline">Shortcuts</span>
-            <kbd className="px-1 text-[10px] rounded bg-field-canopy border border-field-hairline font-mono">
-              ?
-            </kbd>
+            <kbd className="rounded-sm border border-field-hairline bg-field-canopy px-1 font-mono text-xs">?</kbd>
           </button>
         </div>
       </header>
 
-      {/* Main 3-Pane Evidence Lab Layout */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Pane 1: Queue (280px / 320px) */}
-        <QueuePane
-          submissions={submissions}
-          selectedId={selectedId}
-          onSelect={(id) => setSelectedId(id)}
-          isVerifierAdmin={isVerifierAdmin}
-          emptyStateMode={emptyStateMode}
-        />
+      {/* Three panes (docs/19-LAYOUT-SPEC.md §2). From 1280px the wrapper below is `display: contents`,
+          so evidence and findings become the second and third columns; under 1280px they stack. */}
+      <div className="lab-grid min-h-0 flex-1">
+        {source.kind === "loading" || source.kind === "error" ? (
+          <aside className="min-w-0 border-r border-field-hairline bg-field-canopy px-5 py-4 text-[13px] text-field-muted">
+            {source.kind === "loading" ? "Loading the review queue…" : "No queue loaded."}
+          </aside>
+        ) : (
+          <QueuePane
+            submissions={list}
+            totalCount={isFixtures ? undefined : total}
+            selectedId={selectedId}
+            onSelect={(id) => setSelectedId(id)}
+            isVerifierAdmin={isVerifierAdmin}
+            emptyStateMode={emptyMode}
+          />
+        )}
 
-        {emptyStateMode === "none" && activeSubmission ? (
-          <>
-            {/* Pane 2: Evidence Viewport (Flexible Center, comparison slider dominates per §3) */}
-            <main className="flex-1 flex flex-col overflow-y-auto p-4 space-y-3 border-r border-field-hairline bg-field-abyss">
-              {/* Collapsed One-Line Header per docs/18-VISUAL-CORRECTION.md §2 */}
-              <div className="flex items-center justify-between gap-3 border-b border-field-hairline pb-2.5 select-none">
-                <div className="flex items-baseline gap-2 min-w-0">
-                  <h1 className="text-sm font-medium text-field-text truncate">
-                    {activeSubmission.projectTitle}
-                  </h1>
-                  <span className="text-field-muted text-xs">·</span>
-                  <span className="text-xs text-field-muted truncate">
-                    {activeSubmission.ownerOrgName}
-                  </span>
-                </div>
-
-                <StatusBadge status={activeSubmission.status} />
+        {showDetail && active ? (
+          <div className="flex min-h-0 min-w-0 flex-col overflow-y-auto xl:contents">
+            {/* Evidence: the comparison is the reviewer's core act, so it takes what is left */}
+            <main
+              aria-label="Evidence"
+              className="flex h-[max(34rem,calc(100dvh-3rem))] min-h-0 min-w-0 shrink-0 flex-col gap-4 bg-field-abyss px-5 py-4 xl:h-auto xl:shrink xl:overflow-y-auto xl:border-r xl:border-field-hairline"
+            >
+              {/* One line: project, organisation, state (docs/18 §2) */}
+              <div className="flex h-8 shrink-0 items-center justify-between gap-4">
+                <h1 className="min-w-0 truncate text-base font-medium leading-6 text-field-text">
+                  {active.projectTitle}
+                  <span className="font-normal text-field-muted"> · {active.ownerOrgName}</span>
+                </h1>
+                <StatusBadge status={active.status} />
               </div>
 
-              {/* Primary Interaction: Comparison Slider dominates the pane */}
-              <EvidencePair
-                before={activeSubmission.beforeImage}
-                after={activeSubmission.afterImage}
-                beforeLabel="Before"
-                afterLabel="After"
-              />
-
-              {/* Quiet Telemetry Detail Strip */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                {/* Camera & EXIF */}
-                <div className="rounded-lg border border-field-hairline bg-field-canopy p-3 space-y-2">
-                  <div className="flex items-center justify-between border-b border-field-hairline/50 pb-1.5">
-                    <span className="font-medium text-field-text flex items-center gap-1.5">
-                      <Camera className="size-3.5 text-field-muted" />
-                      Hardware and metadata
-                    </span>
-                    <span className="text-field-muted text-[11px]">
-                      {activeSubmission.activityType}
-                    </span>
-                  </div>
-
-                  <div className="space-y-1 text-[11px] text-field-muted">
-                    <div className="flex items-center justify-between">
-                      <span>Camera</span>
-                      <span className="text-field-text">
-                        {activeSubmission.exif.cameraModel ?? "Embedded sensor"}
-                      </span>
+              {activeFixture ? (
+                <EvidencePair
+                  className="flex-1"
+                  before={{ ...activeFixture.beforeImage, gps: activeFixture.exif.gps }}
+                  after={{ ...activeFixture.afterImage, gps: activeFixture.exif.gps }}
+                  beforeLabel="Before"
+                  afterLabel="After"
+                  details={
+                    <dl className="space-y-1">
+                      <div className="flex items-baseline justify-between gap-4">
+                        <dt className="text-field-muted">Activity</dt>
+                        <dd className="text-field-text">{activeFixture.activityType}</dd>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-4">
+                        <dt className="text-field-muted">Camera</dt>
+                        <dd className="text-field-text">{activeFixture.exif.cameraModel ?? "Embedded sensor"}</dd>
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <dt className="text-field-muted">Location</dt>
+                        <dd
+                          className={cn(
+                            "rounded-sm border px-2 text-xs leading-5",
+                            activeFixture.exif.insideBoundary
+                              ? "border-[color-mix(in_srgb,var(--verified)_35%,transparent)] bg-[color-mix(in_srgb,var(--verified)_14%,transparent)] text-field-text"
+                              : "border-[color-mix(in_srgb,var(--review)_35%,transparent)] bg-[color-mix(in_srgb,var(--review)_14%,transparent)] text-review"
+                          )}
+                        >
+                          {activeFixture.exif.insideBoundary
+                            ? "Inside the project boundary"
+                            : `${activeFixture.exif.distanceToBoundaryMeters?.toFixed(1)} m outside the boundary`}
+                        </dd>
+                      </div>
+                    </dl>
+                  }
+                />
+              ) : (
+                <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-field-hairline bg-field-canopy p-8 text-center">
+                  <ImageOff className="size-6 text-field-muted" aria-hidden="true" />
+                  <h2 className="text-base font-medium text-field-text">The photographs are not available yet</h2>
+                  <p className="prose-column text-[13px] leading-5 text-field-muted">
+                    This submission is a real record, but its images live in private storage, which is connected in Stage 3. You can read the
+                    record and decide on it, though without the pictures there is little to decide on.
+                  </p>
+                  <dl className="mt-1 space-y-1 text-[13px] leading-5">
+                    <div className="flex justify-between gap-8">
+                      <dt className="text-field-muted">Activity</dt>
+                      <dd className="text-field-text">{active.activityType}</dd>
                     </div>
-
-                    <div className="flex items-center justify-between">
-                      <span>Capture time</span>
-                      <span className="font-mono tabular-nums text-field-text">
-                        {activeSubmission.afterImage.capturedAt}
-                      </span>
+                    <div className="flex justify-between gap-8">
+                      <dt className="text-field-muted">Review round</dt>
+                      <dd className="font-mono tabular-nums text-field-text">{activeReal?.round}</dd>
                     </div>
-
-                    <div className="flex items-center justify-between">
-                      <span>GPS coordinate</span>
-                      <span className="font-mono tabular-nums text-field-text">
-                        {activeSubmission.exif.gps
-                          ? `${activeSubmission.exif.gps.lat.toFixed(4)}° N, ${activeSubmission.exif.gps.lng.toFixed(4)}° E`
-                          : "Unavailable"}
-                      </span>
+                    <div className="flex justify-between gap-8">
+                      <dt className="text-field-muted">Submitted</dt>
+                      <dd className="font-mono tabular-nums text-field-text">{active.submittedAt.slice(0, 16).replace("T", " ")} UTC</dd>
                     </div>
-                  </div>
+                  </dl>
                 </div>
-
-                {/* Boundary Conformance */}
-                <div className="rounded-lg border border-field-hairline bg-field-canopy p-3 space-y-2">
-                  <div className="flex items-center justify-between border-b border-field-hairline/50 pb-1.5">
-                    <span className="font-medium text-field-text flex items-center gap-1.5">
-                      <Compass className="size-3.5 text-field-muted" />
-                      Boundary conformance
-                    </span>
-                    <span
-                      className={cn(
-                        "px-1.5 py-0.5 rounded text-[11px] border",
-                        activeSubmission.exif.insideBoundary
-                          ? "bg-[color-mix(in_srgb,var(--verified)_14%,transparent)] border-[color-mix(in_srgb,var(--verified)_35%,transparent)] text-verified"
-                          : "bg-[color-mix(in_srgb,var(--review)_14%,transparent)] border-[color-mix(in_srgb,var(--review)_35%,transparent)] text-review"
-                      )}
-                    >
-                      {activeSubmission.exif.insideBoundary
-                        ? "Inside polygon"
-                        : `${activeSubmission.exif.distanceToBoundaryMeters?.toFixed(1)} m outside`}
-                    </span>
-                  </div>
-
-                  <div className="space-y-1 text-[11px] text-field-muted">
-                    <div className="flex items-center justify-between">
-                      <span>Assigned verifiers</span>
-                      <span className="text-field-text">2 independent organisations</span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span>SHA-256 digest</span>
-                      <HashDisplay hash={activeSubmission.afterImage.sha256} variant="truncated" />
-                    </div>
-                  </div>
-                </div>
-              </div>
+              )}
             </main>
 
-            {/* Pane 3: Forensic Findings & Decision Form (360px) */}
-            <aside className="w-full lg:w-[380px] flex-shrink-0 flex flex-col overflow-y-auto p-4 space-y-4 bg-field-canopy">
-              {/* Findings Header (Sentence case, no ALL CAPS, no font-mono on title) */}
-              <div className="flex items-center justify-between border-b border-field-hairline pb-2 text-xs">
-                <h3 className="font-medium text-field-text">
-                  Findings ({activeSubmission.findings.length})
-                </h3>
-                <span className="text-[11px] text-field-muted">
-                  Deterministic pipeline
-                </span>
-              </div>
+            {/* Findings: the list scrolls, the decision bar stays put (from 1280px) */}
+            <aside aria-label="Findings and decision" className="flex min-w-0 flex-col border-field-hairline bg-field-canopy max-xl:border-t xl:min-h-0">
+              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                <div className="max-w-[640px]">
+                  <h2 className="mb-4 flex items-baseline gap-2 text-base font-medium leading-6 text-field-text">
+                    Findings
+                    <span className="font-mono text-[13px] font-normal tabular-nums text-field-muted">
+                      {activeFixture ? activeFixture.findings.length : Object.values(active.findingCounts).reduce((a, b) => a + b, 0)}
+                    </span>
+                  </h2>
 
-              {/* Findings List (Tier 1 by default, nothing expanded on load) */}
-              <div className="space-y-2.5">
-                {activeSubmission.findings.length === 0 ? (
-                  <div className="rounded-lg border border-field-hairline bg-field-raised p-4 text-xs space-y-1.5">
-                    <div className="flex items-center gap-1.5 font-medium text-field-text">
-                      <ShieldCheck className="size-4 text-verified" />
-                      <span>No findings</span>
+                  {activeFixture && activeFixture.findings.length > 0 ? (
+                    <div className="space-y-2">
+                      {activeFixture.findings
+                        .slice()
+                        .sort((a, b) => {
+                          const order = { HIGH: 0, MEDIUM: 1, LOW: 2, INFO: 3 };
+                          return order[a.severity] - order[b.severity];
+                        })
+                        .map((finding) => (
+                          <FindingCard key={finding.id} finding={finding} />
+                        ))}
                     </div>
-                    <p className="text-field-muted leading-relaxed text-[11px]">
-                      All seven deterministic checks completed and none produced a finding. This submission still requires independent review.
-                    </p>
-                  </div>
-                ) : (
-                  activeSubmission.findings
-                    .slice()
-                    .sort((a, b) => {
-                      const order = { HIGH: 0, MEDIUM: 1, LOW: 2, INFO: 3 };
-                      return order[a.severity] - order[b.severity];
-                    })
-                    .map((finding) => (
-                      <FindingCard key={finding.id} finding={finding} />
-                    ))
-                )}
+                  ) : activeFixture ? (
+                    <div className="space-y-1 rounded-lg border border-field-hairline bg-field-raised p-4 text-[13px] leading-5">
+                      <p className="flex items-center gap-2 text-[15px] leading-[21px] text-field-text">
+                        <ShieldCheck className="size-4 text-verified" aria-hidden="true" />
+                        No findings
+                      </p>
+                      <p className="text-field-muted">All checks ran and none raised a finding. The submission still needs independent review.</p>
+                    </div>
+                  ) : (
+                    // Real items: say only what is true. Forensics has not run on seeded data.
+                    <div className="space-y-1 rounded-lg border border-field-hairline bg-field-raised p-4 text-[13px] leading-5">
+                      <p className="text-[15px] leading-[21px] text-field-text">No findings recorded</p>
+                      <p className="text-field-muted">No forensic findings are stored for this submission. That is not the same as the checks having passed.</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Review Decision Form */}
-              <div className="pt-2 border-t border-field-hairline">
+              {/* Read-only below 1024px (docs/19 §2) */}
+              <div className="shrink-0 border-t border-field-hairline px-5 py-4 lg:hidden">
+                <p role="note" className="rounded-lg border border-field-hairline bg-field-raised p-4 text-[13px] leading-5 text-field-muted">
+                  Open the Lab on a larger screen to decide. You can read everything here.
+                </p>
+              </div>
+
+              <div className="shrink-0 border-t border-field-hairline px-5 py-4 max-lg:hidden">
+                {decisionError && (
+                  <p
+                    role="alert"
+                    className="mb-3 max-w-[640px] rounded-sm border border-[color-mix(in_srgb,var(--fraud)_35%,transparent)] bg-[color-mix(in_srgb,var(--fraud)_14%,transparent)] px-3 py-2 text-[13px] leading-5 text-fraud"
+                  >
+                    {decisionError}
+                  </p>
+                )}
                 <DecisionForm
-                  submissionId={activeSubmission.id}
-                  approvalsCount={activeSubmission.approvalsCount}
-                  rejectionsCount={activeSubmission.rejectionsCount}
-                  requiredQuorum={activeSubmission.requiredQuorum}
-                  isEscalated={activeSubmission.isEscalated || activeSubmission.status === "ESCALATED"}
-                  userHasDecided={activeSubmission.userHasDecided}
-                  userDecision={activeSubmission.userDecision}
+                  className="max-w-[640px] rounded-none border-0 bg-transparent p-0"
+                  submissionId={active.id}
+                  approvalsCount={activeFixture ? activeFixture.approvalsCount : (activeReal?.approvalsCount ?? 0)}
+                  rejectionsCount={activeFixture ? activeFixture.rejectionsCount : (activeReal?.rejectionsCount ?? 0)}
+                  requiredQuorum={activeFixture ? activeFixture.requiredQuorum : QUORUM}
+                  isEscalated={Boolean(active.isEscalated) || active.status === "ESCALATED"}
+                  userHasDecided={active.userHasDecided}
+                  userDecision={activeFixture ? activeFixture.userDecision : activeReal?.userDecision}
                   onSubmitDecision={handleDecision}
                 />
               </div>
             </aside>
-          </>
+          </div>
         ) : (
-          /* Empty Workspace Center State */
-          <div className="flex-1 flex items-center justify-center p-8 bg-field-abyss">
+          /* Nothing to show: loading, failed, or an empty queue (and why) */
+          <div className="flex min-h-0 min-w-0 items-center justify-center bg-field-abyss p-8 xl:col-span-2">
             <EmptyState
-              title={
-                emptyStateMode === "no-assignments"
-                  ? "Your review queue"
-                  : "Queue clear"
-              }
-              reason={
-                emptyStateMode === "no-assignments"
-                  ? "Your organisation is not assigned to any projects yet. A platform administrator assigns verifier organisations to the projects they audit."
-                  : "Nothing is awaiting your review. New submissions appear here automatically once forensic processing completes."
-              }
+              title={centreMessage.title}
+              reason={centreMessage.reason}
               honestNote={
-                emptyStateMode === "no-assignments"
+                emptyMode === "no-assignments"
                   ? "Independent verifiers only audit assigned workloads. Platform administrators assign audit lanes."
-                  : "Last reviewed 14 minutes ago."
+                  : emptyMode === "not-a-verifier"
+                  ? "Project owners submit evidence and funders read verified outcomes. Neither reviews."
+                  : undefined
               }
               action={
-                emptyStateMode === "no-assignments"
-                  ? {
-                      label: "Contact support",
-                      onClick: () => alert("Redirecting to administrator support..."),
-                    }
+                source.kind === "error"
+                  ? source.signedOut
+                    ? { label: "Sign in", onClick: () => router.push("/sign-in?next=%2Flab") }
+                    : { label: "Try again", onClick: reload }
                   : undefined
               }
             />
@@ -423,100 +494,46 @@ export default function EvidenceLabPage() {
         )}
       </div>
 
-      {/* Keyboard Shortcuts Modal Sheet */}
+      {/* Keyboard shortcuts */}
       {isShortcutsOpen && (
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-field-abyss/80"
+          aria-label="Keyboard shortcuts"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-field-abyss/80 p-4"
           onClick={() => setIsShortcutsOpen(false)}
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-lg border border-field-hairline bg-field-canopy p-5 space-y-4 text-xs select-none"
-          >
-            <div className="flex items-center justify-between border-b border-field-hairline pb-3">
-              <span className="font-medium text-sm text-field-text flex items-center gap-2">
-                <Keyboard className="size-4 text-field-muted" /> Keyboard shortcuts
-              </span>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md select-none rounded-lg border border-field-hairline bg-field-canopy p-6 text-[13px] leading-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-base font-medium text-field-text">
+                <Keyboard className="size-4 text-field-muted" aria-hidden="true" /> Keyboard shortcuts
+              </h2>
               <button
                 type="button"
+                aria-label="Close shortcuts"
                 onClick={() => setIsShortcutsOpen(false)}
-                className="p-1 rounded hover:bg-field-raised text-field-muted hover:text-field-text"
+                className="flex size-8 items-center justify-center rounded-sm text-field-muted transition-colors duration-[120ms] hover:bg-field-raised hover:text-field-text"
               >
-                <X className="size-4" />
+                <X className="size-4" aria-hidden="true" />
               </button>
             </div>
 
-            <div className="space-y-2.5 text-xs">
-              <div className="flex items-center justify-between py-1 border-b border-field-hairline/50">
-                <span className="text-field-muted">Next submission in queue</span>
-                <kbd className="px-2 py-0.5 rounded bg-field-raised border border-field-hairline font-mono font-medium text-field-text">
-                  j
-                </kbd>
-              </div>
+            <dl className="space-y-2">
+              {SHORTCUTS.map((s) => (
+                <div key={s.label} className="flex items-center justify-between gap-4">
+                  <dt className="text-field-muted">{s.label}</dt>
+                  <dd className="flex shrink-0 items-center gap-1">
+                    {s.keys.map((k) => (
+                      <kbd key={k} className="rounded-sm border border-field-hairline bg-field-raised px-2 font-mono text-xs leading-5 text-field-text">
+                        {k}
+                      </kbd>
+                    ))}
+                  </dd>
+                </div>
+              ))}
+            </dl>
 
-              <div className="flex items-center justify-between py-1 border-b border-field-hairline/50">
-                <span className="text-field-muted">Previous submission in queue</span>
-                <kbd className="px-2 py-0.5 rounded bg-field-raised border border-field-hairline font-mono font-medium text-field-text">
-                  k
-                </kbd>
-              </div>
-
-              <div className="flex items-center justify-between py-1 border-b border-field-hairline/50">
-                <span className="text-field-muted">Open / select submission</span>
-                <kbd className="px-2 py-0.5 rounded bg-field-raised border border-field-hairline font-mono text-field-text">
-                  Enter
-                </kbd>
-              </div>
-
-              <div className="flex items-center justify-between py-1 border-b border-field-hairline/50">
-                <span className="text-field-muted">Approve (focus reason)</span>
-                <kbd className="px-2 py-0.5 rounded bg-field-raised border border-field-hairline font-mono font-medium text-verified">
-                  a
-                </kbd>
-              </div>
-
-              <div className="flex items-center justify-between py-1 border-b border-field-hairline/50">
-                <span className="text-field-muted">Reject submission</span>
-                <kbd className="px-2 py-0.5 rounded bg-field-raised border border-field-hairline font-mono font-medium text-fraud">
-                  r
-                </kbd>
-              </div>
-
-              <div className="flex items-center justify-between py-1 border-b border-field-hairline/50">
-                <span className="text-field-muted">Request more proof</span>
-                <kbd className="px-2 py-0.5 rounded bg-field-raised border border-field-hairline font-mono font-medium text-review">
-                  m
-                </kbd>
-              </div>
-
-              <div className="flex items-center justify-between py-1 border-b border-field-hairline/50">
-                <span className="text-field-muted">Step comparison slider</span>
-                <span className="flex items-center gap-1 font-mono">
-                  <kbd className="px-1.5 py-0.5 rounded bg-field-raised border border-field-hairline">←</kbd>
-                  <kbd className="px-1.5 py-0.5 rounded bg-field-raised border border-field-hairline">→</kbd>
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between py-1 border-b border-field-hairline/50">
-                <span className="text-field-muted">Toggle shortcuts sheet</span>
-                <kbd className="px-2 py-0.5 rounded bg-field-raised border border-field-hairline font-mono text-field-text">
-                  ?
-                </kbd>
-              </div>
-
-              <div className="flex items-center justify-between py-1">
-                <span className="text-field-muted">Close modal / sheet</span>
-                <kbd className="px-2 py-0.5 rounded bg-field-raised border border-field-hairline font-mono text-field-text">
-                  Esc
-                </kbd>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-field-muted pt-2 border-t border-field-hairline">
-              Every keyboard action corresponds to a visible control on screen.
-            </p>
+            <p className="mt-4 text-field-muted">Every shortcut has a visible control on the screen.</p>
           </div>
         </div>
       )}

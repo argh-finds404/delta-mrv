@@ -90,8 +90,11 @@ unprivileged caller.
 buffer the client sent. 64-character lowercase hex.
 
 ### dHash
-`sharp`: grayscale → resize to exactly 9×8 → compare adjacent horizontal
-pixels per row → pack row-major, MSB first → 64-character `'0'|'1'` string.
+`sharp`: grayscale → resize to exactly 9×8 with the **`lanczos3`** kernel and
+`fit: "fill"` → compare adjacent horizontal pixels per row → pack row-major, MSB
+first → 64-character `'0'|'1'` string. The kernel is frozen with the rest of
+the contract (docs/02-ARCHITECTURE.md §4.2); pass `DHASH_RESIZE` from
+`src/lib/forensics/dhash.ts`, never a literal.
 
 Identical code path in `forensics.service.ts`, `scripts/seed.ts` and
 `scripts/eval-forensics.ts`. A single shared function. Three implementations

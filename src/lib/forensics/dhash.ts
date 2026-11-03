@@ -5,6 +5,15 @@
 const COLS = 9;
 const ROWS = 8;
 
+/**
+ * The resize step of the dHash, as options for `sharp(...).grayscale().resize(DHASH_RESIZE)`.
+ * Part of the frozen contract (docs/02-ARCHITECTURE.md §4.2). The kernel is named, not
+ * left to sharp's default: intake, the seed script and the eval harness must produce
+ * identical pixels or duplicate detection between them silently misses. Pass this object;
+ * never write a literal.
+ */
+export const DHASH_RESIZE = { width: COLS, height: ROWS, fit: "fill", kernel: "lanczos3" } as const;
+
 /** 72 grayscale pixels, row-major -> 64-character '0'|'1' string, row-major, MSB first. */
 export function packDHash(gray: Uint8Array): string {
   if (gray.length !== COLS * ROWS) throw new Error(`dHash needs ${COLS * ROWS} pixels, got ${gray.length}`);

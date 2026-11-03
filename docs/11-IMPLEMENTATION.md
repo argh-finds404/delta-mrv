@@ -182,6 +182,16 @@ and rolls back; none truncates a table. `review_decision`, `audit_event` and
 `BEFORE TRUNCATE` trigger, `drizzle/0003_append_only.sql`), so rollback is the
 only cleanup that works for them and it is used everywhere for consistency.
 
+**Integration tests scope every read to rows they created themselves**, by id or
+by a test-specific key prefix (for example `storage_key like 'spike/%'`). The
+database is shared with seeded data, and that data changes. A test that reads
+the first row of an unfiltered table passes by accident and fails the day the
+seed changes. Two spike tests did exactly that and broke on 2026-11-03: one read
+the first row of `project_private_location`, which had been empty and then held
+the four seeded polygons; the other scanned every row of `evidence_file` and
+only passed because the 10,400 seeded hashes happened to be far from its
+pattern. Both now select by the id or prefix of what they inserted.
+
 ### Tests that must exist and never be weakened
 
 1. Owner cannot review their own organisation's submission

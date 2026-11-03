@@ -1,5 +1,6 @@
+import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { hammingDistance, packDHash } from "../src/lib/forensics/dhash";
+import { DHASH_RESIZE, hammingDistance, packDHash } from "../src/lib/forensics/dhash";
 
 // 9 columns x 8 rows, row-major, as docs/02-ARCHITECTURE.md §4.2 specifies.
 const grid = (f: (row: number, col: number) => number) =>
@@ -35,5 +36,46 @@ describe("hammingDistance", () => {
 
   it("rejects strings that are not 64 bits", () => {
     expect(() => hammingDistance("01", "10")).toThrow(/64/);
+  });
+});
+
+// The resize kernel is part of the contract (docs/02-ARCHITECTURE.md §4.2). A caller that
+// takes sharp's default, or another kernel, still produces a plausible 64-bit hash, just
+// not the same one, and duplicate detection between the two quietly misses.
+describe("DHASH_RESIZE", () => {
+  it("is 9x8, fill, lanczos3, written out and not left to a default", () => {
+    expect(DHASH_RESIZE).toEqual({ width: 9, height: 8, fit: "fill", kernel: "lanczos3" });
+  });
+
+  // 96x72 grayscale noise from a fixed seed (mulberry32, seed 42)
+  const noise = () => {
+    let a = 42;
+    const next = () => {
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    return Buffer.from(Array.from({ length: 96 * 72 }, () => Math.floor(next() * 256)));
+  };
+  const hashWith = async (resize: object) =>
+    packDHash(
+      new Uint8Array(
+        await sharp(noise(), { raw: { width: 96, height: 72, channels: 1 } })
+          .grayscale()
+          .resize(resize)
+          .raw()
+          .toBuffer(),
+      ),
+    );
+
+  it("produces the pinned hash through sharp (a sharp upgrade that changes lanczos3 fails here)", async () => {
+    expect(await hashWith(DHASH_RESIZE)).toBe("0101110101110010110010100110111001011101001000101101010001101100");
+  });
+
+  it("differs from another kernel, which is what the pin guards against", async () => {
+    const pinned = await hashWith(DHASH_RESIZE);
+    expect(await hashWith({ ...DHASH_RESIZE, kernel: "nearest" })).not.toBe(pinned);
+    expect(await hashWith({ ...DHASH_RESIZE, kernel: "cubic" })).not.toBe(pinned);
   });
 });

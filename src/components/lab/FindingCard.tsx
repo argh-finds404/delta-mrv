@@ -39,277 +39,230 @@ export const findingKindDisplayMap: Record<string, string> = {
 };
 
 /**
- * FindingCard — Three-tier forensic finding disclosure.
- * Authority: docs/18-VISUAL-CORRECTION.md §2.
- * Tier 1 (always visible): A severity dot and a sentence. Plain language only. Nothing expanded on load.
- * Tier 2 ("Show the numbers"): A four-row definition list in monospace.
- * Tier 3 ("Show the raw comparison"): Bit grids, full hashes, images, opaque match ref, raw enum code.
+ * Tier 1, line two: the magnitude, in words a non-specialist reads. No threshold,
+ * no rule version, no editorial (docs/19-LAYOUT-SPEC.md §3). Each sentence is kept
+ * to one line of a 400px pane: 46 characters at most.
  */
-export function FindingCard({
-  finding,
-  theme = "field",
-  className,
-}: FindingCardProps) {
+export function findingSummary(finding: LabFinding): string {
+  const { kind, evidence } = finding;
+  const bits = evidence.hammingDistance;
+  const metres = evidence.distanceMeters;
+
+  if (kind.startsWith("PERCEPTUAL_MATCH") && bits !== undefined) {
+    const closeness = bits <= 2 ? "Near-identical image" : bits <= 5 ? "Very close visual match" : "Close visual match";
+    return `${closeness} — ${bits} of 64 bits differ.`;
+  }
+  if (kind === "NO_VISIBLE_CHANGE" && bits !== undefined) return `Only ${bits} of 64 bits differ between the photos.`;
+  if (kind.startsWith("EXACT_DUPLICATE")) return "The file is byte-for-byte the same.";
+  if (kind === "GPS_OUTSIDE_BOUNDARY" && metres !== undefined) return `About ${Math.round(metres)} m outside the boundary.`;
+  if (kind === "GPS_WITHIN_TOLERANCE" && metres !== undefined) return `About ${Math.round(metres)} m outside, within the margin.`;
+  if (kind === "GPS_INSIDE_BOUNDARY") return "The photo was taken inside the project area.";
+  if (kind === "GPS_MISSING") return "The file carries no GPS position.";
+  if (kind === "EXIF_TIMESTAMP_MISSING") return "No capture time could be read from the file.";
+  if (kind === "EXIF_TIMESTAMP_IMPLAUSIBLE") return "The time does not fit the project's dates.";
+  if (kind === "EXIF_FULLY_STRIPPED") return "Camera, time and location data are absent.";
+  if (kind === "CLIENT_HASH_MISMATCH") return "The server's copy differs from the device's.";
+  if (kind === "AI_OBSERVATION") return "A note from the advisory AI review.";
+  return "See the numbers for the measured values.";
+}
+
+const SEVERITY_LABEL = { HIGH: "High", MEDIUM: "Medium", LOW: "Low", INFO: "Information" } as const;
+
+/**
+ * FindingCard — three-tier forensic finding disclosure.
+ * Authority: docs/19-LAYOUT-SPEC.md §3; docs/18-VISUAL-CORRECTION.md §2.
+ *
+ * Tier 1 (always): a severity dot and two lines. Collapsed height is 64–80px.
+ * Tier 2 ("Show the numbers"): a four-row definition list.
+ * Tier 3 ("Show the raw comparison"): why it was flagged, bit grids, images, code.
+ */
+export function FindingCard({ finding, theme = "field", className }: FindingCardProps) {
   const isPaper = theme === "paper";
+  const bodyId = React.useId();
 
-  // Tier 2 ("Show the numbers") and Tier 3 ("Show the raw comparison")
-  // Rule: Nothing expanded on load per docs/18-VISUAL-CORRECTION.md §2 & §4.
+  // Nothing is open on load (docs/18 §3, §4).
   const [showNumbers, setShowNumbers] = React.useState<boolean>(false);
-  const [showRawComparison, setShowRawComparison] = React.useState<boolean>(false);
+  const [showRaw, setShowRaw] = React.useState<boolean>(false);
 
-  const plainTitle = findingKindDisplayMap[finding.kind] ?? finding.kind;
+  const title = findingKindDisplayMap[finding.kind] ?? finding.kind;
+  const { evidence } = finding;
 
-  // Severity color tokens
-  const dotColorClass = {
-    HIGH: "text-fraud",
-    MEDIUM: "text-review",
-    LOW: "text-field-muted",
-    INFO: "text-field-muted",
+  const dotColour = {
+    HIGH: "bg-fraud",
+    MEDIUM: "bg-review",
+    LOW: "bg-field-muted",
+    INFO: "bg-field-muted",
   }[finding.severity];
 
-  const hasPerceptualData =
-    finding.evidence.beforeHash && finding.evidence.compareHash;
+  const hasBitGrid = Boolean(evidence.beforeHash && evidence.compareHash);
+  const hasImages = Boolean(evidence.beforeImageUrl && evidence.matchImageUrl);
 
-  const hasImageData =
-    Boolean(finding.evidence.beforeImageUrl && finding.evidence.matchImageUrl);
+  const ink = isPaper ? "text-paper-ink" : "text-field-text";
+  const muted = isPaper ? "text-paper-muted" : "text-field-muted";
+  const line = isPaper ? "border-paper-rule" : "border-field-hairline";
+
+  const rows: { label: string; value: string; mono: boolean }[] = [
+    {
+      label:
+        evidence.hammingDistance !== undefined
+          ? "Perceptual hash distance"
+          : evidence.distanceMeters !== undefined
+          ? "Distance to boundary"
+          : "Measured delta",
+      value:
+        evidence.hammingDistance !== undefined
+          ? `${evidence.hammingDistance} bits`
+          : evidence.distanceMeters !== undefined
+          ? `${evidence.distanceMeters.toFixed(1)} m`
+          : "Recorded",
+      mono: true,
+    },
+    {
+      label: "Flagging threshold",
+      value:
+        evidence.hammingDistance !== undefined
+          ? `below ${evidence.threshold}`
+          : evidence.toleranceMeters !== undefined
+          ? `within ${evidence.toleranceMeters.toFixed(1)} m`
+          : "zero tolerance",
+      mono: true,
+    },
+    {
+      label: "Match scope",
+      value: finding.kind.includes("OTHER_ORG")
+        ? "a different organisation"
+        : finding.kind.includes("SAME_ORG")
+        ? "same organisation, other project"
+        : finding.kind.includes("BOUNDARY")
+        ? "registered polygon perimeter"
+        : "same project plot",
+      mono: false,
+    },
+    { label: "Rule version", value: evidence.ruleVersion || "forensics.v1", mono: true },
+  ];
 
   return (
-    <div
-      className={cn(
-        "rounded-lg border transition-colors",
-        isPaper
-          ? "border-paper-rule bg-paper-card text-paper-ink"
-          : "border-field-hairline bg-field-canopy text-field-text",
-        className
-      )}
-    >
-      {/* Tier 1: Verdict (Always visible, dot + two short lines, nothing else) */}
-      <div className="p-3.5 space-y-1.5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1 flex-1 min-w-0">
-            {/* Line 1: 4px dot + Plain language verdict */}
-            <div className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "size-2 rounded-full shrink-0 bg-current",
-                  dotColorClass
-                )}
-                aria-hidden="true"
-              />
-              <h4 className="text-xs font-medium leading-snug">
-                {plainTitle}
-              </h4>
-            </div>
+    <article className={cn("rounded-lg border", isPaper ? "border-paper-rule bg-paper-card" : "border-field-hairline bg-field-canopy", ink, className)}>
+      {/* Tier 1: the whole row is the control, so the text keeps the full width of the card */}
+      <button
+        type="button"
+        aria-expanded={showNumbers}
+        aria-controls={bodyId}
+        onClick={() => setShowNumbers((open) => !open)}
+        className={cn(
+          "relative flex min-h-16 w-full items-start gap-2 rounded-lg p-4 text-left transition-colors duration-[120ms]",
+          isPaper ? "hover:bg-paper" : "hover:bg-field-raised"
+        )}
+      >
+        <span aria-hidden="true" className="flex h-[21px] shrink-0 items-center">
+          <span className={cn("size-2 rounded-full", dotColour)} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] leading-[21px]">
+            <span className="sr-only">{SEVERITY_LABEL[finding.severity]} severity. </span>
+            {title}
+          </span>
+          <span className={cn("mt-1 block pr-6 text-[13px] leading-5", muted)}>{findingSummary(finding)}</span>
+        </span>
+        {showNumbers ? (
+          <ChevronUp aria-hidden="true" className={cn("absolute bottom-4 right-4 size-5", muted)} />
+        ) : (
+          <ChevronDown aria-hidden="true" className={cn("absolute bottom-4 right-4 size-5", muted)} />
+        )}
+        <span className="sr-only">{showNumbers ? "Hide the numbers" : "Show the numbers"}</span>
+      </button>
 
-            {/* Line 2: Plain sentence in muted text */}
-            <p className="text-xs text-field-muted leading-relaxed pl-4">
-              {finding.humanReason}
-            </p>
-          </div>
-
-          {/* Tier 2 Disclosure Trigger */}
-          <button
-            type="button"
-            onClick={() => setShowNumbers((prev) => !prev)}
-            className={cn(
-              "text-xs font-sans text-field-muted hover:text-field-text px-2 py-1 rounded transition-colors shrink-0 flex items-center gap-1",
-              showNumbers && "text-field-text font-medium"
-            )}
-          >
-            <span>{showNumbers ? "Hide numbers" : "Show the numbers"}</span>
-            {showNumbers ? (
-              <ChevronUp className="size-3.5" />
-            ) : (
-              <ChevronDown className="size-3.5" />
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Tier 2: The Numbers (Four-row definition list in monospace) */}
+      {/* Tier 2: the numbers */}
       {showNumbers && (
-        <div
-          className={cn(
-            "border-t px-4 py-3 text-xs space-y-3",
-            isPaper ? "border-paper-rule bg-paper" : "border-field-hairline bg-field-abyss"
-          )}
-        >
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6">
-            {/* Row 1: Measured value */}
-            <div className="flex items-baseline justify-between border-b border-field-hairline/40 pb-1">
-              <dt className="text-field-muted">
-                {finding.evidence.hammingDistance !== undefined
-                  ? "Perceptual hash distance"
-                  : finding.evidence.distanceMeters !== undefined
-                  ? "Distance to boundary"
-                  : "Measured delta"}
-              </dt>
-              <dd className="font-mono tabular-nums text-field-text">
-                {finding.evidence.hammingDistance !== undefined
-                  ? `${finding.evidence.hammingDistance} bits`
-                  : finding.evidence.distanceMeters !== undefined
-                  ? `${finding.evidence.distanceMeters.toFixed(1)} m`
-                  : "Recorded"}
-              </dd>
-            </div>
-
-            {/* Row 2: Flagging threshold */}
-            <div className="flex items-baseline justify-between border-b border-field-hairline/40 pb-1">
-              <dt className="text-field-muted">Flagging threshold</dt>
-              <dd className="font-mono tabular-nums text-field-text">
-                {finding.evidence.hammingDistance !== undefined
-                  ? `below ${finding.evidence.threshold}`
-                  : finding.evidence.toleranceMeters !== undefined
-                  ? `within ${finding.evidence.toleranceMeters.toFixed(1)} m`
-                  : `zero tolerance`}
-              </dd>
-            </div>
-
-            {/* Row 3: Match scope */}
-            <div className="flex items-baseline justify-between border-b border-field-hairline/40 pb-1">
-              <dt className="text-field-muted">Match scope</dt>
-              <dd className="text-field-text">
-                {finding.kind.includes("OTHER_ORG")
-                  ? "a different organisation"
-                  : finding.kind.includes("SAME_ORG")
-                  ? "same organisation, other project"
-                  : finding.kind.includes("BOUNDARY")
-                  ? "registered polygon perimeter"
-                  : "same project plot"}
-              </dd>
-            </div>
-
-            {/* Row 4: Rule version */}
-            <div className="flex items-baseline justify-between border-b border-field-hairline/40 pb-1">
-              <dt className="text-field-muted">Rule version</dt>
-              <dd className="font-mono tabular-nums text-field-text">
-                {finding.evidence.ruleVersion || "forensics.v1"}
-              </dd>
-            </div>
+        <div id={bodyId} className={cn("space-y-3 border-t p-4 text-[13px] leading-5", line, isPaper ? "bg-paper" : "bg-field-abyss")}>
+          <dl className="space-y-2">
+            {rows.map((row) => (
+              <div key={row.label} className="flex items-baseline justify-between gap-4">
+                <dt className={muted}>{row.label}</dt>
+                <dd className={cn("text-right", ink, row.mono && "font-mono tabular-nums")}>{row.value}</dd>
+              </div>
+            ))}
           </dl>
 
-          {/* Tier 3 Disclosure Trigger */}
-          <div className="pt-1 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => setShowRawComparison((prev) => !prev)}
-              className="text-xs text-field-muted hover:text-field-text underline underline-offset-2 transition-colors flex items-center gap-1"
-            >
-              <span>
-                {showRawComparison ? "Hide raw comparison" : "Show the raw comparison"}
-              </span>
-              {showRawComparison ? (
-                <ChevronUp className="size-3" />
-              ) : (
-                <ChevronDown className="size-3" />
-              )}
-            </button>
-          </div>
+          <button
+            type="button"
+            aria-expanded={showRaw}
+            onClick={() => setShowRaw((open) => !open)}
+            className={cn("flex h-8 items-center gap-1 transition-colors duration-[120ms] hover:text-field-text", muted)}
+          >
+            <span>{showRaw ? "Hide the raw comparison" : "Show the raw comparison"}</span>
+            {showRaw ? <ChevronUp aria-hidden="true" className="size-4" /> : <ChevronDown aria-hidden="true" className="size-4" />}
+          </button>
         </div>
       )}
 
-      {/* Tier 3: Raw Artefacts (Bit grids, full hashes, images, opaque match ref, finding code) */}
-      {showNumbers && showRawComparison && (
-        <div
-          className={cn(
-            "border-t p-4 space-y-4 text-xs",
-            isPaper ? "border-paper-rule bg-paper-card" : "border-field-hairline bg-field-canopy"
-          )}
-        >
-          {/* Finding Code (raw enum is visible here only per §2) */}
-          <div className="flex items-center justify-between pb-2 border-b border-inherit">
-            <span className="text-field-muted">Finding code</span>
-            <code className="font-mono text-field-text text-[11px] bg-field-raised px-1.5 py-0.5 rounded border border-field-hairline">
-              {finding.kind}
-            </code>
+      {/* Tier 3: raw artefacts */}
+      {showNumbers && showRaw && (
+        <div className={cn("space-y-4 border-t p-4 text-[13px] leading-5", line)}>
+          <section className="space-y-1">
+            <h5 className={ink}>Why it was flagged</h5>
+            <p className={cn("prose-column", muted)}>{finding.humanReason}</p>
+          </section>
+
+          <div className="flex items-center justify-between gap-4">
+            <span className={muted}>Finding code</span>
+            <code className="rounded-sm border border-field-hairline bg-field-raised px-2 py-1 font-mono text-[13px] text-field-text">{finding.kind}</code>
           </div>
 
-          {/* 8×8 Bit Grid Comparison */}
-          {hasPerceptualData && (
-            <div className="space-y-2">
-              <span className="text-field-muted block">
-                64-bit difference hash comparison
-              </span>
+          {hasBitGrid && (
+            <section className="space-y-2">
+              <h5 className={ink}>64-bit difference hash</h5>
               <BitGrid
-                hash={finding.evidence.beforeHash!}
-                compareHash={finding.evidence.compareHash!}
-                hammingDistance={finding.evidence.hammingDistance}
-                threshold={finding.evidence.threshold}
+                hash={evidence.beforeHash!}
+                compareHash={evidence.compareHash!}
+                hammingDistance={evidence.hammingDistance}
+                threshold={evidence.threshold}
                 label="Candidate submission"
                 compareLabel="Matched record"
                 theme={theme}
               />
-            </div>
+            </section>
           )}
 
-          {/* Raw Image Artefacts */}
-          {hasImageData && (
-            <div className="space-y-2">
-              <span className="text-field-muted block">
-                Image frames
-              </span>
+          {hasImages && (
+            <section className="space-y-2">
+              <h5 className={ink}>Image frames</h5>
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded border border-field-hairline p-2 space-y-1 bg-field-abyss">
-                  <div className="aspect-[4/3] rounded overflow-hidden relative">
-                    <Image
-                      src={finding.evidence.beforeImageUrl!}
-                      alt="Candidate frame"
-                      width={400}
-                      height={300}
-                      unoptimized
-                      className="size-full object-cover"
-                    />
-                  </div>
-                  <span className="text-[11px] text-field-muted block text-center">
-                    Candidate frame
-                  </span>
-                </div>
-
-                <div className="rounded border border-field-hairline p-2 space-y-1 bg-field-abyss">
-                  <div className="aspect-[4/3] rounded overflow-hidden relative">
-                    <Image
-                      src={finding.evidence.matchImageUrl!}
-                      alt="Matched record"
-                      width={400}
-                      height={300}
-                      unoptimized
-                      className="size-full object-cover"
-                    />
-                  </div>
-                  <span className="text-[11px] text-fraud block text-center font-medium">
-                    Matched record
-                  </span>
-                </div>
+                {[
+                  { src: evidence.beforeImageUrl!, alt: "Candidate frame", caption: "Candidate frame" },
+                  { src: evidence.matchImageUrl!, alt: "Matched record", caption: "Matched record" },
+                ].map((frame) => (
+                  <figure key={frame.caption} className="space-y-1">
+                    <div className="relative aspect-[4/3] overflow-hidden rounded-sm border border-field-hairline bg-field-abyss">
+                      <Image src={frame.src} alt={frame.alt} width={400} height={300} unoptimized className="size-full object-cover" />
+                    </div>
+                    <figcaption className={cn("text-center", muted)}>{frame.caption}</figcaption>
+                  </figure>
+                ))}
               </div>
-            </div>
+            </section>
           )}
 
-          {/* Opaque Match Reference */}
-          {finding.evidence.matchRef && (
-            <div className="p-2.5 rounded border border-field-hairline bg-field-raised/60 space-y-1">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-field-muted">Match reference</span>
-                <span className="font-mono text-field-text tabular-nums">
-                  {finding.evidence.matchRef}
-                </span>
+          {evidence.matchRef && (
+            <section className="space-y-1 rounded-sm border border-field-hairline bg-field-raised p-3">
+              <div className="flex items-center justify-between gap-4">
+                <span className={muted}>Match reference</span>
+                <span className="font-mono tabular-nums text-field-text">{evidence.matchRef}</span>
               </div>
-              <p className="text-[11px] text-field-muted leading-relaxed">
-                Source organisation identifier is redacted under cross-tenant privacy controls.
-              </p>
-            </div>
+              <p className={cn("prose-column", muted)}>Source organisation identifier is redacted under cross-tenant privacy controls.</p>
+            </section>
           )}
 
-          {/* GPS Telemetry Dump if applicable */}
-          {finding.evidence.exifGps && (
-            <div className="flex items-center justify-between text-[11px] font-mono border-t border-inherit pt-2">
-              <span className="text-field-muted">GPS coordinate</span>
-              <span className="tabular-nums text-field-text">
-                {finding.evidence.exifGps.lat.toFixed(6)}° N, {finding.evidence.exifGps.lng.toFixed(6)}° E
+          {evidence.exifGps && (
+            <div className="flex items-center justify-between gap-4">
+              <span className={muted}>GPS coordinate</span>
+              <span className="font-mono tabular-nums text-field-text">
+                {evidence.exifGps.lat.toFixed(6)}° N, {evidence.exifGps.lng.toFixed(6)}° E
               </span>
             </div>
           )}
         </div>
       )}
-    </div>
+    </article>
   );
 }

@@ -138,10 +138,15 @@ wrong. Stop and ask.
 | Verifier-org non-admin member votes on `ESCALATED` | `ForbiddenError` |
 | Verifier-org admin who already voted this round votes on `ESCALATED` | `ConflictError` |
 | Admin of an unassigned verifier org votes on `ESCALATED` | `ForbiddenError` |
-| Platform admin attempts to approve | `ForbiddenError` |
+| Platform admin attempts to approve | `ForbiddenError` (see note below) |
 | Org A reads Org B's submission by id | 404, not 403 — no existence disclosure |
 
 This suite must pass before any reviewer UI is built.
+
+> **Platform-admin row, as of Stage 2.** The schema has no admin role, so this test
+> uses a user who belongs to no organisation. It proves only that no voting path
+> exists for such a user; it does not prove that a platform admin role is blocked,
+> because that role is not represented. Revisit at Stage 8, when an admin role exists.
 
 ## 5. Tenant isolation
 
