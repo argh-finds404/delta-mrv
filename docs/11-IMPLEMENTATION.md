@@ -46,8 +46,8 @@ green. "Day" is a unit of work, not a promise about the calendar.
 
 **Spike status: PASSED 2026-11-02** — 18 of 18 tests, against a Neon dev branch
 (`dev-spike`, PostgreSQL 18.6, PostGIS 3.6.4, pgvector 0.8.6) with all five
-migrations applied. Not yet run against the local Docker image (Docker is not
-installed on the build machine). Result that changed the spec: `ST_Contains`
+migrations applied. Also run against the local Docker image on 2026-11-03: 74 of
+74 integration tests, all five migrations applied. Result that changed the spec: `ST_Contains`
 has no `geography` form, so the geofence check is `ST_Covers`.
 
 If the spike fights you, stop and report. Finding out on Stage 1 that the
@@ -68,8 +68,8 @@ No reviewer UI exists yet. If an owner can review their own org's work, the
 product does not exist.
 
 **Stage 2 status: GATE GREEN 2026-11-03** — `coi.test.ts` 27/27 and
-`tenancy.test.ts` 22/22 against the Neon dev branch; `pnpm check` green. Not
-yet run against local Docker. Known gaps: decisions append no audit event until
+`tenancy.test.ts` 22/22 against the Neon dev branch; `pnpm check` green. Run
+against local Docker on 2026-11-03 as well (the full suite, 74/74). Known gaps: decisions append no audit event until
 `audit-chain.service` exists (Stage 5); there is no representation of a
 "platform admin" in the schema, so that test proves only that a user with no
 organisation has no path to a vote.

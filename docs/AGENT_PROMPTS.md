@@ -765,10 +765,12 @@ git commit -m "feat(proof): add public proof dossier with client-side verificati
 
 ## Stage 8 — Evidence, polish, ship
 
-**Prerequisite:** Stage 7 accepted. **Docker Desktop is installed.** The local
-Docker database image (`postgis/postgis:18-3.6` plus pgvector) has never been
-built and the whole integration suite has only ever run against the Neon dev
-branch. Do that first, before any load test, by hand:
+**Prerequisite:** Stage 7 accepted. Docker Desktop is installed. The local image
+(`postgis/postgis:18-3.6` plus pgvector) and the whole integration suite were
+verified against it on 2026-11-03 (`docs/DEPENDENCY_LOG.md`), but later stages
+add migrations and tests, so repeat the check by hand before any load test. On
+this machine `docker` is not on the shell's PATH; add
+`C:\Users\orgho\AppData\Local\Programs\DockerDesktop\resources\bin`.
 
 ```bash
 docker compose up -d
