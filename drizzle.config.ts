@@ -1,16 +1,11 @@
-import { config } from "dotenv";
 import { defineConfig } from "drizzle-kit";
 
-config({ path: ".env.local" });
-config({ path: ".env" });
-
+// Migrations use the direct URL. It is read from the process environment only
+// (no .env.local), so `db:migrate` fails loudly instead of reaching a database
+// nobody chose. Local Docker only until the maintainer says otherwise.
 export default defineConfig({
-  schema: "./src/server/db/schema.ts",
-  out: "./drizzle",
   dialect: "postgresql",
-  dbCredentials: {
-    // Per neon-postgres skill: always use the direct (unpooled) URL for schema migrations
-    url: process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL!,
-  },
+  schema: "./src/server/db/schema/index.ts",
+  out: "./drizzle",
+  dbCredentials: { url: process.env.DATABASE_URL_UNPOOLED! },
 });
-

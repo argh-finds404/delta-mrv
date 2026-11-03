@@ -1,0 +1,9 @@
+minimumReleaseAge: 10080 # 7 days: nothing published this week
+allowBuilds:
+  sharp: true
+  # reviewed and denied: pnpm 11 errors on any unlisted build script
+  "@google/genai": false
+  esbuild: false
+  protobufjs: false
+  unrs-resolver: false
+shellEmulator: true # lets package.json scripts use VAR=value cmd on Windows

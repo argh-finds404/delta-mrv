@@ -1,0 +1,218 @@
+@import "tailwindcss";
+
+/*
+  Delta MRV Design System — Living Earth & Paper Tokens
+  Authority: docs/06-DESIGN-SYSTEM.md
+  Override from maintainer:
+  --verified and --paper-seal are fill, border and large-icon colours only.
+  Never use them for normal-size text — mid-tone greens on a near-black background fail WCAG AA.
+  Text sitting on a --verified fill is white or --field-abyss, whichever measures higher contrast.
+  Small "verified" text uses --field-text with a --verified icon beside it.
+*/
+
+:root {
+  /* 2.1 Field Tokens v2 (Near-Neutral Chrome, docs/18-VISUAL-CORRECTION.md §1) */
+  --field-abyss: #0A0C0B;    /* Page background */
+  --field-canopy: #121514;   /* Cards, panels */
+  --field-raised: #1A1E1C;   /* Hover, inputs, raised */
+  --field-hairline: #262B29; /* Borders, dividers */
+  --field-text: #E6E9E7;     /* Primary text */
+  --field-muted: #9AA3A0;    /* Secondary text, labels */
+  --field-inert: #646B68;    /* Disabled, placeholder */
+
+  /* 2.2 Semantic Tokens v2 — Five Distinct Hues */
+  --signal: #C9F578;         /* Primary action. ONE per screen */
+  --verified: #3DD6B0;       /* A hash matched, a check passed (Teal) */
+  --chain: #8B93FF;          /* Anchored, on-chain (Violet) */
+  --review: #F0A93B;         /* A human must look (Amber) */
+  --fraud: #F2705C;          /* High-severity finding, mismatch (Coral Red) */
+
+  /* 2.3 Paper Tokens (Public Proof Dossier) */
+  --paper: #F7F3EA;          /* Page background */
+  --paper-card: #FFFDF8;     /* Raised card */
+  --paper-rule: #DED6C6;     /* Hairline, dividers */
+  --paper-ink: #1B1D1A;      /* Primary text */
+  --paper-muted: #5E6460;    /* Secondary text */
+  --paper-seal: #1F6B55;     /* Verified, on paper (fill/border/icon only) */
+  --paper-chain: #4A4FA8;    /* On-chain, on paper */
+
+  /* Section 4: Space and Shape */
+  --radius-sm: 4px;          /* Badges, inputs, small controls */
+  --radius: 8px;             /* Buttons, fields */
+  --radius-lg: 12px;         /* Cards, panels */
+
+  /* Active Theme Defaults (Field) */
+  --theme-bg: var(--field-abyss);
+  --theme-surface: var(--field-canopy);
+  --theme-surface-raised: var(--field-raised);
+  --theme-border: var(--field-hairline);
+  --theme-text: var(--field-text);
+  --theme-text-muted: var(--field-muted);
+  --theme-text-inert: var(--field-inert);
+
+  /* Component library token mappings */
+  --background: var(--field-abyss);
+  --foreground: var(--field-text);
+  --card: var(--field-canopy);
+  --card-foreground: var(--field-text);
+  --popover: var(--field-canopy);
+  --popover-foreground: var(--field-text);
+  --primary: var(--signal);
+  --primary-foreground: #0A0C0B;
+  --secondary: var(--field-raised);
+  --secondary-foreground: var(--field-text);
+  --muted: var(--field-raised);
+  --muted-foreground: var(--field-muted);
+  --accent: var(--field-raised);
+  --accent-foreground: var(--field-text);
+  --destructive: var(--fraud);
+  --destructive-foreground: #FFFFFF;
+  --border: var(--field-hairline);
+  --input: var(--field-hairline);
+  --ring: var(--signal);
+}
+
+/* 2.3 Paper Theme Scope */
+.theme-paper,
+[data-theme="paper"] {
+  --theme-bg: var(--paper);
+  --theme-surface: var(--paper-card);
+  --theme-surface-raised: #EFE9DC;
+  --theme-border: var(--paper-rule);
+  --theme-text: var(--paper-ink);
+  --theme-text-muted: var(--paper-muted);
+  --theme-text-inert: #8A918C;
+
+  --background: var(--paper);
+  --foreground: var(--paper-ink);
+  --card: var(--paper-card);
+  --card-foreground: var(--paper-ink);
+  --popover: var(--paper-card);
+  --popover-foreground: var(--paper-ink);
+  --primary: var(--paper-seal);
+  --primary-foreground: #FFFFFF;
+  --secondary: #EFE9DC;
+  --secondary-foreground: var(--paper-ink);
+  --muted: #EFE9DC;
+  --muted-foreground: var(--paper-muted);
+  --accent: #EFE9DC;
+  --accent-foreground: var(--paper-ink);
+  --destructive: var(--fraud);
+  --destructive-foreground: #FFFFFF;
+  --border: var(--paper-rule);
+  --input: var(--paper-rule);
+  --ring: var(--paper-seal);
+}
+
+@theme inline {
+  --color-field-abyss: var(--field-abyss);
+  --color-field-canopy: var(--field-canopy);
+  --color-field-raised: var(--field-raised);
+  --color-field-hairline: var(--field-hairline);
+  --color-field-text: var(--field-text);
+  --color-field-muted: var(--field-muted);
+  --color-field-inert: var(--field-inert);
+
+  --color-signal: var(--signal);
+  --color-verified: var(--verified);
+  --color-chain: var(--chain);
+  --color-review: var(--review);
+  --color-fraud: var(--fraud);
+
+  --color-paper: var(--paper);
+  --color-paper-card: var(--paper-card);
+  --color-paper-rule: var(--paper-rule);
+  --color-paper-ink: var(--paper-ink);
+  --color-paper-muted: var(--paper-muted);
+  --color-paper-seal: var(--paper-seal);
+  --color-paper-chain: var(--paper-chain);
+
+  --color-theme-bg: var(--theme-bg);
+  --color-theme-surface: var(--theme-surface);
+  --color-theme-surface-raised: var(--theme-surface-raised);
+  --color-theme-border: var(--theme-border);
+  --color-theme-text: var(--theme-text);
+  --color-theme-text-muted: var(--theme-text-muted);
+  --color-theme-text-inert: var(--theme-text-inert);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius-lg);
+  --radius: var(--radius);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-serif);
+}
+
+/* Base Body Styles */
+body {
+  background-color: var(--theme-bg);
+  color: var(--theme-text);
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Monospace telemetry numbers rule per docs/06-DESIGN-SYSTEM.md §3.1 */
+.font-mono,
+code,
+kbd,
+samp {
+  font-family: var(--font-geist-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Section 5: Hard Prohibitions
+   No glowing orbs, no glassmorphism backdrop filters, no box-shadow elevation
+*/
+* {
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/*
+  Evidence Lab geometry (docs/19-LAYOUT-SPEC.md §1–§2).
+  Below 1280px the findings pane stacks under the evidence pane; the page markup
+  wraps the two in a box that is `display: contents` from 1280px up.
+  Two deliberate departures from the spec's numbers, both found by measuring:
+  - Findings is clamp(400px, 30vw, 480px), not clamp(380px, 28vw, 460px): at 380px
+    most 15px verdicts wrap to two lines, which breaks the 64–80px card budget.
+  - Queue is clamp(300px, 22vw, 340px), not clamp(260px, 22vw, 320px): a 72px row
+    (severity chip, time, status) needs about 260px of content, and below that the
+    timestamp is clipped.
+*/
+.lab-grid {
+  display: grid;
+  grid-template-columns: clamp(300px, 22vw, 340px) minmax(0, 1fr);
+}
+@media (min-width: 1280px) {
+  .lab-grid {
+    grid-template-columns:
+      clamp(300px, 22vw, 340px)
+      minmax(480px, 1fr)
+      clamp(400px, 30vw, 480px);
+  }
+}
+
+/* 45ch is a floor on characters per line, verified by measurement: a min-width in
+   ch cannot hold inside a 400px pane. Only the ceiling is a CSS rule. */
+.prose-column {
+  max-width: 68ch;
+}
+
+/* Reduced Motion floor per docs/06-DESIGN-SYSTEM.md §6 & §9 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+

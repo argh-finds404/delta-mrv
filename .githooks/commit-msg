@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# .githooks/commit-msg — rejects AI attribution and emoji in commit messages.
+# Enable once per clone:  git config core.hooksPath .githooks
+set -euo pipefail
+
+MSG_FILE="$1"
+MSG="$(cat "$MSG_FILE")"
+FAIL=0
+
+die() { printf '\n  ✗ %s\n' "$1" >&2; FAIL=1; }
+
+if grep -qiE '^[[:space:]]*co-authored-by:' <<<"$MSG"; then
+  die "Co-Authored-By trailer found. Every commit is authored solely by the maintainer."
+fi
+
+if grep -qiE 'generated with|🤖|claude|anthropic|copilot|cursor\.(so|com)|chatgpt|openai' <<<"$MSG"; then
+  die "AI tool or vendor named in the commit message. See docs/12-AGENT-SCOPE.md §4."
+fi
+
+if grep -qiE '^[[:space:]]*signed-off-by:.*(claude|anthropic|bot|noreply)' <<<"$MSG"; then
+  die "Signed-off-by names a non-human. Remove it."
+fi
+
+if LC_ALL=C grep -qP '[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}\x{FE0F}]' <<<"$MSG" 2>/dev/null; then
+  die "Emoji found in commit message. Not permitted."
+fi
+
+SUBJECT="$(head -n1 <<<"$MSG")"
+if ! grep -qE '^(feat|fix|refactor|test|docs|chore|perf|build|ci)(\([a-z0-9-]+\))?: [a-z]' <<<"$SUBJECT"; then
+  die "Subject must be Conventional Commits, lowercase: 'type(scope): subject'"
+  printf '    got: %s\n' "$SUBJECT" >&2
+fi
+
+if [[ "$SUBJECT" == *. ]]; then
+  die "Subject must not end with a period."
+fi
+
+if (( ${#SUBJECT} > 72 )); then
+  die "Subject is ${#SUBJECT} characters. Keep it under 72."
+fi
+
+if (( FAIL )); then
+  printf '\n  Commit rejected. See docs/12-AGENT-SCOPE.md §4.\n\n' >&2
+  exit 1
+fi

@@ -5,15 +5,36 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1793473255724,
-      "tag": "0000_remarkable_kulan_gath",
+      "when": 1793636896125,
+      "tag": "0000_extensions",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1793474917964,
-      "tag": "0001_foamy_shadowcat",
+      "when": 1793636899997,
+      "tag": "0001_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793636904253,
+      "tag": "0002_geography_typmod",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793636909489,
+      "tag": "0003_append_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793636913758,
+      "tag": "0004_indexes",
       "breakpoints": true
     }
   ]
