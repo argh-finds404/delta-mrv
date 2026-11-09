@@ -3,7 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ImageOff, Keyboard, ShieldCheck, UserCheck, X } from "lucide-react";
+import { Compass, ImageOff, Keyboard, ShieldCheck, UserCheck, X } from "lucide-react";
+import { Wordmark } from "@/src/components/site/Wordmark";
 import {
   QueuePane,
   EvidencePair,
@@ -88,7 +89,6 @@ export default function EvidenceLabPage() {
   const [selectedId, setSelectedId] = React.useState<string>("");
   const [decisionError, setDecisionError] = React.useState<string | null>(null);
   const [isVerifierAdmin, setIsVerifierAdmin] = React.useState<boolean>(false);
-  const [previewMode, setPreviewMode] = React.useState<"none" | "no-assignments" | "queue-clear">("none");
   const [isShortcutsOpen, setIsShortcutsOpen] = React.useState<boolean>(false);
 
   // Bumping this re-fetches the queue (after a decision, or "Try again").
@@ -157,7 +157,7 @@ export default function EvidenceLabPage() {
 
   // What the queue and the centre show when there is nothing to review
   const emptyMode: "none" | "no-assignments" | "queue-clear" | "not-a-verifier" =
-    previewMode !== "none" ? previewMode : source.kind === "real" && queueState !== "ok" ? queueState : "none";
+    source.kind === "real" && queueState !== "ok" ? queueState : "none";
 
   // Global Keyboard Navigation
   React.useEffect(() => {
@@ -242,19 +242,35 @@ export default function EvidenceLabPage() {
   const showDetail = source.kind !== "loading" && source.kind !== "error" && emptyMode === "none" && active !== undefined;
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-field-abyss font-sans text-field-text">
-      {/* Workspace bar: neutral chrome, no signal colour */}
+    <div data-theme="field" className="flex h-screen flex-col overflow-hidden bg-field-abyss font-sans text-field-text">
+      {/* Workspace bar: Wordmark, forest palette, no debug tabs */}
       <header className="flex h-12 shrink-0 select-none items-center justify-between border-b border-field-hairline bg-field-canopy px-5">
-        <Link href="/kitchen-sink" className="flex items-center gap-3 text-field-muted transition-colors duration-[120ms] hover:text-field-text">
-          <span className="flex size-6 items-center justify-center rounded-sm border border-field-hairline bg-field-raised font-serif text-xs font-medium text-field-text">
-            Δ
-          </span>
-          <span className="text-[13px] font-medium text-field-text">Delta MRV</span>
-          <span className="text-field-inert" aria-hidden="true">/</span>
-          <span className="text-[13px]">Evidence Lab</span>
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href="/dashboard" aria-label="Delta Dashboard" className="transition-opacity hover:opacity-85">
+            <Wordmark className="text-field-text" />
+          </Link>
+          <span className="text-field-hairline" aria-hidden="true">/</span>
+          <span className="text-xs font-mono uppercase tracking-wider text-field-muted">Evidence Lab</span>
+        </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard"
+            className="hidden sm:inline-flex items-center gap-1.5 text-xs text-field-muted hover:text-field-text transition-colors"
+          >
+            Dashboard
+          </Link>
+
+          <Link
+            href="/atlas"
+            className="hidden sm:inline-flex items-center gap-1.5 text-xs text-field-muted hover:text-field-text transition-colors"
+          >
+            <Compass className="size-3.5" aria-hidden="true" />
+            <span>Atlas</span>
+          </Link>
+
+          <div className="hidden sm:block h-4 w-px bg-field-hairline" aria-hidden="true" />
+
           <button
             type="button"
             aria-pressed={isVerifierAdmin}
@@ -270,30 +286,6 @@ export default function EvidenceLabPage() {
             <span className="hidden sm:inline">Admin view</span>
             <span>{isVerifierAdmin ? "on" : "off"}</span>
           </button>
-
-          {/* Empty-state preview: design review only, absent from production builds */}
-          {process.env.NODE_ENV === "development" && (
-            <div role="group" aria-label="Preview empty states" className="hidden items-center rounded-sm border border-field-hairline bg-field-raised p-1 md:flex">
-              {([
-                ["none", "Queue"],
-                ["no-assignments", "E5"],
-                ["queue-clear", "E5b"],
-              ] as const).map(([mode, label]) => (
-                <button
-                  key={mode}
-                  type="button"
-                  aria-pressed={previewMode === mode}
-                  onClick={() => setPreviewMode(mode)}
-                  className={cn(
-                    "h-6 rounded-sm px-3 text-[13px] transition-colors duration-[120ms]",
-                    previewMode === mode ? "bg-field-canopy text-field-text" : "text-field-muted hover:text-field-text"
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
 
           <button type="button" onClick={() => setIsShortcutsOpen(true)} title="View keyboard shortcuts (?)" className={headerButton}>
             <Keyboard className="size-4" aria-hidden="true" />
