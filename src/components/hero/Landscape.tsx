@@ -111,13 +111,13 @@ function paint() {
     );
   }
   const far = new Palette();
-  far.add(C.farLand, band(rand, -40, 2480, 292, 14, 90, 330));
+  far.add(C.farLand, `${band(rand, -40, 2560, 292, 14, 90, 330).replace(/L2560 330L-40 330Z$/, "")}C2600 318 2620 326 2640 330L-40 330Z`);
 
   // ---- the forest line along the far bank --------------------------------------------------
   const forest = new Palette();
   const crownLine: Pt[] = [];
   for (let x = -20; x <= 2560; x += 13) crownLine.push([x, 312 - R(10, 42) * (x > 2380 ? Math.max(0, (2560 - x) / 180) : 1)]);
-  forest.add(C.forest, `${smooth(crownLine)}L2560 352L-20 352Z`);
+  forest.add(C.forest, `${smooth(crownLine)}L2560 340C2520 350 2480 352 2440 352L-20 352Z`);
   for (let x = 0; x < 2500; x += R(18, 34)) forest.add(C.forestDark, ellipse([x, R(318, 334)], R(14, 26), R(9, 15)));
   for (let x = 0; x < 2500; x += R(24, 48)) forest.add(C.forestLit, ellipse([x, R(282, 300)], R(8, 14), R(5, 8)));
   ink.push(smooth(crownLine));
@@ -125,7 +125,7 @@ function paint() {
   // ---- the estuary ------------------------------------------------------------------------
   const water = new Palette();
   water.add(C.water, band(rand, -40, PANO.w + 40, 342, 6, 200, 500));
-  water.add(C.waterDeep, band(rand, 2380, PANO.w + 40, 300, 12, 120, 520)); // the open sea at the river mouth
+  water.add(C.waterDeep, `M2620 292C2540 330 2470 420 2400 522L${PANO.w + 40} 522L${PANO.w + 40} 288Z`); // the open sea, curving into the river mouth
   for (let x = 0; x < 2500; x += R(40, 90)) water.add(C.forestDark, ellipse([x, R(352, 362)], R(20, 50), 3)); // reflection
   const shimmer: string[] = [];
   for (let i = 0; i < 140; i++) {
@@ -184,7 +184,7 @@ function paint() {
     const d = smooth(Array.from({ length: 8 }, (_, k) => {
       const a = (k / 8) * Math.PI * 2;
       const [cx, cy] = [880 + i * 108 + R(-20, 20), R(540, 690)];
-      return [cx + Math.cos(a) * R(40, 70), cy + Math.sin(a) * R(12, 22)] as Pt;
+      return [cx + Math.cos(a) * 58 * R(0.85, 1.1), cy + Math.sin(a) * 18 * R(0.85, 1.1)] as Pt;
     }), true);
     land.add(C.pool, d);
     lightInk.push(d);
@@ -215,15 +215,19 @@ function paint() {
     roots.push(`M${r1(x)} ${r1(y)}l${r1(R(-1, 1))} ${r1(-R(6, 13))}`); // pneumatophores
   }
   [[1690, 520, 1.1], [1820, 540, 1.3], [2150, 525, 1.2], [2330, 540, 1.0]].forEach(([tx, ty, s]) => {
-    for (let k = 0; k < 9; k++) {
-      const p: Pt = [tx! + R(-60, 60) * s!, ty! - 70 * s! - R(0, 50) * s!];
-      mangrove.add(C.canopy[k % 3]!, circle(p, R(24, 40) * s!));
+    for (let k = 0; k < 11; k++) {
+      const p: Pt = [tx! + R(-64, 64) * s!, ty! - 70 * s! - R(0, 54) * s!];
+      const cr = R(22, 38) * s!;
+      mangrove.add("#3F5F38", circle([p[0] + cr * 0.25, p[1] + cr * 0.3], cr * 0.9));
+      mangrove.add(C.canopy[k % 3]!, circle(p, cr));
+      mangrove.add("#A3BC72", circle([p[0] - cr * 0.3, p[1] - cr * 0.35], cr * 0.35));
+      if (k % 2 === 0) ink.push(smooth([[p[0] - cr, p[1] + 2], [p[0] - cr * 0.6, p[1] - cr * 0.8], [p[0] + cr * 0.3, p[1] - cr], [p[0] + cr, p[1] - cr * 0.2]]));
     }
     for (let k = 0; k < 7; k++) {
       const rx = tx! + (k - 3) * 16 * s!;
       roots.push(smooth([[tx! + R(-8, 8), ty! - 46 * s!], [rx, ty! - 22 * s!], [rx + R(-10, 10), ty! + 8]])); // prop roots arching to the mud
     }
-    ink.push(smooth([[tx! - 70 * s!, ty! - 80 * s!], [tx!, ty! - 150 * s!], [tx! + 70 * s!, ty! - 80 * s!]]));
+    roots.push(`M${r1(tx!)} ${r1(ty! - 40 * s!)}v${r1(-34 * s!)}`); // the trunk
   });
   const saplings: string[] = [];
   for (let row = 0; row < 6; row++)
@@ -263,10 +267,10 @@ function paint() {
   return {
     sky: sky.render(0.75, "sky"),
     far: far.render(0.6, "far"),
-    forest: forest.render(0.88, "forest"),
+    forest: forest.render(0.95, "forest"),
     water: water.render(0.82, "water"),
-    land: land.render(0.82, "land"),
-    mangrove: mangrove.render(0.86, "mangrove"),
+    land: land.render(0.9, "land"),
+    mangrove: mangrove.render(0.92, "mangrove"),
     clouds,
     huts,
     smoke,

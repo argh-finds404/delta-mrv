@@ -10,6 +10,7 @@ import {
   EvidencePair,
   FindingCard,
   DecisionForm,
+  BoundaryPlot,
   compareSeverity,
   type DecisionAction,
   type DecisionPayload,
@@ -337,31 +338,24 @@ export default function EvidenceLabPage() {
                   beforeLabel="Before"
                   afterLabel="After"
                   details={
-                    <dl className="space-y-1">
-                      <div className="flex items-baseline justify-between gap-4">
-                        <dt className="text-field-muted">Activity</dt>
-                        <dd className="text-field-text">{activeFixture.activityType}</dd>
-                      </div>
-                      <div className="flex items-baseline justify-between gap-4">
-                        <dt className="text-field-muted">Camera</dt>
-                        <dd className="text-field-text">{activeFixture.exif.cameraModel ?? "Embedded sensor"}</dd>
-                      </div>
-                      <div className="flex items-center justify-between gap-4">
-                        <dt className="text-field-muted">Location</dt>
-                        <dd
-                          className={cn(
-                            "rounded-sm border px-2 text-xs leading-5",
-                            activeFixture.exif.insideBoundary
-                              ? "border-[color-mix(in_srgb,var(--verified)_35%,transparent)] bg-[color-mix(in_srgb,var(--verified)_14%,transparent)] text-field-text"
-                              : "border-[color-mix(in_srgb,var(--review)_35%,transparent)] bg-[color-mix(in_srgb,var(--review)_14%,transparent)] text-review"
-                          )}
-                        >
-                          {activeFixture.exif.insideBoundary
-                            ? "Inside the project boundary"
-                            : `${activeFixture.exif.distanceToBoundaryMeters?.toFixed(1)} m outside the boundary`}
-                        </dd>
-                      </div>
-                    </dl>
+                    <div className="space-y-3">
+                      <dl className="space-y-1">
+                        <div className="flex items-baseline justify-between gap-4">
+                          <dt className="text-field-muted">Activity</dt>
+                          <dd className="text-field-text">{activeFixture.activityType}</dd>
+                        </div>
+                        <div className="flex items-baseline justify-between gap-4">
+                          <dt className="text-field-muted">Camera</dt>
+                          <dd className="text-field-text">{activeFixture.exif.cameraModel ?? "Embedded sensor"}</dd>
+                        </div>
+                      </dl>
+                      <BoundaryPlot
+                        gps={activeFixture.exif.gps}
+                        insideBoundary={activeFixture.exif.insideBoundary}
+                        distanceMeters={activeFixture.exif.distanceToBoundaryMeters}
+                        cameraModel={activeFixture.exif.cameraModel}
+                      />
+                    </div>
                   }
                 />
               ) : (

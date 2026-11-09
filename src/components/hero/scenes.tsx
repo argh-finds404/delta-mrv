@@ -1,11 +1,10 @@
-import Image from "next/image";
 import type { HeroScene } from "./HeroBand";
 import { SceneCard } from "./SceneCard";
-import { Brackets, Chip, Pin, Plot, SceneImage } from "./SceneImage";
+import { Chip, Pin, Plot } from "./SceneImage";
 
-// The four steps of a claim, each over a real photograph of life in the Sundarbans (credited in
-// the footer from public/images/life/credits.json). The plots, pins and card values illustrate what
-// Delta records; the people and places are not projects in the registry.
+// The four steps of a claim, as four places on one painting of the Sundarbans (Landscape): the
+// camera moves from the village fields, across the marsh, into the mangrove planting and out to
+// the sea. Plots, pins and card values illustrate what Delta records; none is a real project.
 
 const FINGERPRINT = "9e41…c07a";
 
@@ -18,14 +17,15 @@ export const HERO_SCENES: HeroScene[] = [
         arrives.
       </>
     ),
-    art: (
-      <SceneImage photo="fishing-boat-in-sundarban-tiger-reserve-west.jpg" alt="A boat crew working along a mangrove forest edge in the Sundarbans" priority>
-        <Plot id="capture-a" pts={[[560, 262], [850, 250], [858, 404], [570, 414]]} />
-        <Chip at={[150, 140]} label="Captured" value="07:41" i={0} />
-        <Chip at={[150, 212]} label="Location" value="inside plot" i={1} />
-        <Pin at={[520, 470]} i={0} />
-        <Pin at={[712, 330]} i={1} pulse />
-      </SceneImage>
+    pan: 470,
+    overlay: (
+      <>
+        <Plot id="capture-a" pts={[[340, 572], [496, 578], [518, 634], [358, 630]]} />
+        <Chip at={[150, 150]} label="Captured" value="07:41" i={0} />
+        <Chip at={[150, 222]} label="Location" value="inside plot" i={1} />
+        <Pin at={[430, 602]} i={0} pulse />
+        <Pin at={[300, 512]} i={1} />
+      </>
     ),
     card: (
       <SceneCard
@@ -38,8 +38,7 @@ export const HERO_SCENES: HeroScene[] = [
         ]}
       />
     ),
-    cardAt: { left: "62%", top: "5%" },
-    picture: "A boat crew at a mangrove edge, Sundarban Tiger Reserve.",
+    cardAt: { left: "60%", top: "5%" },
   },
   {
     label: "Check",
@@ -48,36 +47,29 @@ export const HERO_SCENES: HeroScene[] = [
         Every photo is compared with every other on record, so one picture cannot be <mark className="brush">claimed twice</mark>.
       </>
     ),
-    art: (
-      <SceneImage photo="spotted-deer-in-the-sundarbans.jpg" alt="A spotted deer on a mudflat bristling with mangrove breathing roots">
-        <Brackets x={330} y={250} w={370} h={360} />
-        <Pin at={[520, 430]} i={0} pulse />
-      </SceneImage>
+    pan: 1180,
+    overlay: (
+      <>
+        <Plot id="check-a" pts={[[900, 566], [1030, 560], [1036, 646], [906, 652]]} />
+        <Plot id="check-b" pts={[[1290, 566], [1420, 558], [1428, 646], [1296, 654]]} tone="#F6D2B0" />
+        <path className="scene-draw" d="M968 604Q1165 470 1360 604" pathLength={1} fill="none" stroke="#C2412D" strokeWidth={3.5} strokeLinecap="round" />
+        <Pin at={[968, 604]} i={0} />
+        <Pin at={[1360, 604]} i={1} pulse />
+      </>
     ),
     card: (
-      <div className="rounded-lg border border-paper-rule bg-paper-card p-3 text-[12px] leading-[1.45] text-paper-ink">
-        <p className="flex items-center gap-2 text-[13px] font-medium">
-          <span aria-hidden className="size-1.5 rounded-full bg-[#B4432F]" />
-          Possible reuse
-        </p>
-        <p className="mt-1 text-paper-muted">This photo was already submitted to a plot run by another organisation.</p>
-        <div className="mt-2 flex items-center gap-2">
-          <Image src="/images/life/spotted-deer-in-the-sundarbans.jpg" alt="" width={56} height={40} className="h-10 w-14 rounded object-cover" />
-          <dl className="flex-1 space-y-0.5">
-            <div className="flex justify-between gap-2">
-              <dt className="text-paper-muted">Bits that differ</dt>
-              <dd className="font-mono tabular-nums">5 of 64</dd>
-            </div>
-            <div className="flex justify-between gap-2">
-              <dt className="text-paper-muted">Next</dt>
-              <dd>A reviewer looks</dd>
-            </div>
-          </dl>
-        </div>
-      </div>
+      <SceneCard
+        title="Possible reuse"
+        tone="fraud"
+        note="The same photo, submitted to two plots run by different organisations."
+        rows={[
+          { label: "Bits that differ", value: "5 of 64", mono: true },
+          { label: "Flagged below", value: "8", mono: true },
+          { label: "Next", value: "A reviewer looks" },
+        ]}
+      />
     ),
-    cardAt: { left: "64%", top: "5%" },
-    picture: "A spotted deer among mangrove roots, Sundarbans.",
+    cardAt: { left: "4%", top: "5%" },
   },
   {
     label: "Review",
@@ -86,11 +78,13 @@ export const HERO_SCENES: HeroScene[] = [
         Two reviewers from an <mark className="brush">independent organisation</mark> must agree before anything counts.
       </>
     ),
-    art: (
-      <SceneImage photo="sundarbans-mangrove-forest.jpg" alt="Women of the Sundarbans gathering leaves in the mangrove forest">
-        <Pin at={[470, 610]} i={0} />
-        <Pin at={[650, 560]} i={1} pulse />
-      </SceneImage>
+    pan: 2040,
+    overlay: (
+      <>
+        <Plot id="review-a" pts={[[1914, 576], [2172, 574], [2182, 724], [1924, 724]]} />
+        <Pin at={[1990, 640]} i={0} />
+        <Pin at={[2104, 688]} i={1} pulse />
+      </>
     ),
     card: (
       <div className="rounded-lg border border-paper-rule bg-paper-card p-3 text-[12px] leading-[1.45] text-paper-ink">
@@ -115,8 +109,7 @@ export const HERO_SCENES: HeroScene[] = [
         </p>
       </div>
     ),
-    cardAt: { left: "64%", top: "4%" },
-    picture: "Forest communities at work in the Sundarbans mangroves.",
+    cardAt: { left: "60%", top: "4%" },
   },
   {
     label: "Verify",
@@ -125,12 +118,13 @@ export const HERO_SCENES: HeroScene[] = [
         Anyone can recheck the record in a browser, <mark className="brush">without trusting us</mark>.
       </>
     ),
-    art: (
-      <SceneImage photo="fishing-boat-in-sundarban-tiger-reserve-west-2.jpg" alt="A fishing boat on a wide Sundarbans river below a mangrove forest line">
-        <Plot id="verify-a" pts={[[680, 262], [890, 246], [896, 338], [686, 346]]} />
-        <Pin at={[321, 345]} i={0} />
-        <Pin at={[790, 296]} i={1} pulse />
-      </SceneImage>
+    pan: 2700,
+    overlay: (
+      <>
+        <Plot id="verify-a" pts={[[2272, 450], [2398, 440], [2408, 548], [2282, 556]]} />
+        <Pin at={[2340, 500]} i={0} />
+        <Pin at={[2760, 418]} i={1} pulse />
+      </>
     ),
     card: (
       <SceneCard
@@ -144,7 +138,6 @@ export const HERO_SCENES: HeroScene[] = [
         ]}
       />
     ),
-    cardAt: { left: "4%", top: "5%" },
-    picture: "A fishing boat below the mangrove line, Sundarban Tiger Reserve.",
+    cardAt: { left: "60%", top: "4%" },
   },
 ];

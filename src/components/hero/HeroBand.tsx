@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Pause, Play } from "lucide-react";
 import { cn } from "@/src/lib/utils";
+import { Landscape } from "./Landscape";
 import { HERO_SCENES } from "./scenes";
 
 export type HeroScene = {
@@ -10,14 +11,14 @@ export type HeroScene = {
   label: string;
   /** One sentence under the tabs; a <mark className="brush"> inside it is swept in. */
   caption: React.ReactNode;
-  /** The photograph and its annotation layer (SceneImage). */
-  art: React.ReactNode;
-  /** The data card that rises over the art. */
+  /** Where the camera looks on the painting: an x in panorama units (Landscape PANO). */
+  pan: number;
+  /** This step's annotations, in panorama units: plots, pins, readings. */
+  overlay: React.ReactNode;
+  /** The data card that rises over the painting. */
   card: React.ReactNode;
-  /** Card position over the art, in percent of the frame. */
+  /** Card position over the frame, in percent of it. */
   cardAt: { left: string; top: string };
-  /** What the photograph shows, under the frame. */
-  picture: string;
 };
 
 /**
@@ -96,13 +97,15 @@ export function HeroBand() {
         </p>
       </div>
 
-      {/* the photograph: every scene stacked, only the active one shown */}
-      {/* the plate bleeds toward the page edge and dissolves into the paper, as felt.com's art does */}
+      {/* one painting; the camera glides across it, one region per step (felt.com's hero) */}
       <figure ref={root} className="-mx-6 space-y-3 sm:mx-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:-mr-12 lg:self-center xl:-mr-20">
         <div className="relative aspect-[10/7]">
+          {/* only the painting dissolves at the edge; the cards above it stay whole */}
+          <div className="scene-edge absolute inset-0 overflow-hidden">
+            <Landscape pan={scene.pan} active={active} overlays={scenes.map((s) => s.overlay)} />
+          </div>
           {scenes.map((s, i) => (
-            <div key={s.label} className="hero-scene absolute inset-0" data-active={i === active || undefined} aria-hidden={i !== active}>
-              {s.art}
+            <div key={s.label} className="hero-scene pointer-events-none absolute inset-0" data-active={i === active || undefined} aria-hidden={i !== active}>
               {/* placed per scene from 640px up; on a phone it docks in a corner so it never leaves the frame */}
               <div
                 className="hero-card absolute bottom-3 right-3 w-[200px] sm:bottom-auto sm:right-auto sm:left-(--card-left) sm:top-(--card-top) sm:w-[min(250px,40%)]"
@@ -113,8 +116,8 @@ export function HeroBand() {
             </div>
           ))}
         </div>
-        <figcaption key={active} className="hero-caption px-6 text-[13px] text-paper-muted sm:px-0">
-          {scene.picture} The annotations illustrate what Delta records.
+        <figcaption className="px-6 text-[13px] text-paper-muted sm:px-0">
+          The Sundarbans, from village fields to the sea. An illustration; the plots and readings show what Delta records.
         </figcaption>
       </figure>
     </div>

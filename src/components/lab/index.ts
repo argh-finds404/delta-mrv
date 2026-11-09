@@ -5,5 +5,6 @@ export * from "./QueuePane";
 export * from "./EvidencePair";
 export * from "./FindingCard";
 export * from "./DecisionForm";
+export * from "./BoundaryPlot";
 export * from "./fixtures";
 
