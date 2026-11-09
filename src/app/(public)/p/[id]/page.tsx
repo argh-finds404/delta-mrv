@@ -170,20 +170,32 @@ async function ProjectBody({ params }: ProjectPageProps) {
             </div>
 
             {/* Right: Record */}
-            <div className="rounded-lg border border-paper-seal/40 bg-paper-card p-5 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-paper-seal flex items-center gap-1.5">
-                  <CheckCircle2 className="size-3.5" />
-                  <span>2. Anchored cryptographic proof</span>
-                </span>
+            <div className="rounded-lg border border-paper-seal/40 bg-paper-card p-5 space-y-2 flex flex-col justify-between">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-paper-seal flex items-center gap-1.5">
+                    <CheckCircle2 className="size-3.5" />
+                    <span>2. Anchored cryptographic proof</span>
+                  </span>
+                </div>
+                <div className="text-xl font-semibold font-mono tabular-nums text-paper-ink">
+                  {formatCount(project.record.approved)} approved
+                  {project.record.anchored > 0 && ` (${formatCount(project.record.anchored)} anchored)`}
+                </div>
+                <p className="text-xs text-paper-muted leading-relaxed">
+                  Submissions approved by two independent reviewer organisations.
+                </p>
               </div>
-              <div className="text-xl font-semibold font-mono tabular-nums text-paper-ink">
-                {formatCount(project.record.approved)} approved
-                {project.record.anchored > 0 && ` (${formatCount(project.record.anchored)} anchored)`}
+
+              <div className="pt-3 border-t border-paper-rule/60">
+                <Link
+                  href={`/proof/${project.id}`}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-paper-seal hover:underline"
+                >
+                  <span>Open Public Proof Dossier</span>
+                  <ArrowRight className="size-3" />
+                </Link>
               </div>
-              <p className="text-xs text-paper-muted leading-relaxed">
-                Submissions approved by two independent reviewer organisations.
-              </p>
             </div>
           </div>
 
