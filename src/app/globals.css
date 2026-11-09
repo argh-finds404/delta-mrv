@@ -11,27 +11,33 @@
 */
 
 :root {
-  /* 2.1 Field Tokens v2 (Near-Neutral Chrome, docs/18-VISUAL-CORRECTION.md §1) */
-  --field-abyss: #0A0C0B;    /* Page background */
-  --field-canopy: #121514;   /* Cards, panels */
-  --field-raised: #1A1E1C;   /* Hover, inputs, raised */
-  --field-hairline: #262B29; /* Borders, dividers */
-  --field-text: #E6E9E7;     /* Primary text */
-  --field-muted: #9AA3A0;    /* Secondary text, labels */
-  --field-inert: #646B68;    /* Disabled, placeholder */
+  /*
+    Field tokens v3, "forest" (maintainer direction 2026-11-11). Replaces doc 18's near-neutral
+    v2: the workspace is deep forest, so satellite imagery and lime boundaries carry colour against
+    it. Text pairs measured against --field-abyss: text 15.9:1, muted 7.3:1, inert 3.6:1 (labels only).
+  */
+  --field-stage: #0B1211;    /* The evidence canvas and the map: the darkest surface */
+  --field-abyss: #101A18;    /* Page background */
+  --field-canopy: #142220;   /* Cards, panels */
+  --field-raised: #172623;   /* Hover, inputs, value pills */
+  --field-hairline: #263834; /* Borders, dividers */
+  --field-text: #E8EFEC;     /* Primary text */
+  --field-muted: #9DB2AA;    /* Secondary text, labels */
+  --field-inert: #62786F;    /* Disabled, placeholder */
 
-  /* 2.2 Semantic Tokens v2 — Five Distinct Hues */
-  --signal: #C9F578;         /* Primary action. ONE per screen */
+  /* Semantic hues: colour still means state. Lime is the one action and the map's boundaries. */
+  --signal: #D7F6B8;         /* Primary action; site boundaries on the map */
   --verified: #3DD6B0;       /* A hash matched, a check passed (Teal) */
+  --verified-fill: #397F6B;  /* Verified as a fill: a lit verification node, a passed check */
   --chain: #8B93FF;          /* Anchored, on-chain (Violet) */
   --review: #F0A93B;         /* A human must look (Amber) */
   --fraud: #F2705C;          /* High-severity finding, mismatch (Coral Red) */
 
-  /* 2.3 Paper Tokens (Public Proof Dossier) */
-  --paper: #F7F3EA;          /* Page background */
+  /* Paper: the warm archival certificate (pattern 5): #101A18 ink on #F4F1EA */
+  --paper: #F4F1EA;          /* Page background */
   --paper-card: #FFFDF8;     /* Raised card */
   --paper-rule: #DED6C6;     /* Hairline, dividers */
-  --paper-ink: #1B1D1A;      /* Primary text */
+  --paper-ink: #101A18;      /* Primary text */
   --paper-muted: #5E6460;    /* Secondary text */
   --paper-seal: #1F6B55;     /* Verified, on paper (fill/border/icon only) */
   --paper-chain: #4A4FA8;    /* On-chain, on paper */
@@ -105,6 +111,8 @@
 }
 
 @theme inline {
+  --color-field-stage: var(--field-stage);
+  --color-verified-fill: var(--verified-fill);
   --color-field-abyss: var(--field-abyss);
   --color-field-canopy: var(--field-canopy);
   --color-field-raised: var(--field-raised);
@@ -175,6 +183,25 @@ samp {
 }
 
 /*
+  The one exception to the rule above: floating HUD islands over a full-bleed map (maintainer
+  direction 2026-11-11, pattern 1). Over moving imagery a panel needs blur and a shadow to stay
+  legible and separate; nowhere else does.
+*/
+/* In the components layer, so utilities (rounded-b-none on a phone sheet) still override it; its
+   !important blur and shadow outrank the unlayered ban above, as layered !important always does. */
+@layer components {
+  .hud {
+    background-color: color-mix(in srgb, var(--field-abyss) 82%, transparent);
+    border: 1px solid var(--field-hairline);
+    border-radius: 12px;
+    color: var(--field-text);
+    backdrop-filter: blur(14px) saturate(1.2) !important;
+    -webkit-backdrop-filter: blur(14px) saturate(1.2) !important;
+    box-shadow: 0 18px 50px -12px rgb(0 0 0 / 0.55) !important;
+  }
+}
+
+/*
   Evidence Lab geometry (docs/19-LAYOUT-SPEC.md §1–§2).
   Below 1280px the findings pane stacks under the evidence pane; the page markup
   wraps the two in a box that is `display: contents` from 1280px up.
@@ -202,6 +229,327 @@ samp {
    ch cannot hold inside a 400px pane. Only the ceiling is a CSS rule. */
 .prose-column {
   max-width: 68ch;
+}
+
+/*
+  Paper display type (public pages). Larger than docs/06 §3.3's 44px display on purpose: the
+  public pages follow the maintainer's 2026-11-09 direction (felt.com) of a large, light serif
+  set tight. Weight stays 400; tracking tightens as size grows.
+*/
+.type-display {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: clamp(2.25rem, 3.9vw, 3.5rem);
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.type-section {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: clamp(1.75rem, 2.8vw, 2.5rem);
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+/* Motion (docs/06-DESIGN-SYSTEM.md §6): one entrance curve, one exit curve. */
+:root {
+  --ease-enter: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/*
+  The one explanatory sequence on the landing page: the six links of the chain arrive in the
+  order a record passes through them. Once, at most 540ms for the steps and 600ms for the line.
+  Only <Reveal> arms it, so without JS or with reduced motion everything is simply visible.
+*/
+@media (prefers-reduced-motion: no-preference) {
+  [data-reveal="armed"] .reveal-item {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  [data-reveal="armed"] .reveal-line {
+    transform: scaleX(0);
+  }
+  [data-reveal="shown"] .reveal-item {
+    transition:
+      opacity 240ms var(--ease-enter),
+      transform 240ms var(--ease-enter);
+    transition-delay: calc(var(--i, 0) * 60ms);
+  }
+  [data-reveal="shown"] .reveal-line {
+    transform-origin: left;
+    transition: transform 600ms var(--ease-enter);
+  }
+}
+
+/*
+  Hero band (maintainer direction 2026-11-11, after felt.com): each scene sketches in, takes
+  colour, plants row by row, pops its pins and raises a card, then hands over. This overrides
+  docs/06 §6's 600 ms ceiling and its no-loop rule for the hero only; reduced motion still gets a
+  complete still image, and a pause control stops the band (WCAG 2.2.2).
+  Base rules first: they are the whole design without motion.
+*/
+.hero-scene {
+  visibility: hidden;
+}
+.hero-scene[data-active] {
+  visibility: visible;
+}
+.scene-pulse {
+  opacity: 0;
+}
+/* Hero photographs: a toned black-and-white first (the sketch), dissolving into the paper at an
+   organic edge rather than ending in a rectangle. */
+.scene-mono {
+  filter: grayscale(1) sepia(0.16) contrast(1.12) brightness(1.05);
+}
+.scene-edge {
+  -webkit-mask-image: url(/images/life/edge-mask.png);
+  mask-image: url(/images/life/edge-mask.png);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+/* The mark in slow motion: water runs down the delta's channels, the tide line breathes. */
+@media (prefers-reduced-motion: no-preference) {
+  .delta-flow path {
+    stroke-dasharray: 2.2 1.6;
+    animation: delta-flow 5.5s linear infinite;
+  }
+  .delta-flow path:nth-child(2n) {
+    animation-duration: 7s;
+  }
+  .delta-tide {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: delta-tide 6s ease-in-out infinite;
+  }
+}
+@keyframes delta-flow {
+  to { stroke-dashoffset: -19; }
+}
+@keyframes delta-tide {
+  0%, 100% { transform: scaleX(1); opacity: 1; }
+  50% { transform: scaleX(0.82); opacity: 0.7; }
+}
+
+/* on a phone the docked card already carries these readings; the chips would sit under it */
+@media (max-width: 639px) {
+  .scene-chip {
+    display: none;
+  }
+}
+mark.brush {
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
+  margin: 0 -2px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  background: linear-gradient(var(--brush), var(--brush)) no-repeat 0 0 / 100% 100%;
+  --brush: color-mix(in srgb, var(--signal) 62%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero-scene {
+    visibility: visible;
+    opacity: 0;
+    transition:
+      opacity 450ms var(--ease-exit),
+      visibility 0s linear 450ms;
+  }
+  .hero-scene[data-active] {
+    opacity: 1;
+    transition: opacity 200ms var(--ease-enter);
+  }
+  /*
+    felt.com's sequence, measured frame by frame (2026-11-11): the old scene fades to paper; the
+    ink sketch appears on its own and HOLDS long enough to read as a drawing; the colour then
+    sweeps in diagonally from the top right; only then do the details arrive.
+  */
+  /* 1. the sketch, alone on the paper (0.15–0.85 s, then held) */
+  .hero-scene[data-active] .scene-ink-img {
+    animation: scene-fade 700ms ease-out 150ms both;
+  }
+  /* 2. the colour, swept across from the top right (1.6–3.2 s) */
+  .hero-scene[data-active] .scene-wash-img {
+    animation: plate-sweep 1600ms cubic-bezier(0.45, 0, 0.25, 1) 1600ms both;
+  }
+  /* the plate and its annotations drift in together, slowly, never past the paper's margin */
+  .hero-scene[data-active] .scene-media {
+    animation: scene-push 9000ms cubic-bezier(0.3, 0, 0.2, 1) both;
+  }
+  /* 3. the details: boundaries ink in, plots wash in (3.1–4.2 s) */
+  .hero-scene[data-active] .scene-draw {
+    stroke-dasharray: 1;
+    animation: scene-draw 900ms var(--ease-enter) 3100ms both;
+  }
+  .hero-scene[data-active] .scene-draw-late {
+    animation-delay: 3800ms;
+  }
+  .hero-scene[data-active] .scene-fill {
+    animation: scene-fade 600ms ease-out 3700ms both;
+  }
+  /* 4. readings stamp on, pins pop, the newest keeps breathing (3.7–4.4 s) */
+  .hero-scene[data-active] .scene-chip {
+    animation: scene-rise 420ms var(--ease-enter) both;
+    animation-delay: calc(3900ms + var(--i, 0) * 160ms);
+  }
+  .hero-scene[data-active] .scene-pin-body {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: scene-pop 340ms var(--ease-enter) both;
+    animation-delay: calc(3700ms + var(--i, 0) * 200ms);
+  }
+  .hero-scene[data-active] .scene-pulse {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: scene-pulse 2000ms ease-out 4400ms infinite;
+  }
+  /* 5. the card rises (4.4 s) and the scene holds until the band moves on at 9 s */
+  .hero-scene[data-active] .hero-card {
+    animation: scene-rise 560ms var(--ease-enter) 4400ms both;
+  }
+  /* the band: progress drives the next scene; the caption's key phrase is brushed in */
+  .hero-band .hero-progress {
+    animation: hero-progress 9000ms linear both;
+    animation-play-state: paused;
+  }
+  .hero-band[data-running] .hero-progress {
+    animation-play-state: running;
+  }
+  .hero-caption {
+    animation: scene-rise 400ms var(--ease-enter) both;
+  }
+  .hero-caption mark.brush,
+  .brush-on-load mark.brush {
+    animation: brush 650ms var(--ease-enter) 380ms both;
+  }
+  /* sections rise as they enter (armed by <Reveal>) */
+  [data-reveal="armed"] .rise-item {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  [data-reveal="shown"] .rise-item {
+    transition:
+      opacity 500ms var(--ease-enter),
+      transform 500ms var(--ease-enter);
+    transition-delay: calc(var(--i, 0) * 90ms);
+  }
+  [data-reveal="armed"] mark.brush {
+    background-size: 0% 100%;
+  }
+  [data-reveal="shown"] mark.brush {
+    transition: background-size 650ms var(--ease-enter) 300ms;
+  }
+  .live-dot::after {
+    animation: scene-pulse 1800ms ease-out infinite;
+  }
+  /* the atlas drawer: a site's details arrive in reading order */
+  .drawer-rise {
+    animation: scene-rise 420ms var(--ease-enter) both;
+    animation-delay: calc(140ms + var(--i, 0) * 70ms);
+  }
+}
+.hero-progress {
+  transform: scaleX(1);
+}
+.live-dot {
+  position: relative;
+}
+.live-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1px solid currentColor;
+  opacity: 0;
+}
+
+@keyframes scene-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+/* The sweep mask: wider than the plate, a soft diagonal edge between shown and hidden. At rest
+   (no motion, or the sweep finished) it sits fully over the plate, so the plate is whole. */
+.scene-wash-img {
+  -webkit-mask-image: linear-gradient(to bottom left, #000 40%, transparent 60%);
+  mask-image: linear-gradient(to bottom left, #000 40%, transparent 60%);
+  -webkit-mask-size: 300% 300%;
+  mask-size: 300% 300%;
+  -webkit-mask-position: 100% 0;
+  mask-position: 100% 0;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+/* from the top right corner to the bottom left, as felt.com lays its colour */
+@keyframes plate-sweep {
+  from { -webkit-mask-position: 0 100%; mask-position: 0 100%; }
+  to { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
+}
+/* a slow Ken Burns push on the photograph, inside the fixed edge mask */
+@keyframes scene-push {
+  from { transform: scale(1); }
+  to { transform: scale(1.07); }
+}
+@keyframes scene-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes scene-pop {
+  0% { opacity: 0; transform: scale(0.3); }
+  70% { opacity: 1; transform: scale(1.12); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes scene-pulse {
+  0% { opacity: 0.55; transform: scale(1); }
+  100% { opacity: 0; transform: scale(2.6); }
+}
+@keyframes scene-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes hero-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes brush {
+  from { background-size: 0% 100%; }
+  to { background-size: 100% 100%; }
+}
+
+/* MapLibre's own controls, set on Paper. In the explorer, scale and attribution sit to the right
+   of the zoom stack (16 + 40 + 8 px) inside the area no panel covers. */
+.atlas-explore .maplibregl-ctrl-bottom-left {
+  left: calc(var(--atlas-inset-left, 0px) + 56px);
+  bottom: calc(var(--atlas-inset-bottom, 0px) + 6px);
+}
+/* the credit wraps rather than running under the drawer */
+.atlas-explore .maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib {
+  max-width: calc(100vw - var(--atlas-inset-left, 0px) - 88px - var(--atlas-inset-right, 0px));
+}
+/* scoped under .maplibregl-map so it outranks maplibre-gl.css, which loads after this file */
+.maplibregl-map .maplibregl-ctrl.maplibregl-ctrl-attrib,
+.maplibregl-map .maplibregl-ctrl.maplibregl-ctrl-attrib.maplibregl-compact {
+  background-color: color-mix(in srgb, var(--field-stage) 78%, transparent);
+  color: var(--field-muted);
+  font: 11px/1.5 var(--font-sans), system-ui, sans-serif;
+}
+.maplibregl-map .maplibregl-ctrl-attrib a {
+  color: var(--field-text);
+}
+/* the compact "i" button ships black; on a dark map it must be light */
+.maplibregl-ctrl-attrib-button {
+  filter: invert(1);
+}
+.maplibregl-map .maplibregl-ctrl-scale {
+  background-color: color-mix(in srgb, var(--field-stage) 60%, transparent);
+  border-color: var(--field-text);
+  border-width: 0 1px 1px;
+  color: var(--field-text);
+  font: 11px/1.4 var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Reduced Motion floor per docs/06-DESIGN-SYSTEM.md §6 & §9 */

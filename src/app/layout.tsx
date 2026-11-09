@@ -14,15 +14,17 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
+// opsz: large display sizes get the display cut of the face, body sizes the text cut.
 const newsreader = Newsreader({
   subsets: ["latin"],
+  axes: ["opsz"],
   variable: "--font-serif",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Delta MRV",
-  description: "Autonomous Measurement, Reporting & Verification for Ecological Restoration",
+  title: "Delta",
+  description: "Delta makes the evidence, the reviewer, and the review itself checkable by a stranger with a browser.",
 };
 
 export default function RootLayout({

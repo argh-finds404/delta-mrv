@@ -34,10 +34,9 @@ export * from "./offline-banner/fixtures";
 export * from "./auth/ProofPreview";
 export * from "./auth/fixtures";
 
-export * from "./atlas/ProjectDrawer";
-export * from "./atlas/FilterPills";
-export * from "./atlas/AtlasShell";
-export * from "./atlas/fixtures";
+// The atlas is not re-exported: AtlasMap pulls in MapLibre and its stylesheet, and every page that
+// imports this barrel (the sign-in pages, through ProofPreview) would load them for nothing.
+// Import src/components/atlas/* directly where the map is used.
 
 export * from "./lab";
 
