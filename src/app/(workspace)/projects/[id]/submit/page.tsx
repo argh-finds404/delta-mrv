@@ -7,6 +7,7 @@ import { getProject, getPublicProject } from "@/src/server/services/projects.ser
 
 interface SubmitPageProps {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ supplement?: string }>;
 }
 
 const isUuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
@@ -16,18 +17,20 @@ export const metadata: Metadata = {
   description: "Mobile-first before/after photographic pair intake with client-side hashing.",
 };
 
-export default function SubmitEvidencePage({ params }: SubmitPageProps) {
+export default function SubmitEvidencePage({ params, searchParams }: SubmitPageProps) {
   return (
     <React.Suspense fallback={<div className="min-h-dvh bg-field-abyss" aria-busy />}>
-      <SubmitPageBody params={params} />
+      <SubmitPageBody params={params} searchParams={searchParams} />
     </React.Suspense>
   );
 }
 
-async function SubmitPageBody({ params }: SubmitPageProps) {
+async function SubmitPageBody({ params, searchParams }: SubmitPageProps) {
   await connection();
   const session = await requireSession();
   const { id } = await params;
+  const sp = searchParams ? await searchParams : {};
+  const supplementSubmissionId = typeof sp.supplement === "string" ? sp.supplement : undefined;
 
   let projectTitle = "Sundarbans Ecological Corridor";
   let activityType = "MANGROVE";
@@ -55,6 +58,8 @@ async function SubmitPageBody({ params }: SubmitPageProps) {
           projectId={id}
           projectTitle={projectTitle}
           activityType={activityType}
+          supplementSubmissionId={supplementSubmissionId}
+          isDemoMode={process.env.DEMO_MODE === "true" || process.env.NODE_ENV !== "production"}
         />
       </main>
     </div>

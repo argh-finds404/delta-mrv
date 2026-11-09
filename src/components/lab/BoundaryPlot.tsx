@@ -116,13 +116,13 @@ export function BoundaryPlot({
           <g transform={`translate(${pinPos.x}, ${pinPos.y})`}>
             {insideBoundary ? (
               <>
-                <circle r="8" className="fill-verified/20 animate-ping" />
+                <circle r="8" className="fill-verified/20" />
                 <circle r="4" className="fill-verified" />
                 <circle r="1.5" className="fill-field-abyss" />
               </>
             ) : (
               <>
-                <circle r="9" className="fill-fraud/20 animate-ping" />
+                <circle r="9" className="fill-fraud/20" />
                 <circle r="5" className="fill-fraud" />
                 <circle r="2" className="fill-field-abyss" />
               </>

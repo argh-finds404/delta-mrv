@@ -12,6 +12,29 @@ import { cn } from "@/src/lib/utils";
 
 export type DecisionAction = "APPROVE" | "REJECT" | "REQUEST_MORE_PROOF";
 
+export const STRUCTURED_REASONS = [
+  {
+    code: "EXIF_STRIPPED",
+    label: "EXIF Stripped",
+    detail: "Camera original photograph required with intact GPS telemetry and capture timestamp.",
+  },
+  {
+    code: "BOUNDARY_MARKER_NOT_VISIBLE",
+    label: "Boundary Unclear",
+    detail: "Ground corner stake or registered perimeter marker not discernible in frame.",
+  },
+  {
+    code: "BLURRY_AFTER_PHOTO",
+    label: "Low Resolution",
+    detail: "After-work photographic resolution insufficient to verify sapling count or survival.",
+  },
+  {
+    code: "SUSPECTED_CROSS_PLOT_OVERLAP",
+    label: "Cross-Plot Overlap",
+    detail: "Vantage perspective overlaps with adjacent sector; provide distinct heading angle.",
+  },
+] as const;
+
 export interface DecisionPayload {
   action: DecisionAction;
   reason: string;
@@ -186,22 +209,62 @@ export function DecisionForm({
         )}
 
         {/* Label to its value: 4 */}
-        <div className="space-y-1">
+        <div className="space-y-2">
           <div className="flex items-center justify-between gap-4">
-            <label htmlFor="decision-reason" className="text-field-text">
+            <label htmlFor="decision-reason" className="text-field-text text-xs font-medium">
               Written reason
             </label>
-            <span className={cn("font-mono tabular-nums transition-colors duration-[120ms]", isReasonValid ? "text-field-text" : "text-field-muted")}>
-              {reasonLength} / 20
+            <span className={cn("font-mono tabular-nums text-xs transition-colors duration-[120ms]", isReasonValid ? "text-verified font-medium" : "text-field-muted")}>
+              {reasonLength} / 20 {isReasonValid && "✓"}
             </span>
           </div>
+
+          {/* Quick structured reason tags for More Proof / Dispute (doc 14) */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-mono text-field-muted mr-1">Dispute tags:</span>
+            {STRUCTURED_REASONS.map((r) => {
+              const tag = `[${r.code}]`;
+              const isSelected = reason.includes(tag);
+              return (
+                <button
+                  key={r.code}
+                  type="button"
+                  disabled={Boolean(pendingDecision)}
+                  onClick={() => {
+                    if (isSelected) {
+                      // Remove tag and detail
+                      const updated = reason
+                        .replace(`${tag} ${r.detail}`, "")
+                        .replace(tag, "")
+                        .trim();
+                      setReason(updated);
+                    } else {
+                      // Append tag and detail
+                      const addition = `${tag} ${r.detail}`;
+                      setReason((prev) => (prev ? `${prev} ${addition}` : addition));
+                    }
+                  }}
+                  className={cn(
+                    "rounded border px-2 py-0.5 text-[11px] font-mono transition-colors",
+                    isSelected
+                      ? "border-review bg-[color-mix(in_srgb,var(--review)_20%,transparent)] text-review"
+                      : "border-field-hairline bg-field-raised text-field-muted hover:text-field-text hover:border-field-inert",
+                  )}
+                  title={`${r.label}: ${r.detail}`}
+                >
+                  {isSelected ? `✓ ${r.label}` : `+ ${r.label}`}
+                </button>
+              );
+            })}
+          </div>
+
           <textarea
             id="decision-reason"
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             disabled={Boolean(pendingDecision)}
-            placeholder="Required, 20 characters or more. What you checked and why."
+            placeholder="Required, 20 characters or more. What you checked and why (or click dispute tags above)."
             className={cn(
               "block w-full resize-none rounded-lg border px-3 py-2 text-[13px] leading-5 outline-none transition-colors duration-[120ms]",
               isPaper

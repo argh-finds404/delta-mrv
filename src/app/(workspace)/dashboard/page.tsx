@@ -21,7 +21,7 @@ import { ACTIVITY_LABEL, formatClaim, formatCount } from "@/src/lib/format";
 import { requireSession } from "@/src/server/auth/session";
 import { listProjects } from "@/src/server/services/projects.service";
 import { reviewQueueOverview } from "@/src/server/services/reviews.service";
-import { listSubmissionsForProject } from "@/src/server/services/submissions.service";
+import { countSubmissionsByStatus, listSubmissionsForProject } from "@/src/server/services/submissions.service";
 
 export const metadata: Metadata = {
   title: "Dashboard · Delta",
@@ -42,24 +42,27 @@ async function Dashboard() {
   const session = await requireSession();
   const actor = { userId: session.user.id };
 
-  const [queueOverview, projects] = await Promise.all([
+  const [queueOverview, projects, statusCounts] = await Promise.all([
     // no .catch: a failed read must reach the error boundary, not render as an all-clear dashboard
     reviewQueueOverview(actor),
     listProjects(actor),
+    countSubmissionsByStatus(actor),
   ]);
 
   const ownedProjects = projects.filter((p) => p.access === "owner");
   const assignedProjects = projects.filter((p) => p.access === "verifier");
 
-  // Load submissions for owned projects to surface actionable needs-more-proof submissions
-  const ownedSubmissionsLists = await Promise.all(
-    ownedProjects.map((p) => listSubmissionsForProject(actor, p.id)),
-  );
-  const ownedSubmissions = ownedSubmissionsLists.flat();
-  const needsMoreProof = ownedSubmissions.filter((s) => s.status === "NEEDS_MORE_PROOF");
-  const inReviewCount = ownedSubmissions.filter((s) => s.status === "IN_REVIEW" || s.status === "ESCALATED").length;
-  const approvedCount = ownedSubmissions.filter((s) => s.status === "APPROVED" || s.status === "ANCHORED").length;
-  const anchoredCount = ownedSubmissions.filter((s) => s.status === "ANCHORED").length;
+  // Status metrics derived directly from Postgres aggregation query
+  const inReviewCount = (statusCounts.IN_REVIEW ?? 0) + (statusCounts.ESCALATED ?? 0);
+  const approvedCount = (statusCounts.APPROVED ?? 0) + (statusCounts.ANCHORED ?? 0);
+  const anchoredCount = statusCounts.ANCHORED ?? 0;
+
+  // Only query individual submission records if there are actionable needs-more-proof items
+  const needsMoreProof = (statusCounts.NEEDS_MORE_PROOF ?? 0) > 0
+    ? (await Promise.all(ownedProjects.map((p) => listSubmissionsForProject(actor, p.id))))
+        .flat()
+        .filter((s) => s.status === "NEEDS_MORE_PROOF")
+    : [];
 
   const isOwner = ownedProjects.length > 0;
   const isVerifier = queueOverview.isVerifier;

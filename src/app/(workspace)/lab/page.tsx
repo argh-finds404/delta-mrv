@@ -36,13 +36,14 @@ const SHORTCUTS: { label: string; keys: string[] }[] = [
   { label: "Close", keys: ["Esc"] },
 ];
 
-/** A queue row plus what the decision bar needs. Real items have no images yet (Stage 3: storage). */
+/** A queue row plus what the decision bar needs. */
 type RealItem = QueueItem & {
   round: number;
   approvalsCount: number;
   rejectionsCount: number;
   requiredQuorum: number;
   userDecision?: DecisionAction;
+  files: { id: string; role: "BEFORE" | "AFTER" | "SUPPLEMENT"; round: number }[];
 };
 
 /** The shape of GET /api/lab/queue (dates arrive as strings). */
@@ -62,6 +63,7 @@ type ApiOverview = {
     rejections: number;
     userDecision: DecisionAction | null;
     findingCounts: QueueItem["findingCounts"];
+    files: { id: string; role: "BEFORE" | "AFTER" | "SUPPLEMENT"; round: number }[];
   }[];
 };
 
@@ -133,6 +135,7 @@ export default function EvidenceLabPage() {
             approvalsCount: s.approvals,
             rejectionsCount: s.rejections,
             requiredQuorum: QUORUM,
+            files: s.files ?? [],
           }))
           .sort(compareSeverity);
         setItems(mapped);
@@ -358,6 +361,52 @@ export default function EvidenceLabPage() {
                     </div>
                   }
                 />
+              ) : activeReal &&
+                activeReal.files.some((f) => f.role === "BEFORE" && f.round === activeReal.round) &&
+                activeReal.files.some((f) => f.role === "AFTER" && f.round === activeReal.round) ? (
+                (() => {
+                  const beforeFile = activeReal.files.find((f) => f.role === "BEFORE" && f.round === activeReal.round)!;
+                  const afterFile = activeReal.files.find((f) => f.role === "AFTER" && f.round === activeReal.round)!;
+                  return (
+                    <EvidencePair
+                      className="flex-1"
+                      before={{
+                        url: `/api/evidence/${beforeFile.id}`,
+                        sha256: beforeFile.id,
+                        capturedAt: activeReal.submittedAt,
+                        dhash: "—",
+                      }}
+                      after={{
+                        url: `/api/evidence/${afterFile.id}`,
+                        sha256: afterFile.id,
+                        capturedAt: activeReal.submittedAt,
+                        dhash: "—",
+                      }}
+                      beforeLabel="Before"
+                      afterLabel="After"
+                      details={
+                        <div className="space-y-3">
+                          <dl className="space-y-1">
+                            <div className="flex items-baseline justify-between gap-4">
+                              <dt className="text-field-muted">Activity</dt>
+                              <dd className="text-field-text">{activeReal.activityType}</dd>
+                            </div>
+                            <div className="flex items-baseline justify-between gap-4">
+                              <dt className="text-field-muted">Review round</dt>
+                              <dd className="font-mono tabular-nums text-field-text">{activeReal.round}</dd>
+                            </div>
+                            <div className="flex items-baseline justify-between gap-4">
+                              <dt className="text-field-muted">Submitted</dt>
+                              <dd className="font-mono tabular-nums text-field-text">
+                                {activeReal.submittedAt.slice(0, 16).replace("T", " ")} UTC
+                              </dd>
+                            </div>
+                          </dl>
+                        </div>
+                      }
+                    />
+                  );
+                })()
               ) : (
                 <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-field-hairline bg-field-canopy p-8 text-center">
                   <ImageOff className="size-6 text-field-muted" aria-hidden="true" />
