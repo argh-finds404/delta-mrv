@@ -1,6 +1,29 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { randomBytes, randomUUID } from "node:crypto";
+import { afterAll, describe, expect, it, vi } from "vitest";
+
+// Only for the image route below: the handler reads the session, the app's db client and
+// blob storage. Services called directly in this file are passed their transaction as before.
+const h = vi.hoisted(() => ({ tx: undefined as unknown, userId: null as string | null, stored: new Map<string, Uint8Array<ArrayBuffer>>() }));
+vi.mock("../../src/server/db/client", () => ({
+  get db() {
+    return h.tx;
+  },
+}));
+vi.mock("../../src/server/auth/session", () => ({
+  getSession: async () => (h.userId ? { user: { id: h.userId } } : null),
+}));
+vi.mock("../../src/server/storage/blob", () => ({
+  blobStorage: {
+    get: async (key: string) => {
+      const bytes = h.stored.get(key);
+      return bytes ? { stream: new Blob([bytes]).stream(), size: bytes.length } : null;
+    },
+  },
+}));
+
+import { GET as evidenceRoute } from "../../src/app/api/evidence/[fileId]/route";
 import { locationCommitment } from "../../src/lib/crypto/location";
-import { projectFunder } from "../../src/server/db/schema";
+import { evidenceFile, projectFunder } from "../../src/server/db/schema";
 import type { GeoPoint } from "../../src/server/db/schema/types";
 import { ForbiddenError, NotFoundError } from "../../src/server/services/errors";
 import {
@@ -218,6 +241,72 @@ describe("submissions: getSubmission / listSubmissionsForProject", () => {
     expect((await getSubmission(actor(w.u.funder), approved.id, tx)).status).toBe("APPROVED");
     await expectNotFound(getSubmission(actor(w.u.funder), w.submission.id, tx)); // still IN_REVIEW
     expect((await listSubmissionsForProject(actor(w.u.funder), w.project.id, tx)).map((s) => s.id)).toEqual([approved.id]);
+  });
+});
+
+describe("evidence: GET /api/evidence/[fileId] follows getSubmission's visibility", () => {
+  async function storedFile(tx: Tx, submissionId: string, bytes = randomBytes(64)) {
+    const storageKey = `test/${randomUUID()}.jpg`;
+    h.stored.set(storageKey, bytes);
+    const [row] = await tx
+      .insert(evidenceFile)
+      .values({ submissionId, role: "BEFORE", storageKey, mime: "image/jpeg", sizeBytes: bytes.length, sha256: "0".repeat(64) })
+      .returning();
+    return { id: row!.id, bytes };
+  }
+  const fetchAs = (who: { id: string } | null, fileId: string) => {
+    h.userId = who?.id ?? null;
+    return evidenceRoute(new Request(`http://test/api/evidence/${fileId}`), { params: Promise.resolve({ fileId }) });
+  };
+  const expect404 = async (res: Response) => {
+    expect(res.status).toBe(404);
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+  };
+
+  scenario("an IN_REVIEW file: owner org and assigned verifier get the bytes; everyone else a 404", async (tx, w) => {
+    h.tx = tx;
+    const file = await storedFile(tx, w.submission.id);
+    for (const who of [w.u.ownerMember, w.u.v1]) {
+      const res = await fetchAs(who, file.id);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("cache-control")).toBe("private, no-store");
+      expect(res.headers.get("content-type")).toBe("image/jpeg");
+      expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(new Uint8Array(await res.arrayBuffer())).toEqual(new Uint8Array(file.bytes));
+    }
+    await tx.insert(projectFunder).values({ projectId: w.project.id, funderOrgId: w.org.funder.id, createdByUserId: w.u.platformAdmin.id });
+    for (const who of [w.u.funder, w.u.rivalMember, w.u.rivalAdmin, w.u.outsider, w.u.platformAdmin, null]) {
+      await expect404(await fetchAs(who, file.id));
+    }
+  });
+
+  scenario("a linked funder sees an APPROVED file, an unlinked one does not, and a DRAFT is the owner's alone", async (tx, w) => {
+    h.tx = tx;
+    const approved = await addSubmission(tx, { projectId: w.project.id, ownerOrgId: w.org.owner.id, userId: w.u.ownerMember.id, status: "APPROVED" });
+    const draft = await addSubmission(tx, { projectId: w.project.id, ownerOrgId: w.org.owner.id, userId: w.u.ownerMember.id, status: "DRAFT" });
+    const [shown, hidden] = [await storedFile(tx, approved.id), await storedFile(tx, draft.id)];
+
+    await expect404(await fetchAs(w.u.funder, shown.id));
+    await expect404(await fetchAs(null, shown.id)); // approved is still not public: originals never are
+    await tx.insert(projectFunder).values({ projectId: w.project.id, funderOrgId: w.org.funder.id, createdByUserId: w.u.platformAdmin.id });
+    expect((await fetchAs(w.u.funder, shown.id)).status).toBe(200);
+
+    expect((await fetchAs(w.u.ownerMember, hidden.id)).status).toBe(200);
+    for (const who of [w.u.v1, w.u.funder]) await expect404(await fetchAs(who, hidden.id));
+  });
+
+  scenario("an unknown or malformed id is the same 404", async (tx, w) => {
+    h.tx = tx;
+    for (const id of ["00000000-0000-4000-8000-000000000000", "not-a-uuid", "../../etc/passwd"]) {
+      await expect404(await fetchAs(w.u.ownerMember, id));
+    }
+  });
+
+  scenario("a visible row whose bytes are gone is an error, never a quiet 404 (THREAT_MODEL T10)", async (tx, w) => {
+    h.tx = tx;
+    const file = await storedFile(tx, w.submission.id);
+    h.stored.clear();
+    await expect(fetchAs(w.u.ownerMember, file.id)).rejects.toThrow(/no stored bytes/);
   });
 });
 

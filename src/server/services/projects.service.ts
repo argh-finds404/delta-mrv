@@ -1,6 +1,6 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { locationCommitment } from "../../lib/crypto/location";
 import { db } from "../db/client";
@@ -8,6 +8,7 @@ import {
   activityType,
   evidenceSubmission,
   impactProject,
+  organization,
   projectAssignment,
   projectPrivateLocation,
 } from "../db/schema";
@@ -163,6 +164,113 @@ async function loadForOwnerWrite(x: Executor, actor: Actor, id: string) {
   if (!mine) throw new NotFoundError(NOT_FOUND);
   if (mine.role !== "owner" && mine.role !== "admin") throw new ForbiddenError("only an owner or admin of the organisation may change a project");
   return row;
+}
+
+// ---------------------------------------------------------------------------------------
+// Public reads (docs/16-AMENDMENTS-v2.md A6). No actor parameter and no session branch: there
+// is no code path from here to project_private_location, which is what makes the leak test
+// (test/integration/fuzzing-leak.test.ts) meaningful.
+
+/** An ACTIVE project as anyone may see it: the fuzzed cell centre and the commitment, never the site. */
+export type PublicProject = {
+  id: string;
+  title: string;
+  description: string | null;
+  activityType: ProjectSummary["activityType"];
+  claimedQuantity: string | null;
+  claimedUnit: string | null;
+  ownerOrgName: string;
+  fuzzedLocation: GeoPoint | null;
+  locationCommitment: string | null;
+  createdAt: Date;
+};
+
+export type PublicProjectDetail = PublicProject & {
+  /** The independent auditors. Naming them is part of the accountability (docs/14-PAGE-SPEC.md §3). */
+  verifierOrgNames: string[];
+  /** The record beside the claim: submission counts, never the submissions' contents. */
+  record: { approved: number; anchored: number };
+};
+
+export type PublicProjectPage = { items: PublicProject[]; nextCursor: string | null };
+
+export const PUBLIC_PAGE_MAX = 100;
+const publicPageSchema = z.object({
+  cursor: z.uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(PUBLIC_PAGE_MAX).default(50),
+});
+
+// Column by column on purpose: a `select()` of the row would carry any column added later out to the public.
+const publicColumns = {
+  id: impactProject.id,
+  title: impactProject.title,
+  description: impactProject.description,
+  activityType: impactProject.activityType,
+  claimedQuantity: impactProject.claimedQuantity,
+  claimedUnit: impactProject.claimedUnit,
+  ownerOrgName: organization.name,
+  fuzzedLocation: impactProject.fuzzedCentroid,
+  locationCommitment: impactProject.locationCommitment,
+  createdAt: impactProject.createdAt,
+};
+const selectPublic = (x: Executor) =>
+  x.select(publicColumns).from(impactProject).innerJoin(organization, eq(organization.id, impactProject.ownerOrgId));
+
+/** Keyset-paged by id: stable under inserts, and the cursor says nothing about row counts. */
+export async function listPublicProjects(
+  input: { cursor?: string; limit?: number | string } = {},
+  x: Executor = db,
+): Promise<PublicProjectPage> {
+  const { cursor, limit } = parseInput(publicPageSchema, input);
+  const rows = await selectPublic(x)
+    .where(and(eq(impactProject.status, "ACTIVE"), cursor ? gt(impactProject.id, cursor) : undefined))
+    .orderBy(asc(impactProject.id))
+    .limit(limit + 1);
+  const items = rows.slice(0, limit);
+  return { items, nextCursor: rows.length > limit ? items.at(-1)!.id : null };
+}
+
+export async function getPublicProject(id: string, x: Executor = db): Promise<PublicProjectDetail> {
+  if (!isUuid(id)) throw new NotFoundError(NOT_FOUND);
+  const [row] = await selectPublic(x).where(and(eq(impactProject.id, id), eq(impactProject.status, "ACTIVE")));
+  if (!row) throw new NotFoundError(NOT_FOUND);
+
+  const verifiers = await x
+    .select({ name: organization.name })
+    .from(projectAssignment)
+    .innerJoin(organization, eq(organization.id, projectAssignment.verifierOrgId))
+    .where(eq(projectAssignment.projectId, id))
+    .orderBy(asc(organization.name));
+  const [record] = await x
+    .select({
+      approved: sql<number>`count(*) filter (where ${evidenceSubmission.status} = 'APPROVED')::int`,
+      anchored: sql<number>`count(*) filter (where ${evidenceSubmission.status} = 'ANCHORED')::int`,
+    })
+    .from(evidenceSubmission)
+    .where(eq(evidenceSubmission.projectId, id));
+
+  return { ...row, verifierOrgNames: verifiers.map((v) => v.name), record: record! };
+}
+
+/**
+ * Totals across ACTIVE projects for the landing page. Counts only, nothing per site.
+ * `approved` includes ANCHORED: an anchored record was approved first.
+ */
+export async function getPublicOverview(x: Executor = db): Promise<{ sites: number; approved: number; verifierOrgs: number }> {
+  const [totals] = await x
+    .select({
+      sites: sql<number>`count(distinct ${impactProject.id})::int`,
+      approved: sql<number>`(count(${evidenceSubmission.id}) filter (where ${evidenceSubmission.status} in ('APPROVED', 'ANCHORED')))::int`,
+    })
+    .from(impactProject)
+    .leftJoin(evidenceSubmission, eq(evidenceSubmission.projectId, impactProject.id))
+    .where(eq(impactProject.status, "ACTIVE"));
+  const [verifiers] = await x
+    .select({ n: sql<number>`count(distinct ${projectAssignment.verifierOrgId})::int` })
+    .from(projectAssignment)
+    .innerJoin(impactProject, eq(impactProject.id, projectAssignment.projectId))
+    .where(eq(impactProject.status, "ACTIVE"));
+  return { sites: totals!.sites, approved: totals!.approved, verifierOrgs: verifiers!.n };
 }
 
 // ---------------------------------------------------------------------------------------

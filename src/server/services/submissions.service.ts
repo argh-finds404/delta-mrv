@@ -1,7 +1,9 @@
 import "server-only";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "../db/client";
-import { evidenceSubmission, impactProject, projectFunder } from "../db/schema";
+import { evidenceFile, evidenceSubmission, impactProject, projectFunder } from "../db/schema";
+import { blobStorage } from "../storage/blob";
+import type { StoragePort } from "../storage/port";
 import { actorContext, assignedVerifierOrgs, isUuid, type Actor, type ActorContext, type Executor } from "./access";
 import { NotFoundError } from "./errors";
 
@@ -66,6 +68,33 @@ export async function getSubmission(actor: Actor | null, id: string, x: Executor
   const visible = await visibleStatuses(x, await actorContext(x, actor), { id: row.projectId, ownerOrgId: row.ownerOrgId });
   if (!visible || !visible(row.status)) throw new NotFoundError(NOT_FOUND);
   return toSummary(row);
+}
+
+/**
+ * An evidence original's bytes, visible exactly when its submission is to getSubmission.
+ * Missing, malformed and hidden are one 404. Never public: not even an APPROVED original.
+ */
+export async function openEvidenceFile(
+  actor: Actor | null,
+  fileId: string,
+  x: Executor = db,
+  storage: StoragePort = blobStorage,
+): Promise<{ stream: ReadableStream<Uint8Array>; mime: string; size: number }> {
+  const notFound = new NotFoundError("evidence file not found");
+  if (!isUuid(fileId)) throw notFound;
+  const [row] = await x
+    .select({ key: evidenceFile.storageKey, mime: evidenceFile.mime, s: evidenceSubmission })
+    .from(evidenceFile)
+    .innerJoin(evidenceSubmission, eq(evidenceSubmission.id, evidenceFile.submissionId))
+    .where(eq(evidenceFile.id, fileId));
+  if (!row) throw notFound;
+  const visible = await visibleStatuses(x, await actorContext(x, actor), { id: row.s.projectId, ownerOrgId: row.s.ownerOrgId });
+  if (!visible || !visible(row.s.status)) throw notFound;
+
+  const stored = await storage.get(row.key);
+  // a visible row with no bytes is evidence loss (THREAT_MODEL T10): fail loudly, never a 404
+  if (!stored) throw new Error(`evidence file ${fileId} has no stored bytes at its storage key`);
+  return { stream: stored.stream, mime: row.mime, size: stored.size };
 }
 
 export async function listSubmissionsForProject(actor: Actor | null, projectId: string, x: Executor = db): Promise<SubmissionSummary[]> {

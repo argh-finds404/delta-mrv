@@ -15,7 +15,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:check-typmod": "node scripts/check-geography-typmod.mjs",
     "test:integration": "NODE_OPTIONS=--network-family-autoselection-attempt-timeout=5000 vitest run --config vitest.integration.config.ts",
-    "db:seed": "NODE_OPTIONS=--network-family-autoselection-attempt-timeout=5000 tsx scripts/seed.ts"
+    "db:seed": "NODE_OPTIONS=--network-family-autoselection-attempt-timeout=5000 tsx scripts/seed.ts",
+    "seed:images": "NODE_OPTIONS=--network-family-autoselection-attempt-timeout=5000 tsx scripts/upload-seed-images.ts"
   },
   "dependencies": {
     "@google/genai": "2.31.0",

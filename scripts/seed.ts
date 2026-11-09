@@ -7,14 +7,13 @@
 //
 // Refuses to run against production, and refuses to run twice: review_decision is
 // append-only, so a seeded database cannot be wiped. Recreate the branch to reseed.
-import { randomBytes, randomUUID, createHash } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import postgres from "postgres";
-import sharp from "sharp";
 import { locationCommitment } from "../src/lib/crypto/location";
 import { DEMO_PASSWORD } from "../src/lib/demo-accounts";
-import { DHASH_RESIZE, hammingDistance, packDHash } from "../src/lib/forensics/dhash";
 import { fuzzCentroid, polygonCentroid, type LonLat } from "../src/lib/geo/fuzz";
+import { makePool, mulberry32 } from "./lib/seed-pool";
 
 try {
   process.loadEnvFile(".env.local");
@@ -32,49 +31,8 @@ type Row = Record<string, unknown>;
 const SUBMISSIONS = 5200;
 
 // ---- deterministic randomness ------------------------------------------------------------
-function mulberry32(seed: number) {
-  let a = seed;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 const rng = mulberry32(20261102);
 const pick = <T>(xs: readonly T[]) => xs[Math.floor(rng() * xs.length)]!;
-
-// ---- the image pool ----------------------------------------------------------------------
-// Eight synthetic photos. Hashes are real: sha256 of the bytes, dHash by the §4.2 pipeline
-// (grayscale first, then DHASH_RESIZE: 9x8, lanczos3, named in the contract). Stage 4 moves the
-// sharp half into the forensics service; DHASH_RESIZE and packDHash are the shared parts.
-async function makePool() {
-  const pool: { key: string; bytes: number; sha256: string; dhash: string }[] = [];
-  for (let k = 0; k < 8; k++) {
-    const r = mulberry32(1000 + k);
-    const [W, H, B] = [96, 72, 8];
-    const raw = Buffer.alloc(W * H * 3);
-    const blocks = Array.from({ length: (W / B) * (H / B) }, () => [r() * 255, r() * 255, r() * 255]);
-    for (let y = 0; y < H; y++)
-      for (let x = 0; x < W; x++)
-        for (let c = 0; c < 3; c++)
-          raw[(y * W + x) * 3 + c] = Math.round(blocks[Math.floor(y / B) * (W / B) + Math.floor(x / B)]![c]!);
-    const jpeg = await sharp(raw, { raw: { width: W, height: H, channels: 3 } }).jpeg({ quality: 80 }).toBuffer();
-    const { data, info } = await sharp(jpeg).grayscale().resize(DHASH_RESIZE).raw().toBuffer({ resolveWithObject: true });
-    if (info.channels !== 1) throw new Error(`expected 1 channel after grayscale, got ${info.channels}`);
-    pool.push({
-      key: `seed/pool/${k}.jpg`,
-      bytes: jpeg.length,
-      sha256: createHash("sha256").update(jpeg).digest("hex"),
-      dhash: packDHash(new Uint8Array(data)),
-    });
-  }
-  // The pool must not look like near-duplicates of itself, or Stage 4's duplicate demo is noise.
-  for (let i = 0; i < pool.length; i++)
-    for (let j = i + 1; j < pool.length; j++)
-      if (hammingDistance(pool[i]!.dhash, pool[j]!.dhash) < 16) throw new Error(`pool images ${i} and ${j} are too similar`);
-  return pool;
-}
 
 // ---- what gets seeded --------------------------------------------------------------------
 // Hand-drawn approximations at real places. They are NOT surveyed boundaries.
