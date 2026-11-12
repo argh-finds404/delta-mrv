@@ -1,5 +1,5 @@
 import { getSession } from "../../../../server/auth/session";
-import { NotFoundError } from "../../../../server/services/errors";
+import { NotFoundError, StorageUnavailable } from "../../../../server/services/errors";
 import { openEvidenceFile } from "../../../../server/services/submissions.service";
 
 const PRIVATE = { "Cache-Control": "private, no-store" };
@@ -22,6 +22,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ fil
     });
   } catch (e) {
     if (e instanceof NotFoundError) return Response.json({ error: e.message }, { status: 404, headers: PRIVATE });
+    if (e instanceof StorageUnavailable) return Response.json({ error: "Evidence storage is not configured on this server." }, { status: 503, headers: PRIVATE });
     throw e;
   }
 }

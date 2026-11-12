@@ -1,13 +1,32 @@
 import "server-only";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { createHash, randomUUID } from "node:crypto";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { z } from "zod";
+import { ACCEPTED_EVIDENCE_TYPES, EXTENSION, HEIC_REFUSAL, MAX_EVIDENCE_BYTES, sniffImageType } from "../../lib/forensics/mime";
+import { assertTransition } from "../../lib/state-machine";
 import { db } from "../db/client";
-import { evidenceFile, evidenceSubmission, impactProject, projectFunder } from "../db/schema";
+import {
+  anchorBatch,
+  anchorLeaf,
+  evidenceFile,
+  evidenceSubmission,
+  forensicFinding,
+  impactProject,
+  organization,
+  projectAssignment,
+  projectFunder,
+  reviewDecision,
+  submissionStatus,
+} from "../db/schema";
 import { blobStorage } from "../storage/blob";
 import type { StoragePort } from "../storage/port";
-import { actorContext, assignedVerifierOrgs, isUuid, type Actor, type ActorContext, type Executor } from "./access";
-import { NotFoundError } from "./errors";
+import { actorContext, assignedVerifierOrgs, isUuid, parseInput, type Actor, type ActorContext, type Executor } from "./access";
+import { ConflictError, NotFoundError, ValidationError } from "./errors";
+import { appendAuditEvent } from "./audit-chain.service";
+import { dHashOf, FORENSICS_JOB, RULE_VERSION } from "./forensics.service";
+import { enqueueJob } from "./jobs.service";
 
-// Reads only. Intake (createDraft, finalize) is Stage 4.
+// Reads, and intake: draft, scoped upload token, finalize, supplement (Stage 4b).
 
 export type SubmissionSummary = {
   id: string;
@@ -105,4 +124,377 @@ export async function listSubmissionsForProject(actor: Actor | null, projectId: 
   if (!visible) return [];
   const rows = await x.select().from(evidenceSubmission).where(eq(evidenceSubmission.projectId, projectId)).orderBy(desc(evidenceSubmission.submittedAt));
   return rows.filter((r) => visible(r.status)).map(toSummary);
+}
+
+export type FindingView = Pick<
+  typeof forensicFinding.$inferSelect,
+  "id" | "evidenceFileId" | "kind" | "severity" | "reason" | "evidence" | "ruleVersion" | "createdAt"
+>;
+
+/**
+ * A submission's findings, with the submission (and so its cached score) beside them: the
+ * score is never served without the findings that explain it (docs/10-FORENSICS.md §6).
+ * Visible exactly when the submission is. Cross-organisation matches carry only a matchRef.
+ */
+export async function listFindings(actor: Actor | null, submissionId: string, x: Executor = db): Promise<{ submission: SubmissionSummary; findings: FindingView[] }> {
+  const submission = await getSubmission(actor, submissionId, x);
+  const findings = await x
+    .select({
+      id: forensicFinding.id,
+      evidenceFileId: forensicFinding.evidenceFileId,
+      kind: forensicFinding.kind,
+      severity: forensicFinding.severity,
+      reason: forensicFinding.reason,
+      evidence: forensicFinding.evidence,
+      ruleVersion: forensicFinding.ruleVersion,
+      createdAt: forensicFinding.createdAt,
+    })
+    .from(forensicFinding)
+    .where(eq(forensicFinding.submissionId, submission.id))
+    .orderBy(forensicFinding.createdAt, forensicFinding.kind, forensicFinding.id);
+  return { submission, findings };
+}
+
+export type PublicProof = {
+  submission: { id: string; status: "APPROVED" | "ANCHORED"; round: number; submittedAt: Date; anchored: boolean };
+  project: {
+    id: string;
+    title: string;
+    activityType: (typeof impactProject.$inferSelect)["activityType"];
+    claimedQuantity: string | null;
+    claimedUnit: string | null;
+    ownerOrgName: string;
+    fuzzedLocation: (typeof impactProject.$inferSelect)["fuzzedCentroid"];
+    locationCommitment: string | null;
+  };
+  files: { id: string; role: "BEFORE" | "AFTER" | "SUPPLEMENT"; round: number; sha256: string }[];
+  decisions: { decision: (typeof reviewDecision.$inferSelect)["decision"]; reason: string; round: number; createdAt: Date; reviewerOrgName: string }[];
+};
+
+/**
+ * The public proof dossier's data (docs/05-ROUTES.md §4): an APPROVED or ANCHORED submission,
+ * its files' SHA-256, every decision with its reason, and the project as the public may see it
+ * (fuzzed point and commitment, never the site). Anything else, or nothing: one 404. No actor:
+ * there is no session branch and no path to project_private_location.
+ */
+export async function getPublicProof(submissionId: string, x: Executor = db): Promise<PublicProof> {
+  if (!isUuid(submissionId)) throw new NotFoundError(NOT_FOUND);
+  const [row] = await x
+    .select({ s: evidenceSubmission, p: impactProject, ownerOrgName: organization.name })
+    .from(evidenceSubmission)
+    .innerJoin(impactProject, eq(impactProject.id, evidenceSubmission.projectId))
+    .innerJoin(organization, eq(organization.id, evidenceSubmission.ownerOrgId))
+    .where(and(eq(evidenceSubmission.id, submissionId), inArray(evidenceSubmission.status, ["APPROVED", "ANCHORED"])));
+  if (!row) throw new NotFoundError(NOT_FOUND);
+
+  const [files, decisions] = await Promise.all([
+    x
+      .select({ id: evidenceFile.id, role: evidenceFile.role, round: evidenceFile.round, sha256: evidenceFile.sha256 })
+      .from(evidenceFile)
+      .where(eq(evidenceFile.submissionId, submissionId))
+      .orderBy(evidenceFile.round, sql`case ${evidenceFile.role} when 'BEFORE' then 0 when 'AFTER' then 1 else 2 end`, evidenceFile.id),
+    x
+      .select({ decision: reviewDecision.decision, reason: reviewDecision.reason, round: reviewDecision.round, createdAt: reviewDecision.createdAt, reviewerOrgName: organization.name })
+      .from(reviewDecision)
+      .innerJoin(organization, eq(organization.id, reviewDecision.reviewerOrgId))
+      .where(eq(reviewDecision.submissionId, submissionId))
+      .orderBy(reviewDecision.createdAt, reviewDecision.id),
+  ]);
+  const { s, p } = row;
+  return {
+    submission: { id: s.id, status: s.status as "APPROVED" | "ANCHORED", round: s.round, submittedAt: s.submittedAt, anchored: s.status === "ANCHORED" },
+    project: {
+      id: p.id,
+      title: p.title,
+      activityType: p.activityType,
+      claimedQuantity: p.claimedQuantity,
+      claimedUnit: p.claimedUnit,
+      ownerOrgName: row.ownerOrgName,
+      fuzzedLocation: p.fuzzedCentroid,
+      locationCommitment: p.locationCommitment,
+    },
+    files,
+    decisions,
+  };
+}
+
+export type ProofLookupHit = {
+  submissionId: string;
+  projectTitle: string;
+  status: "APPROVED" | "ANCHORED";
+  matchedBy: "PROOF_ID" | "FILE_SHA256" | "TRANSACTION";
+};
+
+const PUBLIC_PROOF_STATUSES = ["APPROVED", "ANCHORED"] as const;
+
+/**
+ * /verify (docs/16-AMENDMENTS-v2.md A7): a proof id, a file's SHA-256 (hashed in the browser,
+ * only the hash is sent), or an anchor transaction hash, matched against public proofs only.
+ * Everything it can return is already on a public proof page.
+ */
+export async function lookupProofs(query: string, x: Executor = db): Promise<ProofLookupHit[]> {
+  const q = query.trim().toLowerCase();
+  const base = () =>
+    x
+      .selectDistinct({ submissionId: evidenceSubmission.id, projectTitle: impactProject.title, status: evidenceSubmission.status })
+      .from(evidenceSubmission)
+      .innerJoin(impactProject, eq(impactProject.id, evidenceSubmission.projectId));
+  const visible = inArray(evidenceSubmission.status, [...PUBLIC_PROOF_STATUSES]);
+  const tag = (matchedBy: ProofLookupHit["matchedBy"]) => (rows: { submissionId: string; projectTitle: string; status: Status }[]) =>
+    rows.map((r) => ({ ...r, status: r.status as ProofLookupHit["status"], matchedBy }));
+
+  if (isUuid(q)) return tag("PROOF_ID")(await base().where(and(eq(evidenceSubmission.id, q), visible)));
+  if (/^[0-9a-f]{64}$/.test(q)) {
+    return tag("FILE_SHA256")(
+      await base().innerJoin(evidenceFile, eq(evidenceFile.submissionId, evidenceSubmission.id)).where(and(eq(evidenceFile.sha256, q), visible)).limit(20),
+    );
+  }
+  if (/^0x[0-9a-f]{64}$/.test(q)) {
+    return tag("TRANSACTION")(
+      await base()
+        .innerJoin(anchorLeaf, eq(anchorLeaf.submissionId, evidenceSubmission.id))
+        .innerJoin(anchorBatch, eq(anchorBatch.id, anchorLeaf.batchId))
+        .where(and(sql`lower(${anchorBatch.txHash}) = ${q}`, visible))
+        .limit(50),
+    );
+  }
+  throw new ValidationError("Enter a proof id, a transaction hash, or a file's SHA-256 fingerprint.");
+}
+
+export type SubmissionStatusCounts = Record<Status, number>;
+
+/**
+ * How many submissions the caller may see, by status, across every project, counted in the
+ * database. Same rule as getSubmission: the owner org everything, an assigned verifier org
+ * everything past DRAFT, a linked funder org only APPROVED and ANCHORED. Anyone else: zeros.
+ */
+export async function countSubmissionsByStatus(actor: Actor, x: Executor = db): Promise<SubmissionStatusCounts> {
+  const counts = Object.fromEntries(submissionStatus.enumValues.map((s) => [s, 0])) as SubmissionStatusCounts;
+  const ctx = await actorContext(x, actor);
+  if (!ctx.orgIds.length) return counts;
+
+  const [assigned, linked] = await Promise.all([
+    ctx.verifierOrgIds.length
+      ? x.select({ id: projectAssignment.projectId }).from(projectAssignment).where(inArray(projectAssignment.verifierOrgId, ctx.verifierOrgIds))
+      : [],
+    ctx.funderOrgIds.length
+      ? x.select({ id: projectFunder.projectId }).from(projectFunder).where(inArray(projectFunder.funderOrgId, ctx.funderOrgIds))
+      : [],
+  ]);
+  const assignedIds = new Set(assigned.map((r) => r.id));
+  const linkedIds = new Set(linked.map((r) => r.id));
+
+  const rows = await x
+    .select({ projectId: evidenceSubmission.projectId, ownerOrgId: evidenceSubmission.ownerOrgId, status: evidenceSubmission.status, n: sql<number>`count(*)::int` })
+    .from(evidenceSubmission)
+    .where(
+      or(
+        inArray(evidenceSubmission.ownerOrgId, ctx.orgIds),
+        assignedIds.size ? inArray(evidenceSubmission.projectId, [...assignedIds]) : undefined,
+        linkedIds.size ? inArray(evidenceSubmission.projectId, [...linkedIds]) : undefined,
+      ),
+    )
+    .groupBy(evidenceSubmission.projectId, evidenceSubmission.ownerOrgId, evidenceSubmission.status);
+
+  for (const r of rows) {
+    const visible =
+      ctx.orgIds.includes(r.ownerOrgId) ||
+      (assignedIds.has(r.projectId) && r.status !== "DRAFT") ||
+      (linkedIds.has(r.projectId) && (r.status === "APPROVED" || r.status === "ANCHORED"));
+    if (visible) counts[r.status] += r.n;
+  }
+  return counts;
+}
+
+// ---------------------------------------------------------------------------------------
+// Intake (docs/01-FEATURE-LOCK.md, draft and direct upload). The browser uploads straight to
+// private storage with a token scoped to one path the server chose; finalize then reads the
+// bytes back and judges those. Nothing the client says about a file is authoritative.
+
+const fileSchema = z.object({
+  pathname: z.string().min(1).max(512),
+  clientSha256: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/, "must be 64 lowercase hex characters")
+    .optional(),
+});
+const pairSchema = z.object({
+  files: z
+    .array(fileSchema.extend({ role: z.enum(["BEFORE", "AFTER"]) }))
+    .length(2, "a submission is exactly one BEFORE and one AFTER photo")
+    .refine((fs) => new Set(fs.map((f) => f.role)).size === 2, "a submission is exactly one BEFORE and one AFTER photo")
+    .refine((fs) => new Set(fs.map((f) => f.pathname)).size === 2, "the BEFORE and AFTER photos must be different uploads"),
+});
+const tokenSchema = z.object({ role: z.enum(["BEFORE", "AFTER", "SUPPLEMENT"]), contentType: z.string().min(1).max(100) });
+
+/** Every upload for a submission lives under this prefix; a token is only issued inside it. */
+export const uploadPrefix = (s: { id: string; projectId: string; ownerOrgId: string }) => `org/${s.ownerOrgId}/project/${s.projectId}/${s.id}/`;
+
+/** The caller's own submission, locked for the write, in one of `allowed` statuses. Strangers: 404. */
+async function loadOwnForWrite(x: Executor, actor: Actor, id: string, allowed: Status[]): Promise<SubmissionRow> {
+  if (!isUuid(id)) throw new NotFoundError(NOT_FOUND);
+  const [row] = await x.select().from(evidenceSubmission).where(eq(evidenceSubmission.id, id)).for("update");
+  if (!row) throw new NotFoundError(NOT_FOUND);
+  const ctx = await actorContext(x, actor);
+  if (!ctx.orgIds.includes(row.ownerOrgId)) throw new NotFoundError(NOT_FOUND);
+  if (!allowed.includes(row.status)) throw new ConflictError(`a ${row.status} submission does not accept this`);
+  return row;
+}
+
+/**
+ * Starts a submission. Any member of the project's owning organisation may: field workers are
+ * plain members (the Stage 4e gate signs in as one). Anyone else, platform admins included: 404.
+ */
+export async function createDraft(actor: Actor, projectId: string, x: Executor = db): Promise<SubmissionSummary> {
+  if (!isUuid(projectId)) throw new NotFoundError("project not found");
+  const [project] = await x
+    .select({ id: impactProject.id, ownerOrgId: impactProject.ownerOrgId, status: impactProject.status })
+    .from(impactProject)
+    .where(eq(impactProject.id, projectId));
+  const ctx = await actorContext(x, actor);
+  if (!project || !ctx.orgIds.includes(project.ownerOrgId)) throw new NotFoundError("project not found");
+  if (project.status !== "ACTIVE") throw new ConflictError("only an ACTIVE project takes new evidence");
+  const [row] = await x
+    .insert(evidenceSubmission)
+    .values({ projectId, ownerOrgId: project.ownerOrgId, submittedByUserId: actor.userId, status: "DRAFT" })
+    .returning();
+  return toSummary(row!);
+}
+
+/**
+ * A token for one direct upload. The server names the file (a user-supplied name is a path
+ * traversal vector) and the token can write that one path, once, within the limits.
+ */
+export async function issueUploadToken(
+  actor: Actor,
+  submissionId: string,
+  input: { role: "BEFORE" | "AFTER" | "SUPPLEMENT"; contentType: string },
+  x: Executor = db,
+  storage: StoragePort = blobStorage,
+): Promise<{ pathname: string; clientToken: string }> {
+  const data = parseInput(tokenSchema, input);
+  if (/hei[cf]/i.test(data.contentType)) throw new ValidationError(HEIC_REFUSAL);
+  const type = ACCEPTED_EVIDENCE_TYPES.find((t) => t === data.contentType);
+  if (!type) throw new ValidationError("a photo must be a JPEG, PNG or WebP image");
+  const s = await loadOwnForWrite(x, actor, submissionId, data.role === "SUPPLEMENT" ? ["NEEDS_MORE_PROOF"] : ["DRAFT"]);
+  const pathname = `${uploadPrefix(s)}${data.role.toLowerCase()}-${randomUUID()}.${EXTENSION[type]}`;
+  const clientToken = await storage.uploadToken(pathname, { maxBytes: MAX_EVIDENCE_BYTES, contentTypes: ACCEPTED_EVIDENCE_TYPES });
+  return { pathname, clientToken };
+}
+
+/** Reads one upload back from storage and judges the bytes themselves: size, type, hash. */
+async function readStoredUpload(storage: StoragePort, s: SubmissionRow, pathname: string) {
+  if (!pathname.startsWith(uploadPrefix(s)) || pathname.includes("..")) throw new ValidationError("that file is not part of this submission");
+  const stored = await storage.get(pathname);
+  if (!stored) throw new ValidationError("a photo has not finished uploading; upload it again");
+  const tooBig = new ValidationError("a photo is larger than 5 MB");
+  if (stored.size > MAX_EVIDENCE_BYTES) {
+    await stored.stream.cancel();
+    throw tooBig;
+  }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  const reader = stored.stream.getReader();
+  for (let r = await reader.read(); !r.done; r = await reader.read()) {
+    total += r.value.length;
+    if (total > MAX_EVIDENCE_BYTES) {
+      await reader.cancel(); // the size the store reported is not trusted either
+      throw tooBig;
+    }
+    chunks.push(r.value);
+  }
+  const bytes = Buffer.concat(chunks);
+  const mime = sniffImageType(bytes);
+  if (mime === "image/heic") throw new ValidationError(HEIC_REFUSAL);
+  if (!mime) throw new ValidationError("a file is not a JPEG, PNG or WebP image");
+  // the dHash is taken here, in the same transaction as the file row, so every committed file
+  // is searchable at once: two near-duplicates finalized together cannot miss each other
+  const dhash = await dHashOf(bytes).catch(() => {
+    throw new ValidationError("a file could not be read as an image; export it again as JPEG, PNG or WebP");
+  });
+  return { mime, sizeBytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex"), dhash };
+}
+
+/** The server's hash is the record; a different hash from the device is a MEDIUM finding (docs/10). */
+async function recordHashMismatches(x: Executor, rows: { id: string; submissionId: string; sha256: string; clientSha256: string | null }[]) {
+  const mismatched = rows.filter((r) => r.clientSha256 && r.clientSha256 !== r.sha256);
+  if (!mismatched.length) return;
+  await x.insert(forensicFinding).values(
+    mismatched.map((r) => ({
+      submissionId: r.submissionId,
+      evidenceFileId: r.id,
+      kind: "CLIENT_HASH_MISMATCH" as const,
+      severity: "MEDIUM" as const,
+      reason: "The file changed between the device and the server: the fingerprint the phone computed does not match the stored file.",
+      evidence: { clientSha256: r.clientSha256, serverSha256: r.sha256 },
+      ruleVersion: RULE_VERSION,
+    })),
+  );
+}
+
+/**
+ * DRAFT → PENDING_FORENSICS in one transaction: check both uploads exist and are within limits,
+ * hash the stored bytes, write the files, raise any hash mismatch, queue the forensics job.
+ */
+export async function finalizeSubmission(
+  actor: Actor,
+  submissionId: string,
+  input: { files: { role: "BEFORE" | "AFTER"; pathname: string; clientSha256?: string }[] },
+  x: Executor = db,
+  storage: StoragePort = blobStorage,
+): Promise<SubmissionSummary> {
+  const data = parseInput(pairSchema, input);
+  return x.transaction(async (tx) => {
+    const s = await loadOwnForWrite(tx, actor, submissionId, ["DRAFT"]);
+    const stored = await Promise.all(data.files.map((f) => readStoredUpload(storage, s, f.pathname)));
+    assertTransition(s.status, "PENDING_FORENSICS");
+    const rows = await tx
+      .insert(evidenceFile)
+      .values(data.files.map((f, i) => ({ submissionId: s.id, role: f.role, storageKey: f.pathname, ...stored[i]!, clientSha256: f.clientSha256 ?? null, round: s.round })))
+      .returning();
+    await recordHashMismatches(tx, rows);
+    const [updated] = await tx.update(evidenceSubmission).set({ status: "PENDING_FORENSICS" }).where(eq(evidenceSubmission.id, s.id)).returning();
+    await appendAuditEvent(tx, {
+      orgId: s.ownerOrgId,
+      eventType: "SUBMISSION_FINALIZED",
+      actorUserId: actor.userId,
+      payload: { submissionId: s.id, projectId: s.projectId, round: s.round, from: "DRAFT", status: "PENDING_FORENSICS", files: rows.map((r) => ({ role: r.role, sha256: r.sha256 })) },
+    });
+    await enqueueJob({ kind: FORENSICS_JOB, payload: { submissionId: s.id, round: s.round }, idempotencyKey: `forensics:${s.id}:${s.round}` }, tx);
+    return toSummary(updated!);
+  });
+}
+
+/**
+ * More proof after a reviewer asked for it: NEEDS_MORE_PROOF → IN_REVIEW in a new round, the
+ * supplement checked like any other upload and a forensics pass queued for it.
+ */
+export async function addSupplement(
+  actor: Actor,
+  submissionId: string,
+  input: { pathname: string; clientSha256?: string },
+  x: Executor = db,
+  storage: StoragePort = blobStorage,
+): Promise<SubmissionSummary> {
+  const data = parseInput(fileSchema, input);
+  return x.transaction(async (tx) => {
+    const s = await loadOwnForWrite(tx, actor, submissionId, ["NEEDS_MORE_PROOF"]);
+    const stored = await readStoredUpload(storage, s, data.pathname);
+    assertTransition(s.status, "IN_REVIEW");
+    const round = s.round + 1;
+    const rows = await tx
+      .insert(evidenceFile)
+      .values({ submissionId: s.id, role: "SUPPLEMENT", storageKey: data.pathname, ...stored, clientSha256: data.clientSha256 ?? null, round })
+      .returning();
+    await recordHashMismatches(tx, rows);
+    const [updated] = await tx.update(evidenceSubmission).set({ status: "IN_REVIEW", round }).where(eq(evidenceSubmission.id, s.id)).returning();
+    await appendAuditEvent(tx, {
+      orgId: s.ownerOrgId,
+      eventType: "SUBMISSION_SUPPLEMENTED",
+      actorUserId: actor.userId,
+      payload: { submissionId: s.id, projectId: s.projectId, round, from: "NEEDS_MORE_PROOF", status: "IN_REVIEW", files: rows.map((r) => ({ role: r.role, sha256: r.sha256 })) },
+    });
+    await enqueueJob({ kind: FORENSICS_JOB, payload: { submissionId: s.id, round }, idempotencyKey: `forensics:${s.id}:${round}` }, tx);
+    return toSummary(updated!);
+  });
 }

@@ -22,3 +22,6 @@ export class ConflictError extends DomainError {}
 export class NotFoundError extends DomainError {}
 
 export class ValidationError extends DomainError {}
+
+/** Storage is not configured on this server: callers answer 503, never an internal error. */
+export { StorageUnavailable } from "../storage/port";

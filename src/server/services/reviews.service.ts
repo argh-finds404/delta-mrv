@@ -5,6 +5,7 @@ import { assertTransition, InvalidTransitionError, type SubmissionStatus } from 
 import { db } from "../db/client";
 import {
   decision as decisionEnum,
+  evidenceFile,
   evidenceSubmission,
   forensicFinding,
   impactProject,
@@ -13,8 +14,9 @@ import {
   reviewDecision,
 } from "../db/schema";
 import { actorContext, assignedVerifierOrgs, isUuid, parseInput, type Actor, type Executor } from "./access";
+import { appendAuditEvent } from "./audit-chain.service";
 import { ConflictError, ConflictOfInterestError, ForbiddenError } from "./errors";
-import { toSummary, type SubmissionSummary } from "./submissions.service";
+import { getSubmission, toSummary, type SubmissionSummary } from "./submissions.service";
 
 export type ReviewGate = {
   /** The assigned verifier organisation the vote is recorded under. */
@@ -160,13 +162,70 @@ export async function castDecision(
       await tx.update(evidenceSubmission).set({ status: next }).where(eq(evidenceSubmission.id, submissionId));
       status = next;
     }
-    // shortcut: no audit event is appended yet; audit-chain.service lands in Stage 5 and
-    // this write must join its transaction then
+    // on the claimant's chain: their record changed; the event names who reviewed it
+    await appendAuditEvent(tx, {
+      orgId: gate.submission.ownerOrgId,
+      eventType: "REVIEW_DECISION",
+      actorUserId: actor.userId,
+      payload: { submissionId, decisionId: row!.id, round, decision: data.decision, reviewerOrgId: gate.reviewerOrgId, from: current, status },
+    });
     return { decisionId: row!.id, status, round };
   });
 }
 
 /** Submissions awaiting a verdict on projects the caller's verifier orgs are assigned to. */
+export type RoundDecision = {
+  decision: (typeof reviewDecision.$inferSelect)["decision"];
+  reason: string;
+  round: number;
+  createdAt: Date;
+  reviewerOrgName: string;
+  mine: boolean;
+};
+export type RoundView = {
+  round: number;
+  counts: { approve: number; reject: number; moreProof: number };
+  hasVoted: boolean;
+  /** The current round's decisions; null while the round is open and the caller has not voted. */
+  decisions: RoundDecision[] | null;
+  earlierRounds: RoundDecision[];
+};
+
+/**
+ * A4 (docs/16-AMENDMENTS-v2.md): while a round is open, its decisions and reasons are hidden from
+ * anyone who has not voted in it, so no reviewer is anchored by another's verdict; counts are
+ * not hidden. Earlier rounds, and a resolved round, are history and visible to every caller who
+ * may see the submission. Who may see it at all is getSubmission's rule: anyone else gets a 404.
+ */
+export async function getRoundDecisions(actor: Actor, submissionId: string, x: Executor = db): Promise<RoundView> {
+  const s = await getSubmission(actor, submissionId, x);
+  const rows = await x
+    .select({
+      decision: reviewDecision.decision,
+      reason: reviewDecision.reason,
+      round: reviewDecision.round,
+      createdAt: reviewDecision.createdAt,
+      reviewerUserId: reviewDecision.reviewerUserId,
+      reviewerOrgName: organization.name,
+    })
+    .from(reviewDecision)
+    .innerJoin(organization, eq(organization.id, reviewDecision.reviewerOrgId))
+    .where(eq(reviewDecision.submissionId, s.id))
+    .orderBy(asc(reviewDecision.createdAt), asc(reviewDecision.id));
+  const view = ({ reviewerUserId, ...r }: (typeof rows)[number]): RoundDecision => ({ ...r, mine: reviewerUserId === actor.userId });
+  const current = rows.filter((r) => r.round === s.round);
+  const hasVoted = current.some((r) => r.reviewerUserId === actor.userId);
+  const open = s.status === "IN_REVIEW" || s.status === "ESCALATED";
+  const count = (d: RoundDecision["decision"]) => current.filter((r) => r.decision === d).length;
+  return {
+    round: s.round,
+    counts: { approve: count("APPROVE"), reject: count("REJECT"), moreProof: count("REQUEST_MORE_PROOF") },
+    hasVoted,
+    decisions: open && !hasVoted ? null : current.map(view),
+    earlierRounds: rows.filter((r) => r.round < s.round).map(view),
+  };
+}
+
 export async function listReviewQueue(actor: Actor, x: Executor = db): Promise<SubmissionSummary[]> {
   const ctx = await actorContext(x, actor);
   if (!ctx.verifierOrgIds.length) return [];
@@ -201,6 +260,8 @@ export type ReviewQueueItem = SubmissionSummary & {
   rejections: number;
   userDecision: "APPROVE" | "REJECT" | "REQUEST_MORE_PROOF" | null;
   findingCounts: { high: number; medium: number; low: number; info: number };
+  /** The evidence files, every round, oldest first. Open one through GET /api/evidence/[id]. */
+  files: { id: string; role: "BEFORE" | "AFTER" | "SUPPLEMENT"; round: number }[];
 };
 
 export type ReviewQueueOverview = {
@@ -229,11 +290,12 @@ export async function reviewQueueOverview(actor: Actor, limit = 100, x: Executor
   if (page.length === 0) return { isVerifier: true, hasAssignments: Boolean(assignment), total: 0, items: [] };
 
   const ids = page.map((s) => s.id);
-  const [projects, orgs, votes, findings] = await Promise.all([
+  const [projects, orgs, votes, findings, files] = await Promise.all([
     x.select({ id: impactProject.id, title: impactProject.title, activityType: impactProject.activityType }).from(impactProject).where(inArray(impactProject.id, [...new Set(page.map((s) => s.projectId))])),
     x.select({ id: organization.id, name: organization.name }).from(organization).where(inArray(organization.id, [...new Set(page.map((s) => s.ownerOrgId))])),
     x.select({ submissionId: reviewDecision.submissionId, round: reviewDecision.round, decision: reviewDecision.decision, reviewer: reviewDecision.reviewerUserId }).from(reviewDecision).where(inArray(reviewDecision.submissionId, ids)),
     x.select({ submissionId: forensicFinding.submissionId, severity: forensicFinding.severity, n: sql<number>`count(*)::int` }).from(forensicFinding).where(inArray(forensicFinding.submissionId, ids)).groupBy(forensicFinding.submissionId, forensicFinding.severity),
+    x.select({ submissionId: evidenceFile.submissionId, id: evidenceFile.id, role: evidenceFile.role, round: evidenceFile.round }).from(evidenceFile).where(inArray(evidenceFile.submissionId, ids)).orderBy(asc(evidenceFile.round), asc(evidenceFile.role), asc(evidenceFile.createdAt)),
   ]);
   const project = new Map(projects.map((p) => [p.id, p]));
   const org = new Map(orgs.map((o) => [o.id, o.name]));
@@ -251,6 +313,7 @@ export async function reviewQueueOverview(actor: Actor, limit = 100, x: Executor
       rejections: current.filter((v) => v.decision === "REJECT").length,
       userDecision: current.find((v) => v.reviewer === actor.userId)?.decision ?? null,
       findingCounts: counts,
+      files: files.filter((f) => f.submissionId === s.id).map(({ id, role, round }) => ({ id, role, round })),
     };
   });
   return { isVerifier: true, hasAssignments: true, total: queue.length, items };

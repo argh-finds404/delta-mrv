@@ -35,7 +35,7 @@ import {
   updateProject,
 } from "../../src/server/services/projects.service";
 import { castDecision, listReviewQueue, reviewQueueOverview } from "../../src/server/services/reviews.service";
-import { getSubmission, listSubmissionsForProject } from "../../src/server/services/submissions.service";
+import { countSubmissionsByStatus, getSubmission, listSubmissionsForProject } from "../../src/server/services/submissions.service";
 import { client, inRollback, type Tx } from "./db";
 import { actor, addSubmission, INSIDE_SQUARE, OUTSIDE_SQUARE, SQUARE, world, type World } from "./fixtures";
 
@@ -310,6 +310,23 @@ describe("evidence: GET /api/evidence/[fileId] follows getSubmission's visibilit
   });
 });
 
+describe("submissions: countSubmissionsByStatus (what the dashboard counts)", () => {
+  scenario("the same rule as getSubmission: owner all, verifier past DRAFT, linked funder approved only, others nothing", async (tx, w) => {
+    const add = (status: "DRAFT" | "APPROVED") => addSubmission(tx, { projectId: w.project.id, ownerOrgId: w.org.owner.id, userId: w.u.ownerMember.id, status });
+    await add("DRAFT");
+    await add("APPROVED");
+    const pick = (c: Awaited<ReturnType<typeof countSubmissionsByStatus>>) => [c.DRAFT, c.IN_REVIEW, c.APPROVED];
+
+    expect(pick(await countSubmissionsByStatus(actor(w.u.ownerMember), tx))).toEqual([1, 1, 1]);
+    expect(pick(await countSubmissionsByStatus(actor(w.u.v1), tx))).toEqual([0, 1, 1]);
+    for (const who of [w.u.funder, w.u.outsider, w.u.rivalMember, w.u.platformAdmin]) {
+      expect(Object.values(await countSubmissionsByStatus(actor(who), tx)).every((n) => n === 0)).toBe(true);
+    }
+    await tx.insert(projectFunder).values({ projectId: w.project.id, funderOrgId: w.org.funder.id, createdByUserId: w.u.platformAdmin.id });
+    expect(pick(await countSubmissionsByStatus(actor(w.u.funder), tx))).toEqual([0, 0, 1]);
+  });
+});
+
 describe("reviews: listReviewQueue", () => {
   scenario("only assigned verifier orgs see the queue; owners, rivals, funders and outsiders see nothing", async (tx, w) => {
     for (const who of [w.u.ownerAdmin, w.u.ownerMember, w.u.rivalMember, w.u.funder, w.u.outsider, w.u.platformAdmin]) {
@@ -337,6 +354,15 @@ describe("reviews: listReviewQueue", () => {
 });
 
 describe("reviews: reviewQueueOverview (what the Lab shows)", () => {
+  scenario("each item lists its evidence files, so the Lab can open them through the image route", async (tx, w) => {
+    const [f] = await tx
+      .insert(evidenceFile)
+      .values({ submissionId: w.submission.id, role: "BEFORE", storageKey: "test/k.jpg", mime: "image/jpeg", sizeBytes: 1, sha256: "0".repeat(64) })
+      .returning();
+    const o = await reviewQueueOverview(actor(w.u.v1), 100, tx);
+    expect(o.items.find((i) => i.id === w.submission.id)?.files).toEqual([{ id: f!.id, role: "BEFORE", round: 1 }]);
+  });
+
   scenario("an owner or a funder gets an empty overview that says why, never an error", async (tx, w) => {
     for (const who of [w.u.ownerAdmin, w.u.ownerMember, w.u.funder, w.u.outsider, w.u.platformAdmin]) {
       expect(await reviewQueueOverview(actor(who), 100, tx)).toEqual({ isVerifier: false, hasAssignments: false, total: 0, items: [] });

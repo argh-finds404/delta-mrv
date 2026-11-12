@@ -14,12 +14,12 @@ export type Executor = PgDatabase<PostgresJsQueryResultHKT, typeof schema>;
 /** Who is asking. Always re-checked against the database; never a session claim. */
 export type Actor = { userId: string };
 
-export type Membership = { orgId: string; orgType: OrgType; role: string };
+export type Membership = { orgId: string; orgName: string; orgType: OrgType; role: string };
 
 /** Current memberships of a user, read fresh (docs/04-AUTH.md §3). */
 export async function membershipsOf(x: Executor, userId: string): Promise<Membership[]> {
   const rows = await x
-    .select({ orgId: member.organizationId, orgType: organization.orgType, role: member.role })
+    .select({ orgId: member.organizationId, orgName: organization.name, orgType: organization.orgType, role: member.role })
     .from(member)
     .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(eq(member.userId, userId));

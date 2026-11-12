@@ -21,6 +21,8 @@ const bootSchema = z.object({
 const deferred = {
   BLOB_READ_WRITE_TOKEN: { stage: 3, schema: z.string().min(1) },
   CRON_SECRET: { stage: 4, schema: z.string().min(1) },
+  // keys the opaque matchRef on cross-organisation findings; rotating it changes every matchRef
+  FORENSICS_MATCH_KEY: { stage: 4, schema: z.string().min(32) },
   GEMINI_API_KEY: { stage: 5, schema: z.string().min(1) },
   GEMINI_MODEL: { stage: 5, schema: z.string().min(1) },
   BASE_SEPOLIA_RPC_URL: { stage: 6, schema: z.url() },

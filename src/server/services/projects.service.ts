@@ -22,10 +22,16 @@ import {
   type ActorContext,
   type Executor,
 } from "./access";
+import { appendAuditEvent } from "./audit-chain.service";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "./errors";
 import { fuzzCentroid, polygonCentroid } from "../../lib/geo/fuzz";
 
 export type ProjectAccess = "owner" | "verifier" | "public";
+
+/** The caller's organisations, for the workspace's header and greeting. */
+export async function myOrganisations(actor: Actor, x: Executor = db) {
+  return (await actorContext(x, actor)).memberships;
+}
 
 /** What every caller may see. `fuzzedLocation` is a grid-cell centre, never the real site. */
 export type ProjectSummary = {
@@ -114,6 +120,29 @@ async function readPrivateLocation(x: Executor, projectId: string) {
     .where(eq(projectPrivateLocation.projectId, projectId));
   if (!loc) throw new Error(`project ${projectId} has no private location row`);
   return { boundary: loc.boundary, locationSalt: loc.locationSalt.toString("hex") };
+}
+
+/**
+ * Where a photo's GPS fix sits against a project's exact boundary (docs/10-FORENSICS.md §5):
+ * covered, within the project's tolerance, and how far outside, in whole metres. Only the
+ * answers leave this module, never the geometry.
+ */
+export async function locateAgainstBoundary(
+  x: Executor,
+  projectId: string,
+  point: GeoPoint,
+): Promise<{ inside: boolean; withinTolerance: boolean; distanceMeters: number; toleranceMeters: number }> {
+  const [lon, lat] = point.coordinates;
+  const pt = sql`ST_SetSRID(ST_MakePoint(${lon}::float8, ${lat}::float8), 4326)::geography`;
+  const [row] = await x.execute<{ inside: boolean; within: boolean; distance: number; tolerance: number }>(sql`
+    select ST_Covers(l.boundary, ${pt}) as inside,
+           ST_DWithin(l.boundary, ${pt}, p.tolerance_meters) as within,
+           ST_Distance(l.boundary, ${pt}) as distance,
+           p.tolerance_meters as tolerance
+    from project_private_location l join impact_project p on p.id = l.project_id
+    where l.project_id = ${projectId}`);
+  if (!row) throw new Error(`project ${projectId} has no private location row`);
+  return { inside: row.inside, withinTolerance: row.within, distanceMeters: Math.round(Number(row.distance)), toleranceMeters: row.tolerance };
 }
 
 function summarise(row: ProjectRow, access: ProjectAccess): ProjectSummary {
@@ -403,6 +432,14 @@ export async function updateProject(actor: Actor, id: string, patch: UpdateProje
       })
       .where(eq(impactProject.id, id))
       .returning();
+    if (data.status && data.status !== row.status) {
+      await appendAuditEvent(tx, {
+        orgId: row.ownerOrgId,
+        eventType: "PROJECT_STATUS_CHANGED",
+        actorUserId: actor.userId,
+        payload: { projectId: id, from: row.status, to: data.status },
+      });
+    }
     return detail(tx, updated!, "owner");
   });
 }
