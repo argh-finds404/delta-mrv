@@ -74,6 +74,11 @@ against local Docker on 2026-11-03 as well (the full suite, 74/74). Known gaps: 
 "platform admin" in the schema, so that test proves only that a user with no
 organisation has no path to a vote.
 
+**Status as of 2026-11-12 (Stages 3-7):** Stage 3 done. Stages 4 and 5 have
+code and tests written (jobs, forensics, scoring, audit chain, reviews, AI
+advisory); gates not re-recorded. Stage 6 not started. Stage 7 UI built, with
+nothing anchored to verify against. Stage 8 not started.
+
 ### Stage 3 — Atlas and public read path
 
 - `StoragePort` interface and blob adapter

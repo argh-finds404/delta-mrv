@@ -29,29 +29,34 @@ The one line that matters:
 
 ## 2. Current state
 
+**Date of this update:** 2026-11-12. `pnpm check` green (147 unit tests). The
+integration suite was not re-run for this update; the last recorded result is
+74/74 on local Docker (2026-11-03), and the Stage 4-5 integration tests added
+since have not been recorded here.
+
 | Stage | Status |
 |---|---|
-| 1 — Toolchain, schema, PostGIS/Hamming spike, Better Auth | **Done** |
-| 2 — State machine, tenancy, conflict-of-interest, seed | **Done — gate green** |
-| Auth wiring + Evidence Lab UI | **Done** (pulled forward, unscheduled) |
-| Docker local database | **Done** |
-| 3 — Atlas, public read path, blob storage | **Next** |
-| 4–8 | Not started |
+| 1 - Toolchain, schema, PostGIS/Hamming spike, Better Auth | **Done** |
+| 2 - State machine, tenancy, conflict-of-interest, seed | **Done - gate green** |
+| 3 - Atlas, public read path, blob storage | **Done** |
+| 4 - Intake, job queue, forensics, scoring v1 | **Code and tests written** |
+| 5 - Audit chain, Evidence Lab, quorum review, AI advisory | **Code and tests written** |
+| 6 - Contract and anchoring | **Not started** (no `contracts/`, no `anchor.service`) |
+| 7 - Proof dossier, drop-photo verifier, public API | **UI built; nothing anchored to verify against** |
+| 8 - Evidence, polish, E2E, ship | Not started (no `test/e2e/`, k6 or demo path) |
 
-**Tests:** 74/74 integration, 132 unit. All green on local Docker in 13s.
+**Built:** schema with append-only enforcement; Better Auth with three
+organisation types; COI rule and tenancy isolation; state machine; coordinate
+fuzzing and location commitment; manifest v2 builder and Merkle tree in
+`src/lib/crypto/`; job queue with `SKIP LOCKED`; forensics (SHA-256, dHash,
+EXIF, PostGIS geofence, duplicate detection); versioned scoring; audit chain;
+2-of-N quorum review; Gemini advisory job; storage port and blob adapter;
+submission and lab API routes; landing, atlas, project, dashboard, submit,
+lab, proof, verify and trust pages.
 
-**Built and working:** full schema with append-only enforcement, Better Auth
-with three organisation types, the conflict-of-interest rule with 27 tests,
-tenancy isolation with 26 tests, seed data (3 orgs, 4 projects, 5,200
-submissions, 10,400 evidence files), the design system, eleven primitive
-components, auth pages wired to real sessions, and the Evidence Lab reading
-real queue data.
-
-**Not built:** blob storage, the forensic pipeline, the job queue, the audit
-chain, the smart contract, anchoring, the proof dossier, `/dashboard`,
-`/projects/new`.
-
----
+**Not built:** `ImpactAnchorRegistry.sol`, `anchor.service`, daily anchor cron,
+API keys and funder view, `/projects/new`, platform-admin role, Playwright demo
+path, k6 and forensic eval write-up.
 
 ## 3. The documents are the contract
 
@@ -190,23 +195,14 @@ These are in the docs but worth knowing so they are not re-litigated:
 
 ## 8. What to do next
 
-1. Commit the Docker fix, push.
-2. `git checkout main && git pull && git checkout -b stage-3/atlas`
-3. Open `docs/AGENT_PROMPTS.md`, copy **Stage 3a**, paste into Claude Code.
-4. Run the seed against local Docker so Stage 3 has data.
+1. Run `docker compose up -d` and `pnpm test:integration`; record the result.
+2. Stage 6: Foundry contract and test matrix, then `anchor.service`. The
+   maintainer deploys to Base Sepolia by hand.
+3. Wire `/proof/[id]` and `/verify` to real anchor data (Stage 7 gate).
+4. Stage 8: Playwright demo path, forensic eval, accessibility pass.
 
-**Stage 3 builds:** the `StoragePort` with blob storage, `/atlas` with
-MapLibre over PostGIS polygons, `/p/[slug]` public project pages, read-only
-`/api/v1`, and the coordinate-fuzzing leak test.
-
-**The design moment in Stage 3 is 3b**, when the map is built. It is the one
-screen with no Evidence Lab precedent to copy, so the maintainer reviews it
-before anything propagates.
-
-**Install nothing, decide nothing, merge nothing** without checking it against
-the documents above.
-
----
+Check `src/lib/crypto/manifest.ts` and `merkle.ts` against ADR-0005 before
+Stage 6 builds on them.
 
 ## 9. What to expect from me in the new session
 
