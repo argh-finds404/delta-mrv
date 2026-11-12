@@ -23,6 +23,7 @@ import {
 import { HashDisplay } from "@/src/components/hash-display/hash-display";
 import { OfflineBanner } from "@/src/components/offline-banner/offline-banner";
 import { StepperProgress, type StepItem } from "@/src/components/stepper-progress/stepper-progress";
+import { activityColor } from "@/src/lib/activity";
 import { ACTIVITY_LABEL } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import {
@@ -62,6 +63,14 @@ interface PhotoSlot {
 }
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB per doc 14 §6
+
+// What happens to a submission, in the words of the person sending it.
+const STEPS: StepItem[] = [
+  { id: "hash", label: "Fingerprint on this device", status: "queued" },
+  { id: "upload", label: "Upload to private storage", status: "queued" },
+  { id: "forensics", label: "Automatic checks", status: "queued" },
+  { id: "review", label: "Independent review", status: "queued" },
+];
 
 async function computeSha256(file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
@@ -129,7 +138,7 @@ export function SubmitWizard({
 
   // Adversarial Simulation State
   const [simulatingScenario, setSimulatingScenario] = React.useState<string | null>(null);
-  const [showSimulator, setShowSimulator] = React.useState(true);
+  const [showSimulator, setShowSimulator] = React.useState(false);
 
   const isOnline = React.useSyncExternalStore(
     (cb) => {
@@ -170,13 +179,35 @@ export function SubmitWizard({
 
   // Submission pipeline state
   const [submissionState, setSubmissionState] = React.useState<"idle" | "pipeline">("idle");
-  const [steps, setSteps] = React.useState<StepItem[]>([
-    { id: "hash", label: "Client-side SHA-256 verification", status: "queued" },
-    { id: "upload", label: "Private blob storage intake", status: "queued" },
-    { id: "forensics", label: "Perceptual dHash & duplicate radar", status: "queued" },
-    { id: "geofence", label: "PostGIS ST_Covers boundary check", status: "queued" },
-    { id: "quorum", label: "2-of-N independent verifier queue", status: "queued" },
-  ]);
+  const [steps, setSteps] = React.useState<StepItem[]>(STEPS);
+  const setStep = (id: string, patch: Partial<StepItem>) => setSteps((s) => s.map((step) => (step.id === id ? { ...step, ...patch } : step)));
+
+  /**
+   * Follows the checks after finalize or a supplement, by reading the submission's findings.
+   * Never marks unfinished work as done: if the checks are still running when we stop
+   * polling, the step says so and points at where the results will appear.
+   */
+  const followChecks = async (submissionId: string) => {
+    setStep("upload", { status: "done", value: "Stored privately. The server fingerprinted the stored file itself." });
+    setStep("forensics", { status: "running", value: "Checking for reused photos, capture time and position…" });
+    for (let attempt = 0; attempt < 20; attempt++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const res = await fetch(`/api/submissions/${submissionId}/findings`, { cache: "no-store" }).catch(() => null);
+      if (!res?.ok) continue;
+      const data = (await res.json()) as { submission: { status: string }; findings: { severity: string; reason: string }[] };
+      if (data.submission.status !== "IN_REVIEW" && data.submission.status !== "ESCALATED") continue;
+      const count = (sev: string) => data.findings.filter((f) => f.severity === sev).length;
+      const [high, medium, low] = [count("HIGH"), count("MEDIUM"), count("LOW")];
+      const parts = [high && `${high} high`, medium && `${medium} medium`, low && `${low} low`].filter(Boolean);
+      setStep("forensics", {
+        status: high || medium ? "warning" : "done",
+        value: parts.length ? `${data.findings.length} findings: ${parts.join(", ")}. Each has a reason a reviewer will read.` : "Nothing to flag.",
+      });
+      setStep("review", { status: "queued", value: "Waiting for two reviewers from an independent organisation." });
+      return;
+    }
+    setStep("forensics", { status: "running", value: "Still running. The findings will appear on the project page." });
+  };
 
   const handleFileSelect = async (role: EvidenceRole, file: File | null) => {
     const updater =
@@ -373,23 +404,21 @@ export function SubmitWizard({
     if (!canSubmit) return;
 
     setSubmissionState("pipeline");
-    setSteps([
-      { id: "hash", label: "Client-side SHA-256 verification", status: "done", value: "Verified on device" },
-      { id: "upload", label: "Private blob storage intake", status: "running", value: "Negotiating intake token…" },
-      { id: "forensics", label: "Perceptual dHash & duplicate radar", status: "queued" },
-      { id: "geofence", label: "PostGIS ST_Covers boundary check", status: "queued" },
-      { id: "quorum", label: "2-of-N independent verifier queue", status: "queued" },
-    ]);
+    setSteps(
+      STEPS.map((step) =>
+        step.id === "hash"
+          ? { ...step, status: "done", value: "Computed here. Unverified: the server recomputes it from the stored file." }
+          : step.id === "upload"
+            ? { ...step, status: "running", value: "Requesting an upload link…" }
+            : step,
+      ),
+    );
 
     if (!isOnline) {
       setSteps((s) =>
         s.map((step) =>
           step.id === "upload"
-            ? {
-                ...step,
-                status: "failed",
-                value: "Device is offline. Saved in Field Vault for reconnection.",
-              }
+            ? { ...step, status: "failed", value: "This device is offline. The pair is saved on this device; send it when you are back online." }
             : step.id === "hash"
               ? step
               : { ...step, status: "skipped" },
@@ -423,23 +452,10 @@ export function SubmitWizard({
         const tok = (await tokRes.json()) as { pathname: string; clientToken: string };
 
         // 2. Direct upload to private blob store
-        setSteps((s) =>
-          s.map((step) =>
-            step.id === "upload" ? { ...step, value: "Streaming supplement photo to private storage…" } : step,
-          ),
-        );
+        setStep("upload", { value: "Uploading the photo…" });
         await put(tok.pathname, file, { access: "private", token: tok.clientToken });
 
-        // 3. Post supplement to trigger round increment & forensics pass
-        setSteps((s) =>
-          s.map((step) =>
-            step.id === "upload"
-              ? { ...step, status: "done", value: "Stored at private store" }
-              : step.id === "forensics"
-                ? { ...step, status: "running", value: "Evaluating supplement dHash & EXIF…" }
-                : step,
-          ),
-        );
+        // 3. Post supplement: a new round, and a forensics pass for it
         const suppRes = await fetch(`/api/submissions/${supplementSubmissionId}/supplement`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -450,21 +466,7 @@ export function SubmitWizard({
           throw new Error(err?.error || `Supplement submission failed (${suppRes.status})`);
         }
 
-        // Complete pipeline display
-        setSteps((s) =>
-          s.map((step) => ({
-            ...step,
-            status: "done",
-            value:
-              step.id === "forensics"
-                ? "Forensics evaluation queued"
-                : step.id === "geofence"
-                  ? "PostGIS ST_Covers checked"
-                  : step.id === "quorum"
-                    ? "Round incremented — re-dispatched to verifiers"
-                    : step.value,
-          })),
-        );
+        await followChecks(supplementSubmissionId);
         return;
       }
 
@@ -487,11 +489,7 @@ export function SubmitWizard({
       const draft = (await draftRes.json()) as { id: string };
 
       // 2. Issue scoped upload tokens
-      setSteps((s) =>
-        s.map((step) =>
-          step.id === "upload" ? { ...step, value: "Obtaining scoped upload tokens…" } : step,
-        ),
-      );
+      setStep("upload", { value: "Requesting upload links…" });
       const [beforeTokRes, afterTokRes] = await Promise.all([
         fetch(`/api/submissions/${draft.id}/upload-token`, {
           method: "POST",
@@ -513,22 +511,14 @@ export function SubmitWizard({
       const afterTok = (await afterTokRes.json()) as { pathname: string; clientToken: string };
 
       // 3. Direct upload to private blob store
-      setSteps((s) =>
-        s.map((step) =>
-          step.id === "upload" ? { ...step, value: "Streaming photos to private storage…" } : step,
-        ),
-      );
+      setStep("upload", { value: "Uploading both photos…" });
       await Promise.all([
         put(beforeTok.pathname, bFile, { access: "private", token: beforeTok.clientToken }),
         put(afterTok.pathname, aFile, { access: "private", token: afterTok.clientToken }),
       ]);
 
       // 4. Finalize submission in database transaction
-      setSteps((s) =>
-        s.map((step) =>
-          step.id === "upload" ? { ...step, value: "Recording file hashes & triggering forensics…" } : step,
-        ),
-      );
+      setStep("upload", { value: "Recording the files…" });
       const finRes = await fetch(`/api/submissions/${draft.id}/finalize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -544,63 +534,8 @@ export function SubmitWizard({
         throw new Error(err?.error || `Intake finalization failed (${finRes.status})`);
       }
 
-      setSteps((s) =>
-        s.map((step) =>
-          step.id === "upload"
-            ? { ...step, status: "done", value: "Stored at private store" }
-            : step.id === "forensics"
-              ? { ...step, status: "running", value: "Evaluating duplicate dHash & EXIF…" }
-              : step,
-        ),
-      );
-
-      // 5. Poll findings/status from server until job completes
-      let attempts = 0;
-      const maxAttempts = 14;
-      while (attempts < maxAttempts) {
-        await new Promise((r) => setTimeout(r, 1400));
-        attempts++;
-        try {
-          const pollRes = await fetch(`/api/submissions/${draft.id}/findings`, { cache: "no-store" });
-          if (pollRes.ok) {
-            const data = (await pollRes.json()) as {
-              submission: { status: string };
-              findings: { id: string; severity: string; kind: string; reason?: string }[];
-            };
-
-            if (data.submission.status === "IN_REVIEW" || data.submission.status === "ESCALATED") {
-              const findingsSummary =
-                data.findings.length === 0
-                  ? "Clean — 0 duplicate or tampering alerts"
-                  : `${data.findings.length} signal${data.findings.length === 1 ? "" : "s"} (${data.findings.map((f) => f.kind).join(", ")})`;
-
-              setSteps((s) =>
-                s.map((step) =>
-                  step.id === "forensics"
-                    ? { ...step, status: "done", value: findingsSummary }
-                    : step.id === "geofence"
-                      ? { ...step, status: "done", value: "PostGIS ST_Covers evaluated against polygon" }
-                      : step.id === "quorum"
-                        ? { ...step, status: "done", value: "Dispatched to independent verifiers" }
-                        : step,
-                ),
-              );
-              break;
-            }
-          }
-        } catch {
-          // ignore transient poll error
-        }
-      }
-
-      // Finalize non-running steps
-      setSteps((s) =>
-        s.map((step) =>
-          step.status === "running" || step.status === "queued"
-            ? { ...step, status: "done", value: "Dispatched for review" }
-            : step,
-        ),
-      );
+      // 5. Follow the checks the server queued
+      await followChecks(draft.id);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Evidence transmission failed";
       setSteps((s) =>
@@ -652,7 +587,7 @@ export function SubmitWizard({
     setNote("");
     setDeviceGps(null);
     setSubmissionState("idle");
-    setSteps((s) => s.map((step) => ({ ...step, status: "queued", value: undefined })));
+    setSteps(STEPS);
   };
 
   return (
@@ -664,26 +599,20 @@ export function SubmitWizard({
       />
 
       {/* 1. Context Header */}
-      <header className="space-y-2 border-b border-field-hairline pb-5">
-        <div className="flex items-center gap-2">
-          <Link
-            href="/dashboard"
-            className="text-xs text-field-muted hover:text-field-text transition-colors flex items-center gap-1"
-          >
-            <ArrowLeft className="size-3.5" />
-            <span>Dashboard</span>
-          </Link>
-          <span className="text-field-hairline">/</span>
-          <span className="text-xs font-mono uppercase tracking-wider text-signal">
-            {isSupplement ? "Remediation Proof" : "Evidence Intake"}
-          </span>
-        </div>
+      <header className="space-y-3 pb-2">
+        <Link href={`/projects/${projectId}`} className="inline-flex items-center gap-1.5 text-[14px] text-field-muted transition-colors hover:text-field-text">
+          <ArrowLeft className="size-4" />
+          <span>{projectTitle}</span>
+        </Link>
 
-        <div className="flex flex-wrap items-baseline justify-between gap-3 pt-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-field-text">
-            {isSupplement ? "Submit Supplementary Photographic Proof" : "Submit Restoration Evidence"}
+        <div className="flex flex-wrap items-end justify-between gap-3 pt-1">
+          <h1 className="font-serif text-[36px] leading-[1.08] tracking-[-0.02em] text-field-text sm:text-[42px]">
+            {isSupplement ? "Add more proof" : "Submit evidence"}
           </h1>
-          <span className="rounded-md border border-field-hairline bg-field-canopy px-2.5 py-1 text-xs font-mono text-field-muted">
+          <span
+            className="rounded-full px-2.5 py-0.5 text-[13px] font-medium"
+            style={{ color: activityColor(activityType), background: `color-mix(in srgb, ${activityColor(activityType)} 12%, white)` }}
+          >
             {ACTIVITY_LABEL[activityType as keyof typeof ACTIVITY_LABEL] ?? activityType}
           </span>
         </div>
@@ -700,18 +629,12 @@ export function SubmitWizard({
             </p>
           </div>
         ) : (
-          <p className="text-xs text-field-muted leading-relaxed max-w-xl">
-            Pair intake requires both a <strong className="text-field-text">BEFORE</strong> and an{" "}
-            <strong className="text-field-text">AFTER</strong> photograph. Files are hashed and checked
-            for EXIF metadata locally before streaming directly to private storage.
+          <p className="max-w-[60ch] text-[16px] leading-[1.55] text-field-muted">
+            A before and an after photo of the same spot. Each is fingerprinted on this device, uploaded straight to private storage, and checked for reuse, capture time and position.
           </p>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs font-mono text-field-muted">
-          <div>
-            Project: <span className="text-field-text font-sans font-medium">{projectTitle}</span>
-            <span className="text-field-inert ml-2 text-[11px]">({projectId})</span>
-          </div>
+        <div className="flex flex-wrap items-center justify-end gap-2 pt-1 text-xs text-field-muted">
 
           {/* Local Vault Badge */}
           {offlineCount > 0 && (
@@ -778,8 +701,8 @@ export function SubmitWizard({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Sparkles className="size-4 text-signal" />
-              <span className="text-xs font-semibold uppercase tracking-wider text-signal font-mono">
-                Adversarial Fraud Simulator (Live Demo Mode)
+              <span className="text-[14px] font-medium text-field-text">
+                Try a test case (demo database only)
               </span>
             </div>
             <button
@@ -792,8 +715,8 @@ export function SubmitWizard({
           </div>
 
           <p className="text-[11px] text-field-muted leading-relaxed">
-            Test how Delta’s forensic radar and PostGIS geofencing catch double-dipping, coordinate
-            spoofing, and WhatsApp metadata stripping in real time.
+            Fills the form with synthetic images drawn in this browser, not real photographs, to see how the
+            checks respond to a reused photo or a position outside the site.
           </p>
 
           {showSimulator && (
@@ -849,14 +772,14 @@ export function SubmitWizard({
           <div className="space-y-1">
             <h2 className="text-sm font-semibold text-field-text flex items-center gap-2">
               <AlertCircle className="size-4 text-signal" />
-              <span>Intake Pipeline Telemetry</span>
+              <span>What is happening to this submission</span>
             </h2>
             <p className="text-xs text-field-muted">
-              Direct-to-storage upload, cryptographic hashing, and automated forensic signal evaluation.
+              The photos go straight to private storage. The checks report signals with reasons; they never approve or reject.
             </p>
           </div>
 
-          <StepperProgress title="Intake Telemetry" steps={steps} theme="field" />
+          <StepperProgress title="Submission progress" steps={steps} theme="field" />
 
           <div className="flex flex-wrap items-center gap-3 border-t border-field-hairline pt-4">
             <button
@@ -869,7 +792,7 @@ export function SubmitWizard({
             </button>
             <Link
               href="/dashboard"
-              className="inline-flex h-9 items-center gap-2 rounded-lg bg-signal px-4 text-xs font-medium text-field-abyss hover:bg-[#B9EA5F] transition-colors"
+              className="inline-flex h-9 items-center gap-2 rounded-lg bg-signal px-4 text-xs font-medium text-field-abyss hover:bg-[#186747] transition-colors"
             >
               <span>Back to Dashboard</span>
               <ArrowRight className="size-3.5" />
@@ -914,6 +837,7 @@ export function SubmitWizard({
               {isSupplement ? "Remediation Notes" : "Field Observations"}{" "}
               <span className="text-field-muted font-normal">(Optional)</span>
             </label>
+            <p className="text-[11px] text-review">Kept on this device only: Delta does not store notes yet.</p>
             <textarea
               id="submit-note"
               rows={3}
@@ -933,8 +857,8 @@ export function SubmitWizard({
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-xs font-medium text-field-text block">Device Geolocation</span>
-                <span className="text-[11px] font-mono text-field-muted">
-                  Labelled as <span className="text-review font-semibold">weak signal</span> · Server checks embedded EXIF
+                <span className="text-[11px] text-field-muted">
+                  A <span className="text-review font-semibold">weak signal</span>, and kept on this device only: Delta does not store it yet. The server checks the position inside the photo.
                 </span>
               </div>
               <button
@@ -1001,7 +925,7 @@ export function SubmitWizard({
                   className={cn(
                     "inline-flex h-11 items-center justify-center gap-2 rounded-lg px-5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-signal",
                     canSubmit
-                      ? "bg-signal text-field-abyss hover:bg-[#B9EA5F]"
+                      ? "bg-signal text-field-abyss hover:bg-[#186747]"
                       : "bg-field-raised text-field-inert border border-field-hairline cursor-not-allowed",
                   )}
                 >

@@ -1,143 +1,282 @@
-import type { HeroScene } from "./HeroBand";
-import { SceneCard } from "./SceneCard";
-import { Chip, Pin, Plot } from "./SceneImage";
+"use client";
 
-// The four steps of a claim, as four places on one painting of the Sundarbans (Landscape): the
-// camera moves from the village fields, across the marsh, into the mangrove planting and out to
-// the sea. Plots, pins and card values illustrate what Delta records; none is a real project.
+import * as React from "react";
+import type { DrawnWatercolorMeta } from "./DrawnWatercolor";
+import WATERCOLOUR from "./watercolour.json";
 
-const FINGERPRINT = "9e41…c07a";
+export interface HeroScene {
+  label: string;
+  art: string;
+  alt: string;
+  readout: string;
+  caption: React.ReactNode;
+  washColor: string;
+  meta: DrawnWatercolorMeta;
+  overlay: React.ReactNode;
+}
 
 export const HERO_SCENES: HeroScene[] = [
   {
     label: "Capture",
+    art: "mangrove",
+    alt: "Watercolour painted from satellite imagery of the Sundarbans mangrove creeks near Koyra, Khulna",
+    readout: "22.3250° N  89.3250° E   SUNDARBANS",
+    washColor: "#007A5A",
+    meta: WATERCOLOUR.mangrove,
     caption: (
       <>
-        A field team photographs the plot before and after, and every photo is <mark className="brush">fingerprinted</mark> the moment it
-        arrives.
+        A field team photographs the plot before and after, and every photo is{" "}
+        <mark className="hdr-key">fingerprinted</mark> the moment it arrives.
       </>
     ),
-    pan: 470,
     overlay: (
       <>
-        <Plot id="capture-a" pts={[[340, 572], [496, 578], [518, 634], [358, 630]]} />
-        <Chip at={[150, 150]} label="Captured" value="07:41" i={0} />
-        <Chip at={[150, 222]} label="Location" value="inside plot" i={1} />
-        <Pin at={[430, 602]} i={0} pulse />
-        <Pin at={[300, 512]} i={1} />
+        {/* restoration boundary plot */}
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="hda-area edge-dash">
+          <polygon
+            points="34,36 64,32 68,66 38,70"
+            className="fill-[rgba(0,122,90,0.15)] stroke-[#007A5A] stroke-[1.5]"
+          />
+        </svg>
+
+        {/* GPS location pin */}
+        <span
+          className="hda-pt hda-pt-green"
+          style={{ "--x": "0.60", "--y": "0.62", "--d": "0" } as React.CSSProperties}
+        />
+
+        {/* Floating telemetry card */}
+        <div
+          className="hda-pane"
+          style={{ "--x": "0.58", "--y": "0.14", "--d": "0.8" } as React.CSSProperties}
+        >
+          <div className="rounded-lg border border-[#007A5A]/30 bg-[#F7F3EA]/95 p-3 shadow-lg backdrop-blur-md">
+            <div className="flex items-center justify-between gap-3 text-[11px] font-mono uppercase tracking-wider text-[#007A5A]">
+              <span>Field Intake</span>
+              <span className="flex items-center gap-1 text-[10px] text-emerald-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                Grounded
+              </span>
+            </div>
+            <div className="mt-1.5 space-y-1 font-mono text-[12px] text-[#1C1B18]">
+              <div className="flex justify-between gap-4">
+                <span className="text-[#6B6357]">Device</span>
+                <span className="font-semibold">Sony A7 IV • 24mm</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-[#6B6357]">GPS Fix</span>
+                <span className="font-semibold">In-Polygon (0.0m)</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-[#6B6357]">SHA-256</span>
+                <span className="font-semibold">9e41…c07a</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </>
     ),
-    card: (
-      <SceneCard
-        title="Plot 7 · before and after"
-        rows={[
-          { label: "Before", value: "12 Mar 07:41", mono: true },
-          { label: "After", value: "9 Sep 07:58", mono: true },
-          { label: "Location", value: "Inside boundary", tone: "seal" },
-          { label: "Fingerprint", value: FINGERPRINT, mono: true },
-        ]}
-      />
-    ),
-    cardAt: { left: "60%", top: "5%" },
   },
   {
     label: "Check",
+    art: "river",
+    alt: "Watercolour painted from satellite imagery of the Padma and Meghna rivers meeting near Chandpur",
+    readout: "23.2500° N  90.6200° E   PADMA–MEGHNA",
+    washColor: "#2674BA",
+    meta: WATERCOLOUR.river,
     caption: (
       <>
-        Every photo is compared with every other on record, so one picture cannot be <mark className="brush">claimed twice</mark>.
+        Every photo is checked across every project on record, so no picture can be{" "}
+        <mark className="hdr-key">claimed twice</mark>.
       </>
     ),
-    pan: 1180,
     overlay: (
       <>
-        <Plot id="check-a" pts={[[900, 566], [1030, 560], [1036, 646], [906, 652]]} />
-        <Plot id="check-b" pts={[[1290, 566], [1420, 558], [1428, 646], [1296, 654]]} tone="#F6D2B0" />
-        <path className="scene-draw" d="M968 604Q1165 470 1360 604" pathLength={1} fill="none" stroke="#C2412D" strokeWidth={3.5} strokeLinecap="round" />
-        <Pin at={[968, 604]} i={0} />
-        <Pin at={[1360, 604]} i={1} pulse />
+        {/* Plot A (Claimed) and Plot B (Reference) */}
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="hda-area edge-dash">
+          <polygon
+            points="14,30 28,26 32,46 16,50"
+            className="fill-[rgba(38,116,186,0.18)] stroke-[#2674BA] stroke-[1.5]"
+          />
+          <polygon
+            points="68,44 88,40 92,64 72,68"
+            className="fill-[rgba(0,122,90,0.18)] stroke-[#007A5A] stroke-[1.5]"
+          />
+          {/* Radar vector connecting the two plots */}
+          <path
+            d="M 28 38 Q 50 20 78 52"
+            fill="none"
+            stroke="#2674BA"
+            strokeWidth="1.5"
+            strokeDasharray="4 3"
+            className="opacity-70"
+          />
+        </svg>
+
+        {/* Radar pin on Plot A */}
+        <span
+          className="hda-pt hda-pt-blue"
+          style={{ "--x": "0.22", "--y": "0.38", "--d": "0" } as React.CSSProperties}
+        />
+        {/* Radar pin on Plot B */}
+        <span
+          className="hda-pt hda-pt-green"
+          style={{ "--x": "0.78", "--y": "0.52", "--d": "0.4" } as React.CSSProperties}
+        />
+
+        {/* Floating duplicate telemetry card */}
+        <div
+          className="hda-pane"
+          style={{ "--x": "0.08", "--y": "0.12", "--d": "0.8" } as React.CSSProperties}
+        >
+          <div className="rounded-lg border border-[#2674BA]/30 bg-[#F7F3EA]/95 p-3 shadow-lg backdrop-blur-md">
+            <div className="flex items-center justify-between gap-3 text-[11px] font-mono uppercase tracking-wider text-[#2674BA]">
+              <span>Duplicate check</span>
+              <span className="flex items-center gap-1 text-[10px] text-blue-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-600 animate-pulse" />
+                Clear
+              </span>
+            </div>
+            <div className="mt-1.5 space-y-1 font-mono text-[12px] text-[#1C1B18]">
+              <div className="flex justify-between gap-4">
+                <span className="text-[#6B6357]">64-bit dHash</span>
+                <span className="font-semibold">b0101100…</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-[#6B6357]">Hamming Dist</span>
+                <span className="font-semibold">&lt;~&gt; 18 bits</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-[#6B6357]">Evaluation</span>
+                <span className="font-semibold text-emerald-700">0 Collisions</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </>
     ),
-    card: (
-      <SceneCard
-        title="Possible reuse"
-        tone="fraud"
-        note="The same photo, submitted to two plots run by different organisations."
-        rows={[
-          { label: "Bits that differ", value: "5 of 64", mono: true },
-          { label: "Flagged below", value: "8", mono: true },
-          { label: "Next", value: "A reviewer looks" },
-        ]}
-      />
-    ),
-    cardAt: { left: "4%", top: "5%" },
   },
   {
     label: "Review",
+    art: "haor",
+    alt: "Watercolour painted from satellite imagery of the Tanguar Haor wetland, Sunamganj",
+    readout: "25.1250° N  91.0750° E   TANGUAR HAOR",
+    washColor: "#7C65B0",
+    meta: WATERCOLOUR.haor,
     caption: (
       <>
-        Two reviewers from an <mark className="brush">independent organisation</mark> must agree before anything counts.
+        Two reviewers from an <mark className="hdr-key">independent organisation</mark> must agree. Nobody reviews their own work.
       </>
     ),
-    pan: 2040,
     overlay: (
       <>
-        <Plot id="review-a" pts={[[1914, 576], [2172, 574], [2182, 724], [1924, 724]]} />
-        <Pin at={[1990, 640]} i={0} />
-        <Pin at={[2104, 688]} i={1} pulse />
+        {/* conservation tract */}
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="hda-area edge-dash">
+          <polygon
+            points="42,28 78,24 84,62 48,66"
+            className="fill-[rgba(124,101,176,0.15)] stroke-[#7C65B0] stroke-[1.5]"
+          />
+        </svg>
+
+        <span
+          className="hda-pt"
+          style={{ "--pt": "#7C65B0", "--x": "0.58", "--y": "0.42", "--d": "0" } as React.CSSProperties}
+        />
+        <span
+          className="hda-pt"
+          style={{ "--pt": "#2674BA", "--x": "0.68", "--y": "0.50", "--d": "0.3" } as React.CSSProperties}
+        />
+
+        {/* Floating review card */}
+        <div
+          className="hda-pane"
+          style={{ "--x": "0.54", "--y": "0.10", "--d": "0.8" } as React.CSSProperties}
+        >
+          <div className="rounded-lg border border-[#7C65B0]/30 bg-[#F7F3EA]/95 p-3 shadow-lg backdrop-blur-md">
+            <div className="flex items-center justify-between gap-3 text-[11px] font-mono uppercase tracking-wider text-[#7C65B0]">
+              <span>2-of-N Quorum</span>
+              <span className="flex items-center gap-1 text-[10px] text-purple-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-purple-600 animate-pulse" />
+                Signed
+              </span>
+            </div>
+            <div className="mt-1.5 space-y-1 font-mono text-[12px] text-[#1C1B18]">
+              <div className="flex justify-between gap-4">
+                <span className="text-[#6B6357]">Reviewer 1</span>
+                <span className="font-semibold">Approved</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-[#6B6357]">Reviewer 2</span>
+                <span className="font-semibold">Approved</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-[#6B6357]">Own organisation</span>
+                <span className="font-semibold text-emerald-700">Neither</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </>
     ),
-    card: (
-      <div className="rounded-lg border border-paper-rule bg-paper-card p-3 text-[12px] leading-[1.45] text-paper-ink">
-        <p className="flex items-center gap-2 text-[13px] font-medium">
-          <span aria-hidden className="size-1.5 rounded-full bg-paper-seal" />
-          Decision · plot 7
-        </p>
-        <ul className="mt-2 space-y-2">
-          {[
-            ["R1", "New growth matches the after photo. Approve."],
-            ["R2", "Location and dates are consistent. Approve."],
-          ].map(([who, said]) => (
-            <li key={who} className="flex gap-2">
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#DDE9E2] text-[10px] font-medium text-paper-seal">{who}</span>
-              <span className="text-paper-muted">{said}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-2 flex items-center justify-between border-t border-paper-rule pt-2">
-          <span className="text-paper-muted">Independent of the claimant</span>
-          <span className="font-mono tabular-nums">2 of 2</span>
-        </p>
-      </div>
-    ),
-    cardAt: { left: "60%", top: "4%" },
   },
   {
     label: "Verify",
+    art: "coast",
+    alt: "Watercolour painted from satellite imagery of Sonadia island and the coast near Cox’s Bazar",
+    readout: "21.4750° N  91.8750° E   SONADIA",
+    washColor: "#D97706",
+    meta: WATERCOLOUR.coast,
     caption: (
       <>
-        Anyone can recheck the record in a browser, <mark className="brush">without trusting us</mark>.
+        Anyone can drop a photo onto a proof page and check it against the record,{" "}
+        <mark className="hdr-key">without trusting us</mark>.
       </>
     ),
-    pan: 2700,
     overlay: (
       <>
-        <Plot id="verify-a" pts={[[2272, 450], [2398, 440], [2408, 548], [2282, 556]]} />
-        <Pin at={[2340, 500]} i={0} />
-        <Pin at={[2760, 418]} i={1} pulse />
+        {/* finalized anchor boundary */}
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="hda-area">
+          <polygon
+            points="22,36 52,32 58,68 28,72"
+            className="fill-[rgba(217,119,6,0.18)] stroke-[#D97706] stroke-[1.8]"
+          />
+        </svg>
+
+        <span
+          className="hda-pt hda-pt-orange is-sel"
+          style={{ "--x": "0.42", "--y": "0.52", "--d": "0" } as React.CSSProperties}
+        />
+
+        {/* Floating on-chain proof card */}
+        <div
+          className="hda-pane"
+          style={{ "--x": "0.08", "--y": "0.14", "--d": "0.8" } as React.CSSProperties}
+        >
+          <div className="rounded-lg border border-[#D97706]/30 bg-[#F7F3EA]/95 p-3 shadow-lg backdrop-blur-md">
+            <div className="flex items-center justify-between gap-3 text-[11px] font-mono uppercase tracking-wider text-[#D97706]">
+              <span>Photo check</span>
+              <span className="flex items-center gap-1 text-[10px] text-amber-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-600 animate-pulse" />
+                Public
+              </span>
+            </div>
+            <div className="mt-1.5 space-y-1 font-mono text-[12px] text-[#1C1B18]">
+              <div className="flex justify-between gap-4">
+                <span className="text-[#6B6357]">Proof</span>
+                <span className="font-semibold">Approved record</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-[#6B6357]">SHA-256</span>
+                <span className="font-semibold">9e41…c07a</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-[#6B6357]">Drop Photo</span>
+                <span className="font-semibold text-emerald-700">Exact match</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </>
     ),
-    card: (
-      <SceneCard
-        title="Anyone can check"
-        tone="chain"
-        note="Recomputed in your browser."
-        rows={[
-          { label: "Your file", value: FINGERPRINT, mono: true },
-          { label: "On record", value: FINGERPRINT, mono: true },
-          { label: "Result", value: "Match", tone: "seal" },
-        ]}
-      />
-    ),
-    cardAt: { left: "60%", top: "4%" },
   },
 ];

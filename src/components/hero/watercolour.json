@@ -1,0 +1,42 @@
+{
+  "mangrove": {
+    "inkEnd": 1.4,
+    "washFrom": 0.9,
+    "washEnd": 3.6,
+    "paper": [
+      0.957,
+      0.945,
+      0.918
+    ]
+  },
+  "haor": {
+    "inkEnd": 1.4,
+    "washFrom": 0.9,
+    "washEnd": 3.6,
+    "paper": [
+      0.957,
+      0.945,
+      0.918
+    ]
+  },
+  "river": {
+    "inkEnd": 1.4,
+    "washFrom": 0.9,
+    "washEnd": 3.6,
+    "paper": [
+      0.957,
+      0.945,
+      0.918
+    ]
+  },
+  "coast": {
+    "inkEnd": 1.4,
+    "washFrom": 0.9,
+    "washEnd": 3.6,
+    "paper": [
+      0.957,
+      0.945,
+      0.918
+    ]
+  }
+}

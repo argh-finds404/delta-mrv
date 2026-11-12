@@ -54,8 +54,8 @@ const FRAUDS = [
 
 // docs/13-FEATURE-SPEC.md, connecting the dots. `built` is the honest state of this build.
 const STEPS = [
-  { title: "Capture", body: "Field teams photograph the site before and after. Originals go to private storage, untouched.", built: false },
-  { title: "Automatic checks", body: "Each file is checked for reuse, location and timing. Every flag carries a reason a person can read.", built: false },
+  { title: "Capture", body: "Field teams photograph the site before and after. Originals go to private storage, untouched.", built: true },
+  { title: "Automatic checks", body: "Each file is checked for reuse, location and timing. Every flag carries a reason a person can read.", built: true },
   { title: "Independent review", body: "Two reviewers from an organisation independent of the claimant must agree. Nobody reviews their own work.", built: true },
   { title: "Permanent record", body: "Every decision is appended to a log that no one, including us, can edit or delete.", built: true },
   { title: "Daily anchor", body: "Approved records are batched into one fingerprint and published once a day.", built: false },
@@ -67,11 +67,11 @@ export default function Home() {
     <div data-theme="paper" className="min-h-dvh bg-paper font-sans text-paper-ink">
       <SiteHeader />
       <main>
-        {/* 1. Hero: the claim on the left, the scene band on the right (after felt.com) */}
-        <section
-          className={`${container} grid gap-x-16 gap-y-10 overflow-x-clip py-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:grid-rows-[auto_auto] lg:py-20`}
-        >
-          <div className="brush-on-load space-y-8 lg:col-start-1 lg:row-start-1 lg:self-end">
+        {/* 1. Hero: the claim on the left, the painting on the right running off the page (after felt.com).
+            The clip sits on the full-width section, so the painting reaches the viewport edge. */}
+        <section className="overflow-x-clip">
+         <div className={`${container} grid gap-x-12 gap-y-10 py-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:grid-rows-[auto_auto] lg:py-16`}>
+          <div className="brush-on-load relative z-10 space-y-8 lg:col-start-1 lg:row-start-1 lg:self-end">
             <p className="text-[15px] text-paper-muted">Measurement, reporting and verification for restoration</p>
             <h1 className="type-display">
               “We planted 500 mangroves.”
@@ -95,6 +95,7 @@ export default function Home() {
             </div>
           </div>
           <HeroBand />
+         </div>
         </section>
 
         <section aria-label="The registry today" className="border-t border-paper-rule">

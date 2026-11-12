@@ -7,6 +7,7 @@ import {
   ChevronUp,
   ChevronsLeftRight,
   Columns2,
+  ImageOff,
   RotateCcw,
   SlidersHorizontal,
   ZoomIn,
@@ -87,6 +88,7 @@ export function EvidencePair({
   const isPaper = theme === "paper";
 
   const [position, setPosition] = React.useState<number>(50); // divider, % of image width
+  const [broken, setBroken] = React.useState<Record<string, boolean>>({});
   const [viewMode, setViewMode] = React.useState<"slider" | "side-by-side">("slider");
   const [zoom, setZoom] = React.useState<number>(1);
   const [pan, setPan] = React.useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -212,16 +214,25 @@ export function EvidencePair({
   /** The picture itself. Pills live inside its box, captions never do. */
   const picture = (img: EvidenceImage, label: string, side: "left" | "right") => (
     <>
-      <Image
-        src={img.url}
-        alt={`${label} photo, captured ${formatDate(img.capturedAt)}`}
-        width={img.width ?? 800}
-        height={img.height ?? 600}
-        unoptimized
-        draggable={false}
-        style={imageStyle}
-        className="pointer-events-none size-full select-none object-fill"
-      />
+      {broken[img.url] ? (
+        // a stored original that does not load is said plainly, never shown as a broken icon
+        <span className="flex size-full flex-col items-center justify-center gap-2 bg-field-raised p-6 text-center text-[13px] text-field-muted">
+          <ImageOff className="size-5" aria-hidden />
+          The {label.toLowerCase()} photo could not be loaded from storage.
+        </span>
+      ) : (
+        <Image
+          src={img.url}
+          alt={`${label} photo, captured ${formatDate(img.capturedAt)}`}
+          width={img.width ?? 800}
+          height={img.height ?? 600}
+          unoptimized
+          draggable={false}
+          style={imageStyle}
+          onError={() => setBroken((b) => ({ ...b, [img.url]: true }))}
+          className="pointer-events-none size-full select-none object-fill"
+        />
+      )}
       <span
         className={cn(
           "pointer-events-none absolute top-2 z-10 rounded-sm bg-field-abyss/70 px-2 py-1 text-xs leading-4 text-field-text",

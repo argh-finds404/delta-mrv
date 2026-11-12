@@ -1,76 +1,35 @@
-import * as React from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { Wordmark } from "@/src/components/site/Wordmark";
+import { SiteFooter } from "@/src/components/site/SiteFooter";
+import { SiteHeader } from "@/src/components/site/SiteHeader";
 import { ReverseLookup } from "@/src/components/verify/ReverseLookup";
 
 export const metadata: Metadata = {
-  title: "Reverse Proof Lookup · Delta",
-  description:
-    "Verify any ecological grant evidence photograph, transaction hash, or proof identifier against Delta's immutable ledger.",
+  title: "Check a photo · Delta",
+  description: "Look up a photo, a proof id or a transaction hash among Delta's approved records. The photo never leaves your device.",
 };
 
+/** /verify (docs/16-AMENDMENTS-v2.md A7). */
 export default function VerifyPage() {
   return (
-    <div
-      data-theme="paper"
-      className="min-h-screen bg-paper text-paper-ink font-sans transition-colors pb-16"
-    >
-      {/* Paper Top Navigation */}
-      <nav className="border-b border-paper-rule bg-paper-card px-4 py-3 sm:px-8">
-        <div className="mx-auto flex max-w-5xl items-center justify-between">
-          <Link href="/atlas" className="flex items-center gap-2 group">
-            <Wordmark className="text-paper-ink" />
-            <span className="text-paper-muted text-xs">/</span>
-            <span className="text-xs text-paper-muted">Reverse Verification</span>
-          </Link>
-
-          <Link
-            href="/atlas"
-            className="text-xs text-paper-muted hover:text-paper-ink transition-colors flex items-center gap-1 font-mono"
-          >
-            <ArrowLeft className="size-3" />
-            <span>Impact Atlas</span>
-          </Link>
-        </div>
-      </nav>
-
-      {/* Main Single-Column Paper Measure */}
-      <main className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8 space-y-10">
-        <header className="space-y-3 text-center max-w-xl mx-auto">
-          <span className="rounded-md border border-paper-rule bg-paper-card px-2.5 py-1 text-xs font-mono text-paper-muted uppercase tracking-wider">
-            Public Audit Lookup (Amendment A7)
-          </span>
-          <h1 className="font-serif text-3xl font-semibold tracking-tight text-paper-ink sm:text-4xl">
-            Verify Ecological Evidence
-          </h1>
-          <p className="text-sm text-paper-muted leading-relaxed">
-            Validate any grant evidence photograph, transaction hash, or proof identifier against
-            Delta’s cryptographic ledger. No account or web3 wallet required.
+    <div data-theme="paper" className="min-h-dvh bg-paper font-sans text-paper-ink">
+      <SiteHeader />
+      <main className="mx-auto max-w-[760px] space-y-10 px-6 py-12 lg:py-16">
+        <header className="space-y-4">
+          <h1 className="type-display">Check a photo</h1>
+          <p className="max-w-[56ch] text-[17px] leading-[1.6] text-paper-muted">
+            Was this exact file part of an approved restoration record? Drop it in, or paste a proof id or a fingerprint. No account needed.
           </p>
         </header>
-
-        <ReverseLookup theme="paper" />
-
-        <footer className="border-t border-paper-rule pt-8 text-xs text-paper-muted space-y-2 max-w-2xl mx-auto text-center">
-          <p className="leading-relaxed">
-            Delta proves that specific photographic files existed at specific times, that
-            independent verifiers reviewed them under a conflict-of-interest protocol, and that the
-            record has not been altered since anchoring.
-          </p>
-          <div className="flex items-center justify-center gap-4 pt-2 text-[11px] font-mono">
-            <Link href="/trust" className="hover:text-paper-ink hover:underline">
-              Trust &amp; Transparency Statement
-            </Link>
-            <span>·</span>
-            <Link href="/atlas" className="hover:text-paper-ink hover:underline">
-              Impact Atlas
-            </Link>
-          </div>
-        </footer>
+        <ReverseLookup />
+        <p className="border-t border-paper-rule pt-6 text-[14px] leading-[1.6] text-paper-muted">
+          A match means the file is byte-for-byte the one that was reviewed. It does not mean the photo shows what its caption says, or that the work on the ground happened.{" "}
+          <Link href="/trust" className="text-paper-ink underline decoration-paper-rule underline-offset-[5px] hover:decoration-paper-ink">
+            What Delta proves
+          </Link>
+        </p>
       </main>
+      <SiteFooter />
     </div>
   );
 }
-

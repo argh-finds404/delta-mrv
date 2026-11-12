@@ -1,344 +1,221 @@
-import * as React from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Compass,
-  ShieldAlert,
-  ShieldCheck,
-} from "lucide-react";
-import { Wordmark } from "@/src/components/site/Wordmark";
+import { SiteFooter } from "@/src/components/site/SiteFooter";
+import { REPO_URL, SiteHeader } from "@/src/components/site/SiteHeader";
+import { EVAL } from "@/src/lib/forensics/eval-results";
+import { FUZZ_CELLS_PER_DEGREE } from "@/src/lib/geo/fuzz";
+import { DOES_NOT_PROVE, NOT_BUILT_YET, PROVES } from "@/src/lib/limits";
 
 export const metadata: Metadata = {
-  title: "Trust, Forensics & System Limits · Delta",
-  description:
-    "System specification, measured precision/recall, forensic rules, and cryptographic boundaries of Delta MRV.",
+  title: "Trust · Delta",
+  description: "What Delta proves and does not, every automated check and its severity, measured detection results, and how site locations are protected.",
 };
 
-const FORENSIC_RULES = [
-  {
-    kind: "EXACT_DUPLICATE_SAME_PROJECT",
-    severity: "LOW",
-    domain: "Duplicates",
-    rule: "Byte-identical SHA-256 match within the same project. Expected in recurring plot time-series.",
-  },
-  {
-    kind: "EXACT_DUPLICATE_SAME_ORG",
-    severity: "HIGH",
-    domain: "Duplicates",
-    rule: "Byte-identical SHA-256 match across different projects owned by the same organisation. Flags grant double-claiming.",
-  },
-  {
-    kind: "EXACT_DUPLICATE_OTHER_ORG",
-    severity: "HIGH",
-    domain: "Duplicates",
-    rule: "Byte-identical SHA-256 match across projects owned by different organisations. Re-use of public imagery.",
-  },
-  {
-    kind: "PERCEPTUAL_MATCH_SAME_PROJECT",
-    severity: "LOW",
-    domain: "Perceptual",
-    rule: "64-bit dHash Hamming distance < 8 within same project. Indicates repeated vantage angle.",
-  },
-  {
-    kind: "PERCEPTUAL_MATCH_SAME_ORG",
-    severity: "HIGH",
-    domain: "Perceptual",
-    rule: "64-bit dHash Hamming distance < 8 across different projects by same org. Recycled baseline photos.",
-  },
-  {
-    kind: "PERCEPTUAL_MATCH_OTHER_ORG",
-    severity: "HIGH",
-    domain: "Perceptual",
-    rule: "64-bit dHash Hamming distance < 8 across different organisations. Cross-entity photo plagiarism.",
-  },
-  {
-    kind: "NO_VISIBLE_CHANGE",
-    severity: "MEDIUM",
-    domain: "Pair Delta",
-    rule: "BEFORE vs AFTER dHash distance < 4 bits. Indicates no perceptible site alteration or vegetative growth.",
-  },
-  {
-    kind: "GPS_OUTSIDE_BOUNDARY",
-    severity: "MEDIUM",
-    domain: "Geofence",
-    rule: "Photo EXIF coordinates located beyond project boundary and tolerance buffer. Off-site nursery spoofing.",
-  },
-  {
-    kind: "EXIF_TIMESTAMP_IMPLAUSIBLE",
-    severity: "MEDIUM",
-    domain: "EXIF",
-    rule: "Capture timestamp post-dates file upload or pre-dates registered project inception date.",
-  },
-  {
-    kind: "EXIF_FULLY_STRIPPED",
-    severity: "LOW",
-    domain: "EXIF",
-    rule: "No EXIF/TIFF segments present. Common when photos are forwarded via WhatsApp/Telegram.",
-  },
-  {
-    kind: "GPS_MISSING",
-    severity: "LOW",
-    domain: "Geofence",
-    rule: "Image carries camera telemetry but lacks embedded GPS tags. Missing signal, not proof of fraud.",
-  },
-  {
-    kind: "GPS_INSIDE_BOUNDARY",
-    severity: "INFO",
-    domain: "Geofence",
-    rule: "PostGIS ST_Covers evaluates true. Photograph verified within registered restoration boundary.",
-  },
+const container = "mx-auto max-w-[920px] px-6 lg:px-10";
+const link = "underline decoration-paper-rule underline-offset-[5px] transition-colors hover:decoration-paper-ink";
+
+// docs/10-FORENSICS.md §3: the condition column is the spec's own wording.
+const FINDINGS: [kind: string, severity: "INFO" | "LOW" | "MEDIUM" | "HIGH", condition: string][] = [
+  ["EXACT_DUPLICATE_SAME_PROJECT", "LOW", "Identical SHA-256 within the same project"],
+  ["EXACT_DUPLICATE_SAME_ORG", "HIGH", "Identical SHA-256, same organisation, different project"],
+  ["EXACT_DUPLICATE_OTHER_ORG", "HIGH", "Identical SHA-256, different organisation"],
+  ["PERCEPTUAL_MATCH_SAME_PROJECT", "LOW", "Hamming distance < 8 within the same project"],
+  ["PERCEPTUAL_MATCH_SAME_ORG", "HIGH", "Hamming distance < 8, same organisation, different project"],
+  ["PERCEPTUAL_MATCH_OTHER_ORG", "HIGH", "Hamming distance < 8, different organisation"],
+  ["GPS_INSIDE_BOUNDARY", "INFO", "Position in the photo is inside the project boundary"],
+  ["GPS_WITHIN_TOLERANCE", "INFO", "Outside, but within the project's tolerance"],
+  ["GPS_OUTSIDE_BOUNDARY", "MEDIUM", "Beyond the tolerance; the distance is recorded"],
+  ["GPS_MISSING", "LOW", "No position in the photo"],
+  ["EXIF_TIMESTAMP_MISSING", "LOW", "No capture time in the photo"],
+  ["EXIF_TIMESTAMP_IMPLAUSIBLE", "MEDIUM", "Capture time after the upload, or (for a photo of the work) before the project existed"],
+  ["EXIF_FULLY_STRIPPED", "LOW", "No EXIF metadata at all"],
+  ["NO_VISIBLE_CHANGE", "MEDIUM", "Before and after are within Hamming distance 4: the pair may show the same scene"],
+  ["CLIENT_HASH_MISMATCH", "MEDIUM", "The fingerprint the device computed differs from the stored file's"],
 ];
 
+const STATUS: [part: string, built: boolean][] = [
+  ["Private upload, server-side fingerprint of the stored file", true],
+  ["Automatic checks: reuse, near-duplicates, capture time, position, before/after change", true],
+  ["Independent review: two reviewers from an organisation independent of the claimant", true],
+  ["Append-only review decisions, enforced by the database", true],
+  ["Public proof pages and photo lookup", true],
+  ["Hash-chained audit log", false],
+  ["Daily anchoring on Base Sepolia, checked in the visitor's browser", false],
+];
+
+const sev = { INFO: "text-paper-muted", LOW: "text-paper-ink", MEDIUM: "text-[#8A5A12]", HIGH: "text-[#A3301E]" } as const;
+
 export default function TrustPage() {
+  const cellKm = Math.round((111.32 / FUZZ_CELLS_PER_DEGREE) * 10) / 10;
   return (
-    <div
-      data-theme="paper"
-      className="min-h-screen bg-paper text-paper-ink font-sans transition-colors pb-16"
-    >
-      {/* Paper Top Navigation */}
-      <nav className="border-b border-paper-rule bg-paper-card px-4 py-3 sm:px-8">
-        <div className="mx-auto flex max-w-5xl items-center justify-between">
-          <Link href="/atlas" className="flex items-center gap-2 group">
-            <Wordmark className="text-paper-ink" />
-            <span className="text-paper-muted text-xs">/</span>
-            <span className="text-xs text-paper-muted">Trust &amp; Verification Protocol</span>
-          </Link>
-
-          <div className="flex items-center gap-4 text-xs font-mono">
-            <Link
-              href="/verify"
-              className="text-paper-muted hover:text-paper-ink transition-colors"
-            >
-              Reverse Lookup
-            </Link>
-            <Link
-              href="/atlas"
-              className="text-paper-muted hover:text-paper-ink transition-colors flex items-center gap-1"
-            >
-              <ArrowLeft className="size-3" />
-              <span>Atlas</span>
-            </Link>
-          </div>
-        </div>
-      </nav>
-
-      {/* Main Single-Column Paper Measure */}
-      <main className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8 space-y-12">
-        {/* 1. Header */}
-        <header className="space-y-4 border-b border-paper-rule pb-8">
-          <span className="rounded-md border border-paper-rule bg-paper-card px-2.5 py-1 text-xs font-mono text-paper-muted uppercase tracking-wider">
-            Amendment A8 · Authority Specification
-          </span>
-          <h1 className="font-serif text-3xl font-semibold tracking-tight text-paper-ink sm:text-4xl">
-            Trust Architecture &amp; System Limits
-          </h1>
-          <p className="text-sm text-paper-muted leading-relaxed max-w-2xl">
-            A verification system that implies absence is guilt or exaggerates digital proof is worse
-            than no system at all. This document discloses Delta&apos;s cryptographic bounds, forensic
-            rules, and measured precision.
+    <div data-theme="paper" className="min-h-dvh bg-paper font-sans text-paper-ink">
+      <SiteHeader />
+      <main className={`${container} space-y-20 py-12 lg:py-16`}>
+        <header className="space-y-5">
+          <h1 className="type-display">What Delta proves, and what it does not</h1>
+          <p className="max-w-[60ch] text-[17px] leading-[1.6] text-paper-muted">
+            A verification tool that overstates itself is worse than none. This page says what the checks are, how well they work when measured, and where they stop.
           </p>
         </header>
 
-        {/* 2. What Delta Proves vs What Delta Does NOT Prove */}
-        <section aria-labelledby="limits-heading" className="space-y-4">
-          <h2 id="limits-heading" className="font-serif text-2xl font-medium text-paper-ink">
-            What Delta Proves and Does Not Prove
+        <section aria-labelledby="limits" className="space-y-6">
+          <h2 id="limits" className="sr-only">
+            Proves and does not prove
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
-            {/* Proves */}
-            <div className="rounded-xl border border-paper-seal/40 bg-paper-seal/5 p-6 space-y-3">
-              <div className="flex items-center gap-2 text-paper-seal font-medium text-sm">
-                <ShieldCheck className="size-5 shrink-0" />
-                <span>What Delta Proves</span>
+          <div className="grid gap-10 md:grid-cols-2">
+            {[
+              ["It proves", PROVES],
+              ["It does not prove", DOES_NOT_PROVE],
+            ].map(([title, items]) => (
+              <div key={title as string} className="space-y-4">
+                <h3 className="type-section">{title as string}</h3>
+                <ul className="divide-y divide-paper-rule border-y border-paper-rule">
+                  {(items as readonly string[]).map((t) => (
+                    <li key={t} className="py-3 text-[16px] leading-[1.5]">
+                      {t}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul className="text-xs text-paper-muted leading-relaxed space-y-2 list-disc pl-4">
-                <li>
-                  <strong className="text-paper-ink">Cryptographic Existence:</strong> Specific
-                  photographic files existed at specific timestamps without subsequent modification.
-                </li>
-                <li>
-                  <strong className="text-paper-ink">Conflict-of-Interest Consensus:</strong> Two
-                  independent reviewer organisations audited the claim with mandatory written
-                  reasons.
-                </li>
-                <li>
-                  <strong className="text-paper-ink">Append-Only Immutability:</strong> The audit trail
-                  and Merkle proofs anchored to Base Sepolia cannot be altered, rolled back, or deleted.
-                </li>
-                <li>
-                  <strong className="text-paper-ink">Duplicate &amp; Geofence Consistency:</strong>{" "}
-                  Perceptual dHash and PostGIS polygon tests verify on-site geographic consistency.
-                </li>
-              </ul>
-            </div>
-
-            {/* Does NOT Prove */}
-            <div className="rounded-xl border border-[#E8A33D]/40 bg-[#E8A33D]/5 p-6 space-y-3">
-              <div className="flex items-center gap-2 text-[#9A6014] font-medium text-sm">
-                <ShieldAlert className="size-5 shrink-0" />
-                <span>What Delta Does NOT Prove</span>
-              </div>
-              <ul className="text-xs text-paper-muted leading-relaxed space-y-2 list-disc pl-4">
-                <li>
-                  <strong className="text-paper-ink">Biological Longevity:</strong> Delta does not
-                  prove that trees grew, that carbon was permanently sequestered, or that saplings
-                  survive beyond the capture date.
-                </li>
-                <li>
-                  <strong className="text-paper-ink">Soil / Ecology Quality:</strong> Digital records
-                  do not replace on-the-ground soil assays, biomass core sampling, or botanical
-                  surveys.
-                </li>
-                <li>
-                  <strong className="text-paper-ink">Actor Identity:</strong> Delta does not verify
-                  the physical identity of field photographers beyond their organization membership.
-                </li>
-                <li>
-                  <strong className="text-paper-ink">Ground Reality:</strong> Physical reality can
-                  diverge from digital records. Independent physical auditing remains essential.
-                </li>
-              </ul>
-            </div>
+            ))}
           </div>
+          <p className="text-[15px] text-paper-muted">{NOT_BUILT_YET}</p>
         </section>
 
-        {/* 3. Forensics Pipeline Rules Table */}
-        <section aria-labelledby="rules-heading" className="space-y-4">
-          <div className="flex items-center justify-between border-t border-paper-rule pt-8">
-            <h2 id="rules-heading" className="font-serif text-2xl font-medium text-paper-ink">
-              Forensic Radar Detection Rules
-            </h2>
-            <span className="font-mono text-xs text-paper-muted">Deterministic Pipeline</span>
-          </div>
-          <p className="text-xs text-paper-muted leading-relaxed">
-            Delta evaluates 12 deterministic signals on intake. Severity is looked up from rules, never
-            invented. Signals inform independent human auditors in the Evidence Lab; AI never approves
-            or rejects grants autonomously.
-          </p>
+        <section aria-labelledby="built" className="space-y-5">
+          <h2 id="built" className="type-section">
+            What is built today
+          </h2>
+          <ul className="divide-y divide-paper-rule border-y border-paper-rule">
+            {STATUS.map(([part, built]) => (
+              <li key={part} className="flex items-baseline justify-between gap-6 py-3 text-[16px]">
+                <span>{part}</span>
+                <span className={`shrink-0 text-[14px] ${built ? "text-paper-seal" : "text-paper-muted"}`}>{built ? "Built" : "Not built yet"}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
 
-          <div className="overflow-x-auto rounded-xl border border-paper-rule bg-paper-card">
-            <table className="w-full text-left text-xs font-sans">
-              <thead className="border-b border-paper-rule bg-paper text-[11px] font-mono uppercase text-paper-muted">
-                <tr>
-                  <th className="p-3">Signal Code</th>
-                  <th className="p-3">Domain</th>
-                  <th className="p-3">Severity</th>
-                  <th className="p-3">Audit Operational Rule</th>
+        <section aria-labelledby="checks" className="space-y-5">
+          <h2 id="checks" className="type-section">
+            Every automated check
+          </h2>
+          <p className="max-w-[62ch] text-[16px] leading-[1.6] text-paper-muted">
+            Each check writes a finding with a reason a person can read. Severity is looked up from this table, never computed and never set by AI. A finding is a signal for the reviewers: it approves nothing and blocks nothing. The same photo in one project is a time series (LOW); the same photo behind two claims is the fraud this exists to catch (HIGH).
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[620px] border-y border-paper-rule text-left text-[15px]">
+              <thead className="text-[14px] text-paper-muted">
+                <tr className="border-b border-paper-rule">
+                  <th scope="col" className="py-3 pr-4 font-normal">
+                    Finding
+                  </th>
+                  <th scope="col" className="py-3 pr-4 font-normal">
+                    Severity
+                  </th>
+                  <th scope="col" className="py-3 font-normal">
+                    When
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-paper-rule/60 text-xs">
-                {FORENSIC_RULES.map((r) => (
-                  <tr key={r.kind} className="hover:bg-paper/40 transition-colors">
-                    <td className="p-3 font-mono text-[11px] font-semibold text-paper-ink">
-                      {r.kind}
-                    </td>
-                    <td className="p-3 text-paper-muted font-mono text-[11px]">{r.domain}</td>
-                    <td className="p-3 font-mono text-[11px]">
-                      <span
-                        className={
-                          r.severity === "HIGH"
-                            ? "text-fraud font-semibold"
-                            : r.severity === "MEDIUM"
-                              ? "text-[#9A6014] font-semibold"
-                              : r.severity === "LOW"
-                                ? "text-paper-muted"
-                                : "text-paper-seal"
-                        }
-                      >
-                        {r.severity}
-                      </span>
-                    </td>
-                    <td className="p-3 text-paper-muted leading-relaxed max-w-md">{r.rule}</td>
+              <tbody className="divide-y divide-paper-rule">
+                {FINDINGS.map(([kind, severity, condition]) => (
+                  <tr key={kind}>
+                    <td className="py-3 pr-4 font-mono text-[13px]">{kind}</td>
+                    <td className={`py-3 pr-4 font-medium ${sev[severity]}`}>{severity}</td>
+                    <td className="py-3 leading-[1.5]">{condition}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          <p className="text-[15px] text-paper-muted">
+            A match in another organisation says that a match exists and how close it is, never which organisation, project or file. Missing metadata is a signal, not guilt.
+          </p>
         </section>
 
-        {/* 4. Coordinate Fuzzing & Privacy Protection */}
-        <section aria-labelledby="privacy-heading" className="space-y-4">
-          <div className="flex items-center justify-between border-t border-paper-rule pt-8">
-            <h2 id="privacy-heading" className="font-serif text-2xl font-medium text-paper-ink">
-              Coordinate Fuzzing &amp; Habitat Protection
-            </h2>
-            <span className="font-mono text-xs text-paper-muted">RFC 8785 Commitments</span>
-          </div>
-
-          <div className="rounded-xl border border-paper-rule bg-[#EDE6D6] p-6 space-y-3 text-xs leading-relaxed text-paper-muted">
-            <div className="flex items-center gap-2 text-paper-ink font-semibold">
-              <Compass className="size-4 text-paper-seal" />
-              <span>Why Delta Withholds Exact Polygon Coordinates on Public Routes</span>
-            </div>
-            <p>
-              Environmental restoration projects often protect endangered flora, rare mangrove
-              nurseries, or sensitive coastal tiger habitats. Publishing exact coordinates invites
-              poaching, illegal logging, and biopiracy incursions.
-            </p>
-            <p>
-              Delta computes an area-level fuzzed centroid (approx. 5.5 km grid cell centre) for
-              public maps and commits to the exact boundary using a cryptographic location commitment:
-            </p>
-            <div className="rounded bg-paper-card p-3 font-mono text-[11px] text-paper-ink border border-paper-rule">
-              locationCommitment = SHA256(&quot;DELTA_LOC_V1:&quot; + salt_hex + &quot;:&quot; +
-              canonicalize(exactGeoJson))
-            </div>
-            <p>
-              The salt and exact polygon are disclosed only to authorized independent auditors
-              assigned to that project. Any stranger can verify the commitment once authorized.
-            </p>
-          </div>
-        </section>
-
-        {/* 5. Architectural Decision Records (ADRs) */}
-        <section aria-labelledby="adrs-heading" className="space-y-4 border-t border-paper-rule pt-8">
-          <h2 id="adrs-heading" className="font-serif text-2xl font-medium text-paper-ink">
-            Core Architectural Decision Records
+        <section aria-labelledby="measured" className="space-y-5">
+          <h2 id="measured" className="type-section">
+            How well the photo matching works, measured
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1 text-xs">
-            <div className="rounded-xl border border-paper-rule bg-paper-card p-4 space-y-1.5">
-              <span className="font-mono text-[11px] text-paper-muted uppercase block">ADR-0001</span>
-              <strong className="text-paper-ink font-serif block">Custom Registry vs EAS</strong>
-              <p className="text-paper-muted text-[11px] leading-relaxed">
-                Foundry-audited minimal registry contract over EAS to eliminate external schema
-                dependencies and gas overhead.
-              </p>
-            </div>
-            <div className="rounded-xl border border-paper-rule bg-paper-card p-4 space-y-1.5">
-              <span className="font-mono text-[11px] text-paper-muted uppercase block">ADR-0002</span>
-              <strong className="text-paper-ink font-serif block">Base Sepolia L2 Anchoring</strong>
-              <p className="text-paper-muted text-[11px] leading-relaxed">
-                Public EVM anchoring on Base Sepolia with 1-per-day Merkle tree batches, ensuring $0
-                operating cost at scale.
-              </p>
-            </div>
-            <div className="rounded-xl border border-paper-rule bg-paper-card p-4 space-y-1.5">
-              <span className="font-mono text-[11px] text-paper-muted uppercase block">ADR-0005</span>
-              <strong className="text-paper-ink font-serif block">Deterministic Merkle Leaves</strong>
-              <p className="text-paper-muted text-[11px] leading-relaxed">
-                StandardMerkleTree sorting leaves by submission ID to guarantee cross-runtime
-                agreement between Node and browser.
-              </p>
-            </div>
+          <p className="max-w-[62ch] text-[16px] leading-[1.6] text-paper-muted">
+            Edited copies of real photographs, run through the real fingerprint at the real threshold (Hamming distance under {EVAL.threshold} of 64). {EVAL.sample} Measured {EVAL.measuredOn}; the test suite re-measures it on every run and fails if these numbers change. Three photographs is a small sample: read it as a description, not a guarantee.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] border-y border-paper-rule text-left text-[15px]">
+              <thead className="text-[14px] text-paper-muted">
+                <tr className="border-b border-paper-rule">
+                  <th scope="col" className="py-3 pr-4 font-normal">
+                    Edit
+                  </th>
+                  <th scope="col" className="py-3 pr-4 font-normal">
+                    Matched
+                  </th>
+                  <th scope="col" className="py-3 font-normal">
+                    Note
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-paper-rule">
+                {EVAL.classes.map((c) => (
+                  <tr key={c.key}>
+                    <td className="py-3 pr-4">{c.label}</td>
+                    <td className="py-3 pr-4 tabular-nums">
+                      {c.matched} of {c.of}
+                    </td>
+                    <td className="py-3 leading-[1.5] text-paper-muted">{c.note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="max-w-[62ch] text-[15px] leading-[1.6]">
+            In short: a re-saved or shrunk copy is usually caught; a cropped or rotated copy is not. Every match found in this sample was a true one, and no two different photographs matched.
+          </p>
+        </section>
+
+        <section aria-labelledby="location" className="space-y-5">
+          <h2 id="location" className="type-section">
+            Why exact sites are not published
+          </h2>
+          <div className="max-w-[62ch] space-y-4 text-[16px] leading-[1.6]">
+            <p>
+              A restoration site can be a nursery worth stealing from or a habitat worth poaching in. So public maps show the centre of a grid cell about {cellKm} km across, never the site, and the server decides which a caller receives.
+            </p>
+            <p>
+              Each project also publishes a commitment to its exact boundary: <code className="font-mono text-[14px]">SHA-256(&quot;DELTA_LOC_V1:&quot; + salt + &quot;:&quot; + canonical boundary)</code>. Anyone later shown the boundary and its salt can recompute it and confirm the boundary was not changed after the fact.
+            </p>
           </div>
         </section>
 
-        {/* 6. Footer */}
-        <footer className="border-t border-paper-rule pt-8 text-xs text-paper-muted text-center space-y-2">
-          <p>Delta MRV · Open Ecological Verification Engine</p>
-          <div className="flex items-center justify-center gap-4 text-[11px] font-mono">
-            <Link href="/verify" className="hover:text-paper-ink hover:underline">
-              Reverse Verification
-            </Link>
-            <span>·</span>
-            <Link href="/atlas" className="hover:text-paper-ink hover:underline">
-              Impact Atlas
-            </Link>
-          </div>
-        </footer>
+        <section aria-labelledby="sources" className="space-y-4 border-t border-paper-rule pt-10">
+          <h2 id="sources" className="type-section">
+            Read the sources
+          </h2>
+          <ul className="space-y-2 text-[16px]">
+            <li>
+              <a className={link} href={`${REPO_URL}/blob/main/docs/THREAT_MODEL.md`}>
+                Threat model
+              </a>
+              <span className="text-paper-muted">: the adversaries and what stops each one</span>
+            </li>
+            <li>
+              <a className={link} href={`${REPO_URL}/tree/main/docs/adr`}>
+                Architecture decisions
+              </a>
+              <span className="text-paper-muted">: the anchor registry, the chain, the Merkle and manifest layout</span>
+            </li>
+            <li>
+              <Link className={link} href="/verify">
+                Check a photo
+              </Link>
+              <span className="text-paper-muted">: look up a file among approved records</span>
+            </li>
+          </ul>
+          <p className="pt-2 text-[15px] text-paper-muted">Planned, not built: a satellite cross-check of the site, and photos signed by the capturing device.</p>
+        </section>
       </main>
+      <SiteFooter />
     </div>
   );
 }
-

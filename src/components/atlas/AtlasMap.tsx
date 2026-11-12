@@ -11,6 +11,7 @@ import type {
 } from "maplibre-gl";
 import { Minus, Plus, Scan } from "lucide-react";
 import { FUZZ_CELLS_PER_DEGREE } from "@/src/lib/geo/fuzz";
+import { activityColor } from "@/src/lib/activity";
 import { formatLatLon } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import type { AtlasSite } from "./types";
@@ -25,22 +26,22 @@ const SATELLITE = {
     '<a href="https://cloudless.eox.at" target="_blank" rel="noopener">EOxCloudless</a> by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016)',
 };
 
-const LIME = "#D7F6B8";
-const STAGE = "#0B1211";
-const TEXT = "#E8EFEC";
+const WHITE = "#FFFFFF";
+const TEXT = "#17221F";
 const HALF_CELL = 0.5 / FUZZ_CELLS_PER_DEGREE;
+const COLOR: ExpressionSpecification = ["get", "color"];
 
-/** Positron recoloured to forest: the land recedes so the lime boundaries carry the screen. */
-const FOREST: [layer: string, property: string, value: string][] = [
-  ["background", "background-color", "#0F1A18"],
-  ["water", "fill-color", "#0B2427"],
-  ["waterway", "line-color", "#123238"],
-  ["park", "fill-color", "#13241E"],
-  ["landcover_wood", "fill-color", "#142820"],
-  ["landuse_residential", "fill-color", "#17231F"],
-  ["building", "fill-color", "#1B2925"],
-  ["boundary_2", "line-color", "#3E5650"],
-  ["boundary_3", "line-color", "#2F4540"],
+/** Positron warmed to the workspace's sand: water and green read as colour, the sites carry the rest. */
+const DAYLIGHT: [layer: string, property: string, value: string][] = [
+  ["background", "background-color", "#F4F0E6"],
+  ["water", "fill-color", "#BCD9E8"],
+  ["waterway", "line-color", "#A9CEE2"],
+  ["park", "fill-color", "#DCEAD0"],
+  ["landcover_wood", "fill-color", "#D5E6C8"],
+  ["landuse_residential", "fill-color", "#ECE6DA"],
+  ["building", "fill-color", "#E4DDCF"],
+  ["boundary_2", "line-color", "#B9B1A2"],
+  ["boundary_3", "line-color", "#CFC8BA"],
 ];
 
 export type AtlasPadding = { top: number; right: number; bottom: number; left: number };
@@ -83,7 +84,7 @@ function toGeoJson(sites: AtlasSite[]) {
       type: "FeatureCollection" as const,
       features: sites.map((s) => ({
         type: "Feature" as const,
-        properties: { id: s.id, kind: s.area.kind },
+        properties: { id: s.id, kind: s.area.kind, color: activityColor(s.activity) },
         geometry: { type: "Polygon" as const, coordinates: [areaRing(s)] },
       })),
     },
@@ -91,7 +92,7 @@ function toGeoJson(sites: AtlasSite[]) {
       type: "FeatureCollection" as const,
       features: sites.map((s) => ({
         type: "Feature" as const,
-        properties: { id: s.id, title: s.title },
+        properties: { id: s.id, title: s.title, color: activityColor(s.activity) },
         geometry: { type: "Point" as const, coordinates: s.area.center },
       })),
     },
@@ -134,7 +135,7 @@ export function AtlasMap({
   onSelect,
   onHover,
   variant = "explore",
-  basemap = "satellite",
+  basemap = "map",
   padding = EVEN_PADDING,
   className,
 }: AtlasMapProps) {
@@ -190,23 +191,16 @@ export function AtlasMap({
         if (cancelled || !map) return;
         loaded = true;
         setFailed(false);
-        // everything not named in FOREST recedes into it: roads, piers, runways
-        const named = new Set(FOREST.map(([layer]) => layer));
-        for (const { id, type } of map.getStyle().layers) {
-          if (named.has(id)) continue;
-          if (type === "line") map.setPaintProperty(id, "line-color", "#22332E");
-          if (type === "fill") map.setPaintProperty(id, "fill-color", "#16231F");
-        }
-        for (const [layer, prop, value] of FOREST) {
+        for (const [layer, prop, value] of DAYLIGHT) {
           if (map.getLayer(layer)) map.setPaintProperty(layer, prop, value);
         }
-        // One script for place names, light on dark. The preview keeps only countries.
+        // One script for place names, ink on white. The preview keeps only countries.
         for (const { id, type } of map.getStyle().layers) {
           if (type !== "symbol") continue;
           if (/^(label_|water_name)/.test(id) && (explore || id.startsWith("label_country"))) {
             map.setLayoutProperty(id, "text-field", ["coalesce", ["get", "name:en"], ["get", "name_en"], ["get", "name:latin"], ["get", "name"]]);
-            map.setPaintProperty(id, "text-color", id.startsWith("water") ? "#6E9AA0" : "#B9C9C3");
-            map.setPaintProperty(id, "text-halo-color", STAGE);
+            map.setPaintProperty(id, "text-color", id.startsWith("water") ? "#4D7E98" : "#6A746F");
+            map.setPaintProperty(id, "text-halo-color", WHITE);
             map.setPaintProperty(id, "text-halo-width", 1.2);
           } else {
             map.setLayoutProperty(id, "visibility", "none");
@@ -220,38 +214,38 @@ export function AtlasMap({
         const data = toGeoJson(latest.current.sites);
         map.addSource("areas", { type: "geojson", data: data.areas, promoteId: "id" });
         map.addSource("points", { type: "geojson", data: data.points, promoteId: "id" });
-        map.addLayer({ id: "areas-fill", type: "fill", source: "areas", paint: { "fill-color": LIME, "fill-opacity": areaFade(byState(0.16, 0.38, 0.6)) } });
+        map.addLayer({ id: "areas-fill", type: "fill", source: "areas", paint: { "fill-color": COLOR, "fill-opacity": areaFade(byState(0.18, 0.34, 0.42)) } });
         map.addLayer({
           id: "areas-line-approx",
           type: "line",
           source: "areas",
           filter: ["==", ["get", "kind"], "approximate"],
-          paint: { "line-color": LIME, "line-width": byState(1.5, 3, 2.75), "line-dasharray": [2, 1.5], "line-opacity": areaFade(1) },
+          paint: { "line-color": COLOR, "line-width": byState(1.75, 3, 2.75), "line-dasharray": [2, 1.5], "line-opacity": areaFade(1) },
         });
         map.addLayer({
           id: "areas-line-exact",
           type: "line",
           source: "areas",
           filter: ["==", ["get", "kind"], "exact"],
-          paint: { "line-color": LIME, "line-width": byState(1.75, 3.25, 3), "line-opacity": areaFade(1) },
+          paint: { "line-color": COLOR, "line-width": byState(2, 3.5, 3), "line-opacity": areaFade(1) },
         });
         // The pulse: a ring that breathes on the hovered (or open) site. Driven below, never on load.
-        map.addLayer({ id: "areas-pulse", type: "line", source: "areas", filter: ["==", ["get", "id"], ""], paint: { "line-color": LIME, "line-width": 2, "line-opacity": 0 } });
+        map.addLayer({ id: "areas-pulse", type: "line", source: "areas", filter: ["==", ["get", "id"], ""], paint: { "line-color": COLOR, "line-width": 2, "line-opacity": 0 } });
         map.addLayer({
           id: "points-pulse",
           type: "circle",
           source: "points",
           filter: ["==", ["get", "id"], ""],
-          paint: { "circle-color": "transparent", "circle-stroke-color": LIME, "circle-stroke-width": 2, "circle-radius": 8, "circle-stroke-opacity": 0 },
+          paint: { "circle-color": "transparent", "circle-stroke-color": COLOR, "circle-stroke-width": 2, "circle-radius": 8, "circle-stroke-opacity": 0 },
         });
         map.addLayer({
           id: "points-dot",
           type: "circle",
           source: "points",
           paint: {
-            "circle-color": LIME,
-            "circle-radius": byState(6, 8, 8),
-            "circle-stroke-color": STAGE,
+            "circle-color": COLOR,
+            "circle-radius": byState(7, 9, 9),
+            "circle-stroke-color": WHITE,
             "circle-stroke-width": 2.5,
             "circle-opacity": dotFade,
             "circle-stroke-opacity": dotFade,
@@ -270,7 +264,7 @@ export function AtlasMap({
             "text-max-width": 12,
             "text-optional": true,
           },
-          paint: { "text-color": TEXT, "text-halo-color": STAGE, "text-halo-width": 1.6 },
+          paint: { "text-color": TEXT, "text-halo-color": WHITE, "text-halo-width": 1.8 },
         });
         applyBasemap(map, latest.current.basemap);
 
@@ -428,7 +422,7 @@ export function AtlasMap({
           <div
             ref={readout}
             aria-hidden
-            className="pointer-events-none absolute top-4 z-10 hidden whitespace-pre font-mono text-[11px] tabular-nums text-field-muted [text-shadow:0_1px_2px_#0B1211] pointer-fine:block"
+            className="pointer-events-none absolute top-4 z-10 hidden whitespace-pre font-mono text-[11px] tabular-nums text-field-muted [text-shadow:0_1px_2px_#FFFFFF] pointer-fine:block"
             style={{ left: "calc(var(--atlas-inset-left, 0px) + 16px)" }}
           />
         </>

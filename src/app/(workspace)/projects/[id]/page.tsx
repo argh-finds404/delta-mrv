@@ -3,352 +3,193 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  ArrowRight,
-  Camera,
-  Clock,
-  Compass,
-  ExternalLink,
-  FileCheck2,
-  Plus,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, Camera, ExternalLink } from "lucide-react";
+import { AppShell } from "@/src/components/app/AppShell";
+import { SitesMap } from "@/src/components/app/SitesMap";
 import { HashDisplay } from "@/src/components/hash-display/hash-display";
-import { Wordmark } from "@/src/components/site/Wordmark";
-import { ACTIVITY_LABEL, formatClaim, formatLatLon } from "@/src/lib/format";
-import { cn } from "@/src/lib/utils";
+import { StatusBadge } from "@/src/components/status-badge/status-badge";
+import { activityColor } from "@/src/lib/activity";
+import { ACTIVITY_LABEL, formatClaim, formatCount, formatLatLon } from "@/src/lib/format";
+import { STATUS_META, STATUS_ORDER } from "@/src/lib/status";
 import { requireSession } from "@/src/server/auth/session";
 import { NotFoundError } from "@/src/server/services/errors";
-import { getProject } from "@/src/server/services/projects.service";
+import { getProject, myOrganisations } from "@/src/server/services/projects.service";
 import { listSubmissionsForProject } from "@/src/server/services/submissions.service";
+import { workspaceSites } from "../../sites";
 
-interface WorkspaceProjectPageProps {
+interface Props {
   params: Promise<{ id: string }>;
 }
 
-const isUuid = (v: string) =>
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+export const metadata: Metadata = {
+  title: "Project · Delta",
+  description: "A restoration site on the map, its submissions and where each one stands.",
+};
 
-export async function generateMetadata({
-  params,
-}: WorkspaceProjectPageProps): Promise<Metadata> {
-  await connection();
-  const { id } = await params;
-  if (!isUuid(id)) return { title: "Project Workspace · Delta" };
-  return {
-    title: `Project Workspace · ${id.slice(0, 8)} · Delta`,
-    description: "Authenticated workspace for restoration monitoring and evidence submission.",
-  };
-}
+const RECENT = 30;
+const primary =
+  "inline-flex h-11 items-center gap-2 rounded-xl bg-signal px-4 text-[15px] font-medium text-white transition-colors hover:bg-[#186747] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal";
+const secondary =
+  "inline-flex h-11 items-center gap-2 rounded-xl border border-field-hairline bg-field-canopy px-4 text-[15px] font-medium transition-colors hover:bg-field-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal";
+const rise = (i: number) => ({ "--i": i }) as React.CSSProperties;
 
-export default function WorkspaceProjectPage({ params }: WorkspaceProjectPageProps) {
+export default function WorkspaceProjectPage({ params }: Props) {
   return (
-    <React.Suspense
-      fallback={
-        <div data-theme="field" className="min-h-screen bg-field-abyss p-8" aria-busy>
-          <div className="mx-auto max-w-5xl animate-pulse space-y-4">
-            <div className="h-6 w-32 rounded bg-field-raised" />
-            <div className="h-10 w-96 rounded bg-field-raised" />
-          </div>
-        </div>
-      }
-    >
-      <WorkspaceProjectBody params={params} />
+    <React.Suspense fallback={<div className="min-h-dvh bg-field-abyss" aria-busy />}>
+      <ProjectBody params={params} />
     </React.Suspense>
   );
 }
 
-async function WorkspaceProjectBody({ params }: WorkspaceProjectPageProps) {
+async function ProjectBody({ params }: Props) {
   await connection();
   const session = await requireSession();
   const { id } = await params;
-
-  if (!isUuid(id)) notFound();
-
   const actor = { userId: session.user.id };
 
-  let project;
-  try {
-    project = await getProject(actor, id);
-  } catch (e) {
+  const project = await getProject(actor, id).catch((e: unknown) => {
     if (e instanceof NotFoundError) notFound();
     throw e;
-  }
+  });
+  const [submissions, orgs, sites] = await Promise.all([listSubmissionsForProject(actor, id), myOrganisations(actor), workspaceSites(session.user.id, [project])]);
 
-  const submissions = await listSubmissionsForProject(actor, id);
-  const claimText = formatClaim(project.claimedQuantity, project.claimedUnit);
   const isOwner = project.access === "owner";
-  const isVerifier = project.access === "verifier";
+  const hue = activityColor(project.activityType);
+  const counts = new Map(STATUS_ORDER.map((s) => [s, submissions.filter((x) => x.status === s).length]));
+  const isVerifierOrg = orgs.some((o) => o.orgType === "VERIFIER");
 
   return (
-    <div data-theme="field" className="min-h-screen bg-field-abyss text-field-text font-sans pb-16">
-      {/* Workspace Header Bar */}
-      <header className="flex h-12 select-none items-center justify-between border-b border-field-hairline bg-field-canopy px-5">
-        <div className="flex items-center gap-3">
-          <Link href="/dashboard" aria-label="Delta Dashboard" className="transition-opacity hover:opacity-85">
-            <Wordmark className="text-field-text" />
-          </Link>
-          <span className="text-field-hairline" aria-hidden="true">/</span>
-          <span className="text-xs font-mono uppercase tracking-wider text-field-muted">Project Management</span>
-        </div>
+    <AppShell userName={session.user.name || session.user.email} context={orgs[0]?.orgName} review={isVerifierOrg ? { count: 0 } : null}>
+      <main className="mx-auto max-w-[1200px] space-y-10 px-4 py-8 sm:px-6 lg:py-12">
+        <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-[14px] text-field-muted transition-colors hover:text-field-text">
+          <ArrowLeft className="size-4" aria-hidden />
+          Overview
+        </Link>
 
-        <div className="flex items-center gap-3 text-xs">
-          <Link
-            href="/dashboard"
-            className="text-field-muted hover:text-field-text transition-colors flex items-center gap-1 font-mono"
-          >
-            <ArrowLeft className="size-3.5" />
-            <span>Dashboard</span>
-          </Link>
-          <span className="text-field-hairline">|</span>
-          <Link
-            href={`/p/${project.id}`}
-            className="text-signal hover:underline transition-colors flex items-center gap-1 font-mono"
-          >
-            <span>Public View</span>
-            <ExternalLink className="size-3" />
-          </Link>
-        </div>
-      </header>
-
-      {/* Main Container */}
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8 space-y-8">
-        {/* Project Header */}
-        <section className="space-y-4 border-b border-field-hairline pb-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="rounded-md border border-field-hairline bg-field-canopy px-2.5 py-1 text-xs font-mono text-field-muted uppercase">
-                {ACTIVITY_LABEL[project.activityType as keyof typeof ACTIVITY_LABEL] ?? project.activityType}
+        <header className="rise-in flex flex-wrap items-end justify-between gap-6" style={rise(0)}>
+          <div className="max-w-[760px] space-y-3">
+            <p className="flex flex-wrap items-center gap-2 text-[14px]">
+              <span className="rounded-full px-2.5 py-0.5 font-medium" style={{ color: hue, background: `color-mix(in srgb, ${hue} 12%, white)` }}>
+                {ACTIVITY_LABEL[project.activityType]}
               </span>
-              <span
-                className={cn(
-                  "rounded-md border px-2.5 py-1 text-xs font-mono uppercase",
-                  project.status === "ACTIVE"
-                    ? "border-verified/40 bg-verified/10 text-verified"
-                    : "border-field-hairline bg-field-raised text-field-muted",
-                )}
-              >
-                {project.status}
-              </span>
-              <span className="rounded-md border border-chain/40 bg-chain/10 px-2.5 py-1 text-xs font-mono text-chain uppercase">
-                Role: {project.access}
-              </span>
-            </div>
-
-            {isOwner && (
-              <Link
-                href={`/projects/${project.id}/submit`}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-signal px-4 text-xs font-medium text-field-abyss hover:bg-[#B9EA5F] transition-colors"
-              >
-                <Plus className="size-4" />
-                <span>Submit Evidence Pair</span>
+              <span className="text-field-muted">{isOwner ? "Your organisation's project" : "A project your organisation reviews"}</span>
+              {project.status !== "ACTIVE" && <span className="rounded-full bg-field-raised px-2.5 py-0.5 text-field-muted">{project.status === "CLOSED" ? "Closed" : "Draft"}</span>}
+            </p>
+            <h1 className="font-serif text-[40px] leading-[1.05] tracking-[-0.02em] sm:text-[48px]">{project.title}</h1>
+            <p className="text-[17px] text-field-muted">
+              Claims {formatClaim(project.claimedQuantity, project.claimedUnit) ?? "no specific quantity"}. Photos are checked against a boundary with {formatCount(project.toleranceMeters)} m of tolerance.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link href={`/p/${project.id}`} className={secondary}>
+              Public page
+              <ExternalLink className="size-4" aria-hidden />
+            </Link>
+            {isOwner && project.status === "ACTIVE" && (
+              <Link href={`/projects/${project.id}/submit`} className={primary}>
+                <Camera className="size-[18px]" aria-hidden />
+                Submit evidence
               </Link>
             )}
           </div>
+        </header>
 
-          <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight text-field-text sm:text-3xl">
-              {project.title}
-            </h1>
-            <p className="text-xs text-field-muted leading-relaxed max-w-2xl">
-              {project.description ?? "Active environmental restoration initiative monitored through Delta MRV."}
+        {sites.length > 0 && (
+          <section aria-label="The site on the map" className="rise-in" style={rise(1)}>
+            <SitesMap sites={sites} focusId={project.id} className="lift h-[360px] sm:h-[460px]" />
+            <p className="mt-3 text-[14px] text-field-muted">
+              {project.exact ? "The exact boundary: your organisation sees it because it owns or reviews this site. The public sees only an approximate area." : "The approximate area, as the public sees it."}
             </p>
-          </div>
+          </section>
+        )}
 
-          {/* Quick Metrics */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 text-xs font-mono">
-            <div className="rounded-lg border border-field-hairline bg-field-canopy p-3 space-y-1">
-              <span className="text-field-muted block text-[10px] uppercase font-sans">Claimed Impact</span>
-              <span className="font-semibold text-field-text text-sm font-sans">{claimText ?? "Unquantified"}</span>
-            </div>
-            <div className="rounded-lg border border-field-hairline bg-field-canopy p-3 space-y-1">
-              <span className="text-field-muted block text-[10px] uppercase font-sans">Tolerance Buffer</span>
-              <span className="font-semibold text-field-text text-sm font-sans">{project.toleranceMeters} meters</span>
-            </div>
-            <div className="rounded-lg border border-field-hairline bg-field-canopy p-3 space-y-1">
-              <span className="text-field-muted block text-[10px] uppercase font-sans">Total Submissions</span>
-              <span className="font-semibold text-field-text text-sm font-sans">{submissions.length}</span>
-            </div>
-            <div className="rounded-lg border border-field-hairline bg-field-canopy p-3 space-y-1">
-              <span className="text-field-muted block text-[10px] uppercase font-sans">Boundary Mode</span>
-              <span className="font-semibold text-verified text-sm font-sans">
-                {project.exact ? "Exact Polygon Unlocked" : "Protected Centroid"}
-              </span>
-            </div>
-          </div>
-        </section>
-
-        {/* Exact Demarcation & Salt (Amendment A6: Workspace gets exact geometry) */}
-        <section aria-labelledby="geometry-heading" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 id="geometry-heading" className="text-sm font-semibold text-field-text flex items-center gap-2">
-              <Compass className="size-4 text-signal" />
-              <span>Restoration Geofence &amp; Private Location Salt</span>
+        <section aria-labelledby="subs" className="rise-in space-y-5" style={rise(2)}>
+          <div className="flex flex-wrap items-baseline justify-between gap-4">
+            <h2 id="subs" className="font-serif text-[28px] leading-tight tracking-[-0.01em]">
+              Submissions
             </h2>
-            <span className="text-xs font-mono text-field-muted">SRID 4326 PostGIS</span>
+            <span className="text-[14px] text-field-muted tabular-nums">{formatCount(submissions.length)} in all</span>
           </div>
 
-          <div className="rounded-xl border border-field-hairline bg-field-canopy p-5 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
-              <span className="text-field-muted">
-                Public Fuzzed Centroid:{" "}
-                <strong className="text-field-text">
-                  {project.fuzzedLocation ? formatLatLon(project.fuzzedLocation.coordinates) : "Registered"}
-                </strong>
-              </span>
-
-              {project.exact && (
-                <span className="rounded bg-verified/10 border border-verified/30 px-2 py-0.5 text-verified text-[11px]">
-                  ✓ Authorized Session: Exact Coordinates Active
-                </span>
-              )}
-            </div>
-
-            {project.locationCommitment && (
-              <div className="space-y-1">
-                <span className="text-[11px] text-field-muted font-mono block">
-                  Location Commitment (RFC 8785 SHA-256):
-                </span>
-                <HashDisplay hash={project.locationCommitment} variant="full" theme="field" label="Commitment" />
-              </div>
-            )}
-
-            {project.exact?.locationSalt && (
-              <div className="space-y-1">
-                <span className="text-[11px] text-field-muted font-mono block">
-                  Private Salt (disclosed only to authorized tenant members):
-                </span>
-                <HashDisplay hash={project.exact.locationSalt} variant="truncated" theme="field" label="Private Salt" />
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Submissions Timeline */}
-        <section aria-labelledby="submissions-heading" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 id="submissions-heading" className="text-sm font-semibold text-field-text flex items-center gap-2">
-              <Clock className="size-4 text-signal" />
-              <span>Submissions Timeline &amp; Review Status</span>
-            </h2>
-            <span className="text-xs font-mono text-field-muted">
-              {submissions.length} Record{submissions.length === 1 ? "" : "s"}
-            </span>
-          </div>
+          {submissions.length > 0 && (
+            <ul className="flex flex-wrap gap-2" aria-label="By status">
+              {STATUS_ORDER.filter((s) => counts.get(s)).map((s) => (
+                <li key={s} className="inline-flex items-center gap-2 rounded-full border border-field-hairline bg-field-canopy px-3 py-1.5 text-[14px]">
+                  <span aria-hidden className="size-2 rounded-full" style={{ background: STATUS_META[s].color }} />
+                  {STATUS_META[s].label}
+                  <span className="font-medium tabular-nums">{formatCount(counts.get(s) ?? 0)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
 
           {submissions.length === 0 ? (
-            <div className="rounded-xl border border-field-hairline bg-field-canopy p-8 text-center space-y-3">
-              <Camera className="size-8 mx-auto text-field-muted opacity-50" />
-              <div>
-                <span className="text-xs font-medium text-field-text block">No evidence submitted yet</span>
-                <span className="text-[11px] text-field-muted block">
-                  Field officers can submit BEFORE and AFTER photographic pairs to initiate forensic intake.
-                </span>
-              </div>
-              {isOwner && (
-                <Link
-                  href={`/projects/${project.id}/submit`}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-signal px-4 text-xs font-medium text-field-abyss hover:bg-[#B9EA5F] transition-colors"
-                >
-                  <Plus className="size-4" />
-                  <span>Submit First Evidence Pair</span>
+            <div className="space-y-4 rounded-2xl border border-field-hairline bg-field-canopy p-10 text-center">
+              <Camera className="mx-auto size-7 text-field-muted" aria-hidden />
+              <p className="text-[17px]">No evidence yet</p>
+              <p className="mx-auto max-w-[46ch] text-[15px] text-field-muted">A submission is a before and after photo of the same spot. The checks run as soon as both are uploaded.</p>
+              {isOwner && project.status === "ACTIVE" && (
+                <Link href={`/projects/${project.id}/submit`} className={primary}>
+                  Submit the first pair
                 </Link>
               )}
             </div>
           ) : (
-            <div className="space-y-3">
-              {submissions.map((sub) => {
-                const isNeedsMoreProof = sub.status === "NEEDS_MORE_PROOF";
-                const isApprovedOrAnchored = sub.status === "APPROVED" || sub.status === "ANCHORED";
-
-                return (
-                  <div
-                    key={sub.id}
-                    className={cn(
-                      "rounded-xl border p-4 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4",
-                      isNeedsMoreProof
-                        ? "border-review/40 bg-review/5"
-                        : "border-field-hairline bg-field-canopy hover:border-field-muted",
-                    )}
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-medium text-field-text">
-                          Round {sub.round}
-                        </span>
-                        <span className="text-field-hairline">·</span>
-                        <span
-                          className={cn(
-                            "rounded px-2 py-0.5 text-[10px] font-mono uppercase border",
-                            sub.status === "APPROVED" || sub.status === "ANCHORED"
-                              ? "border-verified/40 bg-verified/10 text-verified"
-                              : sub.status === "NEEDS_MORE_PROOF"
-                                ? "border-review/40 bg-review/10 text-review"
-                                : sub.status === "REJECTED"
-                                  ? "border-fraud/40 bg-fraud/10 text-fraud"
-                                  : "border-field-hairline bg-field-raised text-field-muted",
-                          )}
-                        >
-                          {sub.status.replaceAll("_", " ")}
-                        </span>
-                        {sub.riskBand && (
-                          <span
-                            className={cn(
-                              "text-[10px] font-mono px-1.5 py-0.5 rounded",
-                              sub.riskBand === "concern" ? "text-fraud bg-fraud/10" : "text-field-muted bg-field-raised",
-                            )}
-                          >
-                            Risk: {sub.riskBand}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="text-[11px] font-mono text-field-muted">
-                        Submission ID: <span className="text-field-text">{sub.id.slice(0, 8)}</span> · Submitted{" "}
-                        {new Date(sub.submittedAt).toLocaleDateString()}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 shrink-0">
-                      {isNeedsMoreProof && isOwner && (
-                        <Link
-                          href={`/projects/${project.id}/submit?supplement=${sub.id}`}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-review px-3 text-xs font-medium text-field-abyss hover:bg-review/90 transition-colors"
-                        >
-                          <AlertTriangle className="size-3.5" />
-                          <span>Provide Proof (Round {sub.round + 1})</span>
+            <div className="lift overflow-hidden rounded-2xl border border-field-hairline bg-field-canopy">
+              <ul className="divide-y divide-field-hairline">
+                {submissions.slice(0, RECENT).map((s) => (
+                  <li key={s.id} className="flex flex-wrap items-center gap-x-6 gap-y-2 px-5 py-3.5">
+                    <StatusBadge status={s.status} />
+                    <span className="text-[15px]">Round {s.round}</span>
+                    <time className="text-[14px] tabular-nums text-field-muted" dateTime={s.submittedAt.toISOString()}>
+                      {s.submittedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                    </time>
+                    <span className="font-mono text-[13px] text-field-inert">{s.id.slice(0, 8)}</span>
+                    <span className="ml-auto flex items-center gap-2">
+                      {s.status === "NEEDS_MORE_PROOF" && isOwner && (
+                        <Link href={`/projects/${project.id}/submit?supplement=${s.id}`} className="text-[14px] font-medium text-signal hover:underline">
+                          Add a photo
                         </Link>
                       )}
-
-                      {isApprovedOrAnchored && (
-                        <Link
-                          href={`/proof/${sub.id}`}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-field-hairline bg-field-raised px-3 text-xs font-medium text-field-text hover:bg-field-canopy transition-colors font-mono"
-                        >
-                          <FileCheck2 className="size-3.5 text-signal" />
-                          <span>Proof Dossier</span>
+                      {(s.status === "APPROVED" || s.status === "ANCHORED") && (
+                        <Link href={`/proof/${s.id}`} className="inline-flex items-center gap-1 text-[14px] font-medium text-signal hover:underline">
+                          Proof
+                          <ArrowRight className="size-3.5" aria-hidden />
                         </Link>
                       )}
-
-                      {isVerifier && sub.status === "IN_REVIEW" && (
-                        <Link
-                          href="/lab"
-                          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-signal px-3 text-xs font-medium text-field-abyss hover:bg-[#B9EA5F] transition-colors"
-                        >
-                          <span>Review in Lab</span>
-                          <ArrowRight className="size-3.5" />
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {submissions.length > RECENT && (
+                <p className="border-t border-field-hairline px-5 py-3 text-[14px] text-field-muted">
+                  The {RECENT} most recent of {formatCount(submissions.length)}.
+                </p>
+              )}
             </div>
           )}
         </section>
+
+        <section aria-labelledby="where" className="rise-in max-w-[760px] space-y-4" style={rise(3)}>
+          <h2 id="where" className="font-serif text-[28px] leading-tight tracking-[-0.01em]">
+            How the location is protected
+          </h2>
+          <p className="text-[16px] leading-[1.6] text-field-muted">
+            The public sees only the centre of a grid cell near the site
+            {project.fuzzedLocation ? ` (${formatLatLon(project.fuzzedLocation.coordinates)})` : ""}. The exact boundary is sealed with a commitment, so anyone shown it later can confirm it was not changed.
+          </p>
+          {project.locationCommitment && <HashDisplay hash={project.locationCommitment} variant="full" theme="field" label="Commitment" />}
+          {project.exact?.locationSalt && (
+            <details className="group rounded-2xl border border-field-hairline bg-field-canopy p-4">
+              <summary className="cursor-pointer list-none text-[15px] font-medium [&::-webkit-details-marker]:hidden">For auditors: the salt that opens the commitment</summary>
+              <div className="space-y-2 pt-3 text-[14px] text-field-muted">
+                <p>Shared only with your organisation. With the exact boundary, it lets an auditor recompute the commitment above.</p>
+                <HashDisplay hash={project.exact.locationSalt} variant="truncated" theme="field" label="Salt" />
+              </div>
+            </details>
+          )}
+        </section>
       </main>
-    </div>
+    </AppShell>
   );
 }
-

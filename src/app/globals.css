@@ -12,26 +12,34 @@
 
 :root {
   /*
-    Field tokens v3, "forest" (maintainer direction 2026-11-11). Replaces doc 18's near-neutral
-    v2: the workspace is deep forest, so satellite imagery and lime boundaries carry colour against
-    it. Text pairs measured against --field-abyss: text 15.9:1, muted 7.3:1, inert 3.6:1 (labels only).
+    Field tokens v4, "daylight" (maintainer direction 2026-11-10, after felt.com): the workspace is
+    warm and light, white panels on a sand ground, so maps, photos and state colours carry the
+    screen. Text pairs measured against --field-abyss: text 15.2:1, muted 5.8:1, inert 3.1:1
+    (placeholders and labels only). Every state hue below is at least 4.5:1 on white.
   */
-  --field-stage: #0B1211;    /* The evidence canvas and the map: the darkest surface */
-  --field-abyss: #101A18;    /* Page background */
-  --field-canopy: #142220;   /* Cards, panels */
-  --field-raised: #172623;   /* Hover, inputs, value pills */
-  --field-hairline: #263834; /* Borders, dividers */
-  --field-text: #E8EFEC;     /* Primary text */
-  --field-muted: #9DB2AA;    /* Secondary text, labels */
-  --field-inert: #62786F;    /* Disabled, placeholder */
+  --field-stage: #ECE7DC;    /* The evidence canvas and the map ground */
+  --field-abyss: #F7F5F0;    /* Page background */
+  --field-canopy: #FFFFFF;   /* Cards, panels */
+  --field-raised: #F2EEE6;   /* Hover, inputs, value pills */
+  --field-hairline: #E3DDD0; /* Borders, dividers */
+  --field-text: #17221F;     /* Primary text */
+  --field-muted: #57635F;    /* Secondary text, labels */
+  --field-inert: #8D9692;    /* Disabled, placeholder */
 
-  /* Semantic hues: colour still means state. Lime is the one action and the map's boundaries. */
-  --signal: #D7F6B8;         /* Primary action; site boundaries on the map */
-  --verified: #3DD6B0;       /* A hash matched, a check passed (Teal) */
-  --verified-fill: #397F6B;  /* Verified as a fill: a lit verification node, a passed check */
-  --chain: #8B93FF;          /* Anchored, on-chain (Violet) */
-  --review: #F0A93B;         /* A human must look (Amber) */
-  --fraud: #F2705C;          /* High-severity finding, mismatch (Coral Red) */
+  /* Semantic hues: colour means state. Forest green is the one action. */
+  --signal: #1F7A58;         /* Primary action (white text on it: 5.3:1) */
+  --verified: #12846A;       /* A hash matched, a check passed (Teal) */
+  --verified-fill: #1F8A6C;  /* Verified as a fill, with white on it */
+  --chain: #4F55C8;          /* Anchored, on-chain (Indigo) */
+  --review: #A86400;         /* A human must look (Amber) */
+  --fraud: #C8402B;          /* High-severity finding, mismatch (Coral red) */
+
+  /* Activity hues, the map's and the cards' colour: one per kind of restoration */
+  --act-mangrove: #13896F;
+  --act-wetland: #2F78C4;
+  --act-river: #7A57D1;
+  --act-trees: #4E9A2F;
+  --act-coast: #D9772B;
 
   /* Paper: the warm archival certificate (pattern 5): #101A18 ink on #F4F1EA */
   --paper: #F4F1EA;          /* Page background */
@@ -64,7 +72,7 @@
   --popover: var(--field-canopy);
   --popover-foreground: var(--field-text);
   --primary: var(--signal);
-  --primary-foreground: #0A0C0B;
+  --primary-foreground: #FFFFFF;
   --secondary: var(--field-raised);
   --secondary-foreground: var(--field-text);
   --muted: var(--field-raised);
@@ -81,6 +89,8 @@
 /* 2.3 Paper Theme Scope */
 .theme-paper,
 [data-theme="paper"] {
+  /* the public pages keep the lime highlighter as their call to action, with ink on it */
+  --signal: #D7F6B8;
   --theme-bg: var(--paper);
   --theme-surface: var(--paper-card);
   --theme-surface-raised: #EFE9DC;
@@ -126,6 +136,11 @@
   --color-chain: var(--chain);
   --color-review: var(--review);
   --color-fraud: var(--fraud);
+  --color-act-mangrove: var(--act-mangrove);
+  --color-act-wetland: var(--act-wetland);
+  --color-act-river: var(--act-river);
+  --color-act-trees: var(--act-trees);
+  --color-act-coast: var(--act-coast);
 
   --color-paper: var(--paper);
   --color-paper-card: var(--paper-card);
@@ -191,13 +206,40 @@ samp {
    !important blur and shadow outrank the unlayered ban above, as layered !important always does. */
 @layer components {
   .hud {
-    background-color: color-mix(in srgb, var(--field-abyss) 82%, transparent);
-    border: 1px solid var(--field-hairline);
-    border-radius: 12px;
+    background-color: color-mix(in srgb, #ffffff 88%, transparent);
+    border: 1px solid color-mix(in srgb, var(--field-hairline) 80%, transparent);
+    border-radius: 14px;
     color: var(--field-text);
-    backdrop-filter: blur(14px) saturate(1.2) !important;
-    -webkit-backdrop-filter: blur(14px) saturate(1.2) !important;
-    box-shadow: 0 18px 50px -12px rgb(0 0 0 / 0.55) !important;
+    backdrop-filter: blur(16px) saturate(1.3) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(1.3) !important;
+    box-shadow:
+      0 1px 2px rgb(23 34 31 / 0.06),
+      0 12px 32px -8px rgb(23 34 31 / 0.18) !important;
+  }
+  /*
+    The second exception (maintainer direction 2026-11-10): the light workspace raises its cards
+    and floating sheets with a soft two-step shadow, as felt.com does. Nothing else casts one.
+  */
+  .lift {
+    box-shadow:
+      0 1px 2px rgb(23 34 31 / 0.05),
+      0 6px 20px -6px rgb(23 34 31 / 0.10) !important;
+  }
+  .lift-hover {
+    transition:
+      box-shadow 200ms var(--ease-enter),
+      transform 200ms var(--ease-enter);
+  }
+  .lift-hover:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 2px 4px rgb(23 34 31 / 0.06),
+      0 16px 36px -10px rgb(23 34 31 / 0.20) !important;
+  }
+  .sheet {
+    box-shadow:
+      0 2px 6px rgb(23 34 31 / 0.08),
+      0 24px 60px -12px rgb(23 34 31 / 0.30) !important;
   }
 }
 
@@ -300,104 +342,28 @@ samp {
 .scene-pulse {
   opacity: 0;
 }
-/* Hero photographs: a toned black-and-white first (the sketch), dissolving into the paper at an
-   organic edge rather than ending in a rectangle. */
-.scene-mono {
-  filter: grayscale(1) sepia(0.16) contrast(1.12) brightness(1.05);
-}
-.scene-edge {
-  -webkit-mask-image: url(/images/life/edge-mask.png);
-  mask-image: url(/images/life/edge-mask.png);
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
+/* the highlighter swept across one phrase of a caption, in the signal lime */
+mark.brush {
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
+  margin: 0 -2px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  background: linear-gradient(var(--brush), var(--brush)) no-repeat 0 0 / 100% 100%;
+  --brush: color-mix(in srgb, var(--signal) 62%, transparent);
 }
 /*
-  The hero painting (Landscape): it draws itself once, then lives in slow motion. Everything here
-  is inside no-preference, so reduced motion gets the finished, still painting.
+  The painting has no frame: from 1024px it grows past its column and runs off the right edge of
+  the page (the hero section clips it at the viewport), the way felt.com's art does. Its own
+  edges are scattered trees fading into the paper, so the cut never reads as a border.
 */
-@media (prefers-reduced-motion: no-preference) {
-  .ls-pan {
-    transition: transform 1600ms cubic-bezier(0.65, 0, 0.25, 1);
-    will-change: transform;
-  }
-  /* the pen first, then the washes, layer by layer, the order a painter lays them */
-  .ls-ink path {
-    stroke-dasharray: 1;
-    animation: scene-draw 1500ms cubic-bezier(0.45, 0, 0.25, 1) 100ms both;
-  }
-  .ls-wash {
-    animation: ls-bloom 1100ms ease-out both;
-    animation-delay: calc(900ms + var(--i, 0) * 240ms);
-  }
-  .ls-cloud {
-    animation: ls-drift var(--d, 80s) ease-in-out infinite alternate;
-  }
-  .ls-shimmer {
-    animation: ls-shimmer 3.4s ease-in-out infinite alternate;
-  }
-  .ls-shimmer-b {
-    animation-delay: -1.7s;
-  }
-  .ls-boat {
-    transform-box: fill-box;
-    transform-origin: 50% 100%;
-    animation: ls-bob var(--d, 5s) ease-in-out infinite;
-  }
-  .ls-sway {
-    animation: ls-sway var(--d, 6s) ease-in-out infinite alternate;
-  }
-  .ls-smoke {
-    animation: ls-smoke 7s ease-in-out infinite;
-  }
-  .ls-egret {
-    transform-box: fill-box;
-    transform-origin: 50% 100%;
-    animation: ls-bob var(--d, 7s) ease-in-out infinite;
-  }
-  .ls-birds {
-    animation: ls-fly 42s linear infinite;
-  }
-  .ls-bird {
-    transform-box: fill-box;
-    transform-origin: center;
-    animation: ls-flap 0.9s ease-in-out infinite alternate;
-    animation-delay: calc(var(--k, 0) * -0.22s);
+@media (min-width: 1024px) {
+  .hero-art {
+    margin-left: -3rem;
+    margin-right: calc(-1 * (max(0px, (100vw - 1280px) / 2) + 4rem + 8vw));
   }
 }
-@keyframes ls-bloom {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes ls-drift {
-  from { transform: translateX(0); }
-  to { transform: translateX(var(--x, 50px)); }
-}
-@keyframes ls-shimmer {
-  from { opacity: 0.25; }
-  to { opacity: 0.95; }
-}
-@keyframes ls-bob {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-4px) rotate(0.8deg); }
-}
-@keyframes ls-sway {
-  from { transform: rotate(-2.2deg); }
-  to { transform: rotate(2.2deg); }
-}
-@keyframes ls-smoke {
-  0% { transform: translateY(0); opacity: 0; }
-  20% { opacity: 0.55; }
-  100% { transform: translateY(-34px); opacity: 0; }
-}
-@keyframes ls-fly {
-  from { transform: translate(-300px, 40px); }
-  to { transform: translate(3300px, -30px); }
-}
-@keyframes ls-flap {
-  from { transform: scaleY(1); }
-  to { transform: scaleY(0.45); }
-}
-
 /* The mark in slow motion: water runs down the delta's channels, the tide line breathes. */
 @media (prefers-reduced-motion: no-preference) {
   .delta-flow path {
@@ -421,23 +387,6 @@ samp {
   50% { transform: scaleX(0.82); opacity: 0.7; }
 }
 
-/* on a phone the docked card already carries these readings; the chips would sit under it */
-@media (max-width: 639px) {
-  .scene-chip {
-    display: none;
-  }
-}
-mark.brush {
-  color: inherit;
-  border-radius: 3px;
-  padding: 0 2px;
-  margin: 0 -2px;
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
-  background: linear-gradient(var(--brush), var(--brush)) no-repeat 0 0 / 100% 100%;
-  --brush: color-mix(in srgb, var(--signal) 62%, transparent);
-}
-
 @media (prefers-reduced-motion: no-preference) {
   .hero-scene {
     visibility: visible;
@@ -450,68 +399,88 @@ mark.brush {
     opacity: 1;
     transition: opacity 200ms var(--ease-enter);
   }
-  /*
-    felt.com's sequence, measured frame by frame (2026-11-11): the old scene fades to paper; the
-    ink sketch appears on its own and HOLDS long enough to read as a drawing; the colour then
-    sweeps in diagonally from the top right; only then do the details arrive.
-  */
-  /* 1. the sketch, alone on the paper (0.15–0.85 s, then held) */
-  .hero-scene[data-active] .scene-ink-img {
-    animation: scene-fade 700ms ease-out 150ms both;
+  /* Felt-style authentic watercolor hero engine */
+  .dw-canvas {
+    image-rendering: auto;
   }
-  /* 2. the colour, swept across from the top right (1.6–3.2 s) */
-  .hero-scene[data-active] .scene-wash-img {
-    animation: plate-sweep 1600ms cubic-bezier(0.45, 0, 0.25, 1) 1600ms both;
+  .dw-done img {
+    opacity: 1 !important;
   }
-  /* the plate and its annotations drift in together, slowly, never past the paper's margin */
-  .hero-scene[data-active] .scene-media {
-    animation: scene-push 9000ms cubic-bezier(0.3, 0, 0.2, 1) both;
+  .hdr-key {
+    position: relative;
+    display: inline;
+    background: transparent;
+    color: inherit;
+    font-style: normal;
+    font-weight: 500;
   }
-  /* 3. the details: boundaries ink in, plots wash in (3.1–4.2 s) */
-  .hero-scene[data-active] .scene-draw {
-    stroke-dasharray: 1;
-    animation: scene-draw 900ms var(--ease-enter) 1700ms both;
+  .hdr-key::before {
+    content: "";
+    position: absolute;
+    left: -4px;
+    right: -4px;
+    top: 15%;
+    bottom: 5%;
+    z-index: -1;
+    background-color: var(--wash, rgba(0, 122, 90, 0.22));
+    border-radius: 4px;
+    transform-origin: left center;
+    transform: scaleX(0);
+    animation: hdr-brush 0.5s cubic-bezier(0.2, 0.9, 0.3, 1) 0.2s forwards;
   }
-  .hero-scene[data-active] .scene-draw-late {
-    animation-delay: 2300ms;
+  /* Felt-style overlay system */
+  .hda-ui {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    font-size: clamp(10px, 0.92cqw, 14px);
   }
-  .hero-scene[data-active] .scene-fill {
-    animation: scene-fade 600ms ease-out 2300ms both;
+  .hda-ui > * {
+    position: absolute;
+    left: calc(var(--x, 0) * 100%);
+    top: calc(var(--y, 0) * 100%);
+    opacity: 0;
+    transform: scale(0.9) translateY(4px);
+    animation: hda-pop-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.3) calc(var(--d, 0) * 0.35s + 0.3s) forwards;
   }
-  /* 4. readings stamp on, pins pop, the newest keeps breathing (3.7–4.4 s) */
-  .hero-scene[data-active] .scene-chip {
-    animation: scene-rise 420ms var(--ease-enter) both;
-    animation-delay: calc(2400ms + var(--i, 0) * 160ms);
+  .hda-area {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
   }
-  .hero-scene[data-active] .scene-pin-body {
-    transform-box: fill-box;
-    transform-origin: center;
-    animation: scene-pop 340ms var(--ease-enter) both;
-    animation-delay: calc(2200ms + var(--i, 0) * 200ms);
+  .hda-area.edge-dash polygon {
+    stroke-dasharray: 4 2;
   }
-  .hero-scene[data-active] .scene-pulse {
-    transform-box: fill-box;
-    transform-origin: center;
-    animation: scene-pulse 2000ms ease-out 2800ms infinite;
+  .hda-pt {
+    box-sizing: border-box;
+    background: var(--pt, #007A5A);
+    border: 2px solid #F7F3EA;
+    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25), 0 0 0 4px color-mix(in srgb, var(--pt, #007A5A) 25%, transparent);
   }
-  /* 5. the card rises (4.4 s) and the scene holds until the band moves on at 9 s */
-  .hero-scene[data-active] .hero-card {
-    animation: scene-rise 560ms var(--ease-enter) 2600ms both;
+  .hda-pt.is-sel {
+    width: 18px;
+    height: 18px;
+    margin: -9px 0 0 -9px;
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.3), 0 0 0 6px color-mix(in srgb, var(--pt, #D97706) 35%, transparent);
   }
-  /* the band: progress drives the next scene; the caption's key phrase is brushed in */
-  .hero-band .hero-progress {
-    animation: hero-progress 9000ms linear both;
-    animation-play-state: paused;
+  .hda-pt-green {
+    --pt: #007A5A;
   }
-  .hero-band[data-running] .hero-progress {
-    animation-play-state: running;
+  .hda-pt-blue {
+    --pt: #2674BA;
   }
-  .hero-caption {
-    animation: scene-rise 400ms var(--ease-enter) both;
+  .hda-pt-orange {
+    --pt: #D97706;
   }
-  .hero-caption mark.brush,
-  .brush-on-load mark.brush {
-    animation: brush 650ms var(--ease-enter) 380ms both;
+  .hda-pane {
+    max-width: min(280px, 90vw);
+    pointer-events: auto;
   }
   /* sections rise as they enter (armed by <Reveal>) */
   [data-reveal="armed"] .rise-item {
@@ -558,48 +527,23 @@ mark.brush {
   from { stroke-dashoffset: 1; }
   to { stroke-dashoffset: 0; }
 }
-/* The sweep mask: wider than the plate, a soft diagonal edge between shown and hidden. At rest
-   (no motion, or the sweep finished) it sits fully over the plate, so the plate is whole. */
-.scene-wash-img {
-  -webkit-mask-image: linear-gradient(to bottom left, #000 40%, transparent 60%);
-  mask-image: linear-gradient(to bottom left, #000 40%, transparent 60%);
-  -webkit-mask-size: 300% 300%;
-  mask-size: 300% 300%;
-  -webkit-mask-position: 100% 0;
-  mask-position: 100% 0;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-}
-/* from the top right corner to the bottom left, as felt.com lays its colour */
-@keyframes plate-sweep {
-  from { -webkit-mask-position: 0 100%; mask-position: 0 100%; }
-  to { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
-}
-/* a slow Ken Burns push on the photograph, inside the fixed edge mask */
-@keyframes scene-push {
-  from { transform: scale(1); }
-  to { transform: scale(1.07); }
-}
-@keyframes scene-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes scene-pop {
-  0% { opacity: 0; transform: scale(0.3); }
-  70% { opacity: 1; transform: scale(1.12); }
-  100% { opacity: 1; transform: scale(1); }
-}
-@keyframes scene-pulse {
-  0% { opacity: 0.55; transform: scale(1); }
-  100% { opacity: 0; transform: scale(2.6); }
-}
-@keyframes scene-rise {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: none; }
-}
-@keyframes hero-progress {
+@keyframes hdr-brush {
   from { transform: scaleX(0); }
   to { transform: scaleX(1); }
+}
+@keyframes hda-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+@keyframes hero-progress {
+  from { width: 0%; }
+  to { width: 100%; }
 }
 @keyframes brush {
   from { background-size: 0% 100%; }
@@ -619,19 +563,16 @@ mark.brush {
 /* scoped under .maplibregl-map so it outranks maplibre-gl.css, which loads after this file */
 .maplibregl-map .maplibregl-ctrl.maplibregl-ctrl-attrib,
 .maplibregl-map .maplibregl-ctrl.maplibregl-ctrl-attrib.maplibregl-compact {
-  background-color: color-mix(in srgb, var(--field-stage) 78%, transparent);
+  background-color: color-mix(in srgb, #ffffff 80%, transparent);
   color: var(--field-muted);
   font: 11px/1.5 var(--font-sans), system-ui, sans-serif;
+  border-radius: 8px;
 }
 .maplibregl-map .maplibregl-ctrl-attrib a {
   color: var(--field-text);
 }
-/* the compact "i" button ships black; on a dark map it must be light */
-.maplibregl-ctrl-attrib-button {
-  filter: invert(1);
-}
 .maplibregl-map .maplibregl-ctrl-scale {
-  background-color: color-mix(in srgb, var(--field-stage) 60%, transparent);
+  background-color: color-mix(in srgb, #ffffff 70%, transparent);
   border-color: var(--field-text);
   border-width: 0 1px 1px;
   color: var(--field-text);
@@ -651,3 +592,91 @@ mark.brush {
   }
 }
 
+
+/*
+  Auth panel (sign in, sign up, demo): the review painting floats on the forest ground. Its plot
+  inks in, the wash fills, the two photo pins drop, then the island drifts very slowly. Without
+  motion everything is simply drawn.
+*/
+.auth-ground {
+  background:
+    radial-gradient(60% 45% at 50% 46%, rgba(188, 217, 232, 0.45), transparent 72%),
+    radial-gradient(45% 35% at 30% 70%, rgba(220, 234, 208, 0.6), transparent 70%),
+    linear-gradient(180deg, #fbfaf6, var(--field-abyss) 80%);
+}
+.auth-island-ground {
+  background: #efe8d8;
+  -webkit-mask: url("/images/hero/review-colour.webp") center / 100% 100% no-repeat;
+  mask: url("/images/hero/review-colour.webp") center / 100% 100% no-repeat;
+  filter: drop-shadow(0 20px 28px rgba(23, 34, 31, 0.16));
+}
+.auth-island img {
+  position: relative;
+  filter: saturate(1.3) contrast(1.06);
+}
+.auth-pin {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .auth-island {
+    animation: auth-float 16s ease-in-out 2.6s infinite alternate;
+  }
+  .auth-plot {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: auth-draw 1400ms var(--ease-enter) 500ms forwards;
+  }
+  .auth-wash {
+    opacity: 0;
+    animation: auth-fade 700ms var(--ease-enter) 1700ms forwards;
+  }
+  .auth-pin {
+    opacity: 0;
+    animation: auth-drop 520ms var(--ease-enter) forwards;
+    animation-delay: calc(2000ms + var(--i, 0) * 260ms);
+  }
+}
+@keyframes auth-float {
+  from { transform: translateY(0) rotate(0deg); }
+  to { transform: translateY(-12px) rotate(-0.5deg); }
+}
+@keyframes auth-draw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes auth-fade {
+  to { opacity: 1; }
+}
+@keyframes auth-drop {
+  from { opacity: 0; transform: translateY(-36px) scale(0.7); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/*
+  Workspace motion (maintainer direction 2026-11-10): one staggered rise when a page arrives, and
+  bars that grow to their value. Once, on arrival; nothing loops. Still frames without motion.
+*/
+@media (prefers-reduced-motion: no-preference) {
+  .rise-in {
+    animation: rise-in 560ms var(--ease-enter) both;
+    animation-delay: calc(var(--i, 0) * 80ms);
+  }
+  .grow-x {
+    transform-origin: left;
+    animation: grow-x 900ms var(--ease-enter) both;
+    animation-delay: calc(350ms + var(--i, 0) * 70ms);
+  }
+}
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes grow-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.maplibregl-map .maplibregl-ctrl-attrib,
+.maplibregl-map .maplibregl-ctrl-attrib * {
+  font-size: 11px !important;
+  line-height: 1.5 !important;
+}

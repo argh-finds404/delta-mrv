@@ -60,7 +60,7 @@ export default function DashboardError({
           <button
             type="button"
             onClick={() => reset()}
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-signal px-4 text-xs font-medium text-field-abyss transition-colors hover:bg-[#B9EA5F] focus-visible:outline-2 focus-visible:outline-signal"
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-signal px-4 text-xs font-medium text-field-abyss transition-colors hover:bg-[#186747] focus-visible:outline-2 focus-visible:outline-signal"
           >
             <RotateCcw className="size-3.5" aria-hidden />
             <span>Retry</span>

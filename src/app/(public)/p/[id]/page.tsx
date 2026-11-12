@@ -205,7 +205,7 @@ async function ProjectBody({ params }: ProjectPageProps) {
             <div>
               <span className="font-semibold">The honest gap: </span>
               <span className="opacity-90">
-                Delta displays claims beside verified records without smoothing over discrepancies. A claim is what someone says; the record is what two independent organisations confirmed.
+                Delta displays claims beside verified records without smoothing over discrepancies. A claim is what someone says; the record is what two reviewers from an independent organisation approved.
               </span>
             </div>
           </div>

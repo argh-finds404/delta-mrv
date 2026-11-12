@@ -6,7 +6,8 @@ export const REPO_URL = "https://github.com/argh-finds404/delta-mrv";
 const NAV = [
   { href: "/atlas", label: "Atlas", always: true },
   { href: "/#how", label: "How it works" },
-  { href: "/#limits", label: "What it proves" },
+  { href: "/trust", label: "What it proves" },
+  { href: "/verify", label: "Check a photo" },
   { href: REPO_URL, label: "Source" },
 ];
 

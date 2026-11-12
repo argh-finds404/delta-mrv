@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronRight, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronRight } from "lucide-react";
 import { HashDisplay } from "@/src/components/hash-display/hash-display";
 import { Wordmark } from "@/src/components/site/Wordmark";
+import { activityColor } from "@/src/lib/activity";
 import { formatCount, formatLatLon } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { AtlasMap, type AtlasPadding, type Basemap } from "./AtlasMap";
@@ -21,7 +22,6 @@ export interface AtlasExplorerProps {
 }
 
 const PANEL = 380;
-const DRAWER = 400;
 const GAP = 16;
 
 const wideQuery = "(min-width: 900px)";
@@ -45,7 +45,7 @@ const focusRing = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-
  */
 export function AtlasExplorer({ sites, overview, signedIn, initialSiteId = null }: AtlasExplorerProps) {
   const [activity, setActivity] = React.useState<string | null>(null);
-  const [basemap, setBasemap] = React.useState<Basemap>("satellite");
+  const [basemap, setBasemap] = React.useState<Basemap>("map");
   const [selectedId, setSelectedId] = React.useState<string | null>(() =>
     sites.some((s) => s.id === initialSiteId) ? initialSiteId : null,
   );
@@ -65,12 +65,12 @@ export function AtlasExplorer({ sites, overview, signedIn, initialSiteId = null 
   const exactCount = sites.filter((s) => s.area.kind === "exact").length;
   const selected = visible.find((s) => s.id === selectedId) ?? null;
 
-  // Keep the camera's subject out from under the panels. Below 900px the sheets are 45dvh and 75dvh.
+  // Keep the camera's subject out from under the one panel. Below 900px it is a bottom sheet.
   const padding = React.useMemo<AtlasPadding>(
     () =>
       wide
-        ? { top: 96, bottom: 64, left: PANEL + GAP * 2 + 48, right: selected ? DRAWER + GAP * 2 + 48 : 72 }
-        : { top: 72, left: 32, right: 32, bottom: Math.round(viewportHeight * (selected ? 0.75 : 0.45)) + 32 },
+        ? { top: 72, bottom: 72, left: PANEL + GAP * 2 + 48, right: 72 }
+        : { top: 72, left: 32, right: 32, bottom: Math.round(viewportHeight * (selected ? 0.7 : 0.45)) + 32 },
     [wide, selected, viewportHeight],
   );
 
@@ -114,10 +114,7 @@ export function AtlasExplorer({ sites, overview, signedIn, initialSiteId = null 
   }, [select]);
 
   return (
-    <div
-      className="fixed inset-0 h-dvh w-screen overflow-hidden bg-field-stage font-sans text-field-text [--atlas-inset-bottom:45dvh] min-[900px]:[--atlas-inset-bottom:0px] min-[900px]:[--atlas-inset-left:412px]"
-      style={{ "--atlas-inset-right": selected && wide ? `${DRAWER + GAP * 2}px` : "0px" } as React.CSSProperties}
-    >
+    <div className="fixed inset-0 h-dvh w-screen overflow-hidden bg-field-stage font-sans text-field-text [--atlas-inset-bottom:45dvh] min-[900px]:[--atlas-inset-bottom:0px] min-[900px]:[--atlas-inset-left:412px]">
       <AtlasMap
         sites={visible}
         selectedId={selected?.id ?? null}
@@ -129,65 +126,70 @@ export function AtlasExplorer({ sites, overview, signedIn, initialSiteId = null 
         className="absolute inset-0"
       />
 
-      {/* Top right: what the registry holds today, and the basemap. Real counts, read on load. */}
-      {/* steps aside for the drawer instead of showing through its glass */}
-      <div
-        className="absolute right-4 top-4 z-20 flex flex-col items-end gap-2 motion-safe:transition-transform motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.2,0,0,1)]"
-        style={{ transform: "translateX(calc(var(--atlas-inset-right) * -1))" }}
-      >
-        <dl className="hud hidden items-stretch divide-x divide-field-hairline sm:flex" aria-label="The registry today">
-          {[
-            { n: overview.sites, label: overview.sites === 1 ? "active site" : "active sites" },
-            { n: overview.approved, label: "approved submissions" },
-            { n: overview.verifierOrgs, label: overview.verifierOrgs === 1 ? "independent reviewer" : "independent reviewers" },
-          ].map(({ n, label }) => (
-            <div key={label} className="flex flex-col-reverse px-4 py-2.5">
-              <dt className="text-[12px] text-field-muted">{label}</dt>
-              <dd className="font-serif text-[22px] leading-tight tabular-nums">{formatCount(n)}</dd>
-            </div>
-          ))}
-        </dl>
-        <div role="group" aria-label="Basemap" className="hud flex p-1">
-          {(["satellite", "map"] as const).map((b) => (
-            <button
-              key={b}
-              type="button"
-              aria-pressed={basemap === b}
-              onClick={() => setBasemap(b)}
-              className={cn(
-                "h-8 rounded-lg px-3 text-[13px] capitalize transition-colors",
-                focusRing,
-                basemap === b ? "bg-field-raised text-field-text" : "text-field-muted hover:text-field-text",
-              )}
-            >
-              {b}
-            </button>
-          ))}
-        </div>
+      {/* The basemap, as a small switch on the map itself */}
+      <div role="group" aria-label="Basemap" className="hud absolute right-4 top-4 z-20 flex p-1">
+        {(["map", "satellite"] as const).map((b) => (
+          <button
+            key={b}
+            type="button"
+            aria-pressed={basemap === b}
+            onClick={() => setBasemap(b)}
+            className={cn(
+              "h-8 rounded-[10px] px-3.5 text-[13px] font-medium capitalize transition-colors",
+              focusRing,
+              basemap === b ? "bg-field-text text-field-canopy" : "text-field-muted hover:text-field-text",
+            )}
+          >
+            {b}
+          </button>
+        ))}
       </div>
 
-      {/* The site panel: Felt's layer list, for sites. A bottom sheet below 900px. */}
+      {/* One panel, Felt's layer list for sites. Opening a site turns the panel to it; nothing opens on the other side. */}
       <aside
-        aria-label="Sites"
-        className="hud absolute inset-x-0 bottom-0 z-20 flex max-h-[45dvh] flex-col rounded-b-none min-[900px]:inset-x-auto min-[900px]:bottom-4 min-[900px]:left-4 min-[900px]:top-4 min-[900px]:max-h-none min-[900px]:w-[380px] min-[900px]:rounded-b-xl"
+        aria-label={selected ? "Site details" : "Sites"}
+        className={cn(
+          "hud absolute inset-x-0 bottom-0 z-20 flex flex-col rounded-b-none motion-safe:transition-[max-height] motion-safe:duration-300",
+          selected ? "max-h-[70dvh]" : "max-h-[45dvh]",
+          "min-[900px]:inset-x-auto min-[900px]:bottom-4 min-[900px]:left-4 min-[900px]:top-4 min-[900px]:max-h-none min-[900px]:w-[380px] min-[900px]:rounded-b-[14px]",
+        )}
       >
-        <div className="flex items-center justify-between border-b border-field-hairline px-5 py-4">
+        <div className="flex items-center justify-between border-b border-field-hairline px-5 py-3.5">
           <Link href="/" className={cn("rounded-sm", focusRing)}>
             <Wordmark className="text-field-text" />
           </Link>
-          {!signedIn && (
-            <Link href="/sign-in?next=/atlas" className="text-[13px] text-field-muted underline-offset-4 hover:text-field-text hover:underline">
+          {!signedIn ? (
+            <Link href="/sign-in?next=/atlas" className="text-[14px] font-medium text-signal underline-offset-4 hover:underline">
               Sign in
+            </Link>
+          ) : (
+            <Link href="/dashboard" className="text-[14px] font-medium text-signal underline-offset-4 hover:underline">
+              Workspace
             </Link>
           )}
         </div>
 
+        {selected ? (
+          <SiteDetail key={selected.id} site={selected} state={records[selected.id]} onClose={() => select(null)} onRetry={() => loadRecord(selected.id)} />
+        ) : (
         <div className="overflow-y-auto">
-          <div className="space-y-3 px-5 pt-5">
+          <div className="space-y-4 px-5 pt-5">
             <h1 className="font-serif text-[30px] leading-[1.05] tracking-[-0.015em]">Impact atlas</h1>
             <p className="text-[15px] leading-[1.6] text-field-muted">
               Restoration sites being checked by organisations independent of the people doing the work.
             </p>
+            <dl className="grid grid-cols-3 gap-2" aria-label="The registry today">
+              {[
+                { n: overview.sites, label: overview.sites === 1 ? "site" : "sites" },
+                { n: overview.approved, label: "approved" },
+                { n: overview.verifierOrgs, label: overview.verifierOrgs === 1 ? "reviewer org" : "reviewer orgs" },
+              ].map(({ n, label }) => (
+                <div key={label} className="flex flex-col-reverse rounded-xl bg-field-raised px-3 py-2.5">
+                  <dt className="text-[12px] text-field-muted">{label}</dt>
+                  <dd className="font-serif text-[22px] leading-tight tabular-nums">{formatCount(n)}</dd>
+                </div>
+              ))}
+            </dl>
             <Legend exactCount={exactCount} />
           </div>
 
@@ -203,10 +205,11 @@ export function AtlasExplorer({ sites, overview, signedIn, initialSiteId = null 
                     "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] transition-colors",
                     focusRing,
                     activity === value
-                      ? "border-signal/60 bg-signal/15 text-signal"
-                      : "border-field-hairline text-field-muted hover:border-field-inert hover:text-field-text",
+                      ? "border-field-text bg-field-text text-field-canopy"
+                      : "border-field-hairline bg-field-canopy text-field-text hover:border-field-inert",
                   )}
                 >
+                  {value && <span aria-hidden className="size-2 rounded-full" style={{ background: activityColor(value) }} />}
                   {value ?? "All"}
                   <span className="font-mono text-[12px] tabular-nums opacity-75">{n}</span>
                 </button>
@@ -216,24 +219,26 @@ export function AtlasExplorer({ sites, overview, signedIn, initialSiteId = null 
 
           <ul className="py-4">
             {visible.map((s) => {
-              const on = s.id === selected?.id;
               const lit = s.id === hoveredId;
               return (
                 <li key={s.id}>
                   <button
                     type="button"
-                    onClick={() => select(on ? null : s.id)}
+                    onClick={() => select(s.id)}
                     onMouseEnter={() => setHoveredId(s.id)}
                     onMouseLeave={() => setHoveredId(null)}
                     onFocus={() => setHoveredId(s.id)}
                     onBlur={() => setHoveredId(null)}
-                    aria-current={on ? "true" : undefined}
                     className={cn(
-                      "group flex w-full items-center gap-3 border-l-2 px-5 py-3 text-left transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-signal",
-                      on ? "border-signal bg-field-raised" : lit ? "border-signal/50 bg-field-raised/60" : "border-transparent hover:bg-field-raised/60",
+                      "group mx-2 flex w-[calc(100%-16px)] items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-signal",
+                      lit ? "bg-field-raised" : "hover:bg-field-raised/70",
                     )}
                   >
-                    <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full border border-signal transition-colors", on || lit ? "bg-signal" : "bg-transparent")} />
+                    <span
+                      aria-hidden
+                      className="size-3 shrink-0 rounded-full ring-2 ring-white transition-transform group-hover:scale-125"
+                      style={{ background: activityColor(s.activity), boxShadow: lit ? `0 0 0 4px ${activityColor(s.activity)}33` : undefined }}
+                    />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[15px] font-medium">{s.title}</span>
                       <span className="block truncate text-[13px] text-field-muted">
@@ -247,28 +252,11 @@ export function AtlasExplorer({ sites, overview, signedIn, initialSiteId = null 
             })}
           </ul>
         </div>
+        )}
 
         <p className="mt-auto border-t border-field-hairline px-5 py-3 text-[12px] text-field-muted">
           Demonstration data, read live from the registry.
         </p>
-      </aside>
-
-      {/* The drawer slides with transform only (docs/19-LAYOUT-SPEC.md §6). */}
-      <aside
-        aria-label="Site details"
-        inert={!selected}
-        className={cn(
-          "hud absolute inset-x-0 bottom-0 z-30 flex max-h-[75dvh] flex-col rounded-b-none",
-          "min-[900px]:inset-x-auto min-[900px]:bottom-4 min-[900px]:right-4 min-[900px]:top-4 min-[900px]:max-h-none min-[900px]:w-[400px] min-[900px]:rounded-b-xl",
-          "motion-safe:transition-transform motion-safe:duration-[220ms]",
-          selected
-            ? "translate-y-0 ease-[cubic-bezier(0.2,0,0,1)] min-[900px]:translate-x-0"
-            : "translate-y-[calc(100%+16px)] ease-[cubic-bezier(0.4,0,1,1)] min-[900px]:translate-x-[calc(100%+16px)] min-[900px]:translate-y-0",
-        )}
-      >
-        {selected && (
-          <SiteDetail key={selected.id} site={selected} state={records[selected.id]} onClose={() => select(null)} onRetry={() => loadRecord(selected.id)} />
-        )}
       </aside>
     </div>
   );
@@ -311,9 +299,20 @@ function SiteDetail({ site, state, onClose, onRetry }: { site: AtlasSite; state:
   const rise = (i: number) => ({ "--i": i }) as React.CSSProperties;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="drawer-rise flex items-start justify-between gap-4 px-5 pt-5">
+      <div className="drawer-rise px-5 pt-4">
+        <button
+          type="button"
+          onClick={onClose}
+          className={cn("-ml-2 inline-flex h-9 items-center gap-1.5 rounded-lg px-2 text-[14px] text-field-muted transition-colors hover:bg-field-raised hover:text-field-text", focusRing)}
+        >
+          <ArrowLeft className="size-4" aria-hidden />
+          All sites
+        </button>
+      </div>
+      <div className="drawer-rise flex items-start justify-between gap-4 px-5 pt-2">
         <div className="min-w-0 space-y-2">
-          <p className="text-[13px] text-field-muted">
+          <p className="inline-flex items-center gap-2 text-[13px] text-field-muted">
+            <span aria-hidden className="size-2.5 rounded-full" style={{ background: activityColor(site.activity) }} />
             {site.activity} · {site.ownerOrgName}
           </p>
           <h2 className="font-serif text-[28px] leading-[1.1] tracking-[-0.01em]">{site.title}</h2>
@@ -327,14 +326,6 @@ function SiteDetail({ site, state, onClose, onRetry }: { site: AtlasSite; state:
             </Link>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close site details"
-          className={cn("-mr-2 flex size-10 shrink-0 items-center justify-center rounded-lg text-field-muted transition-colors hover:bg-field-raised hover:text-field-text", focusRing)}
-        >
-          <X className="size-4" aria-hidden />
-        </button>
       </div>
 
       <div className="min-h-0 flex-1 space-y-8 overflow-y-auto px-5 pb-6 pt-6">

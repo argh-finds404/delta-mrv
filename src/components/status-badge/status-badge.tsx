@@ -1,4 +1,5 @@
 import * as React from "react";
+import { STATUS_META } from "@/src/lib/status";
 import { cn } from "@/src/lib/utils";
 
 export type SubmissionStatus =
@@ -102,18 +103,20 @@ export function StatusBadge({
 }: StatusBadgeProps) {
   const config = statusConfig[status];
   const isPaper = theme === "paper";
+  // the workspace: each status in its own hue (src/lib/status.ts), tinted fill and border
+  const { color, label: plain } = STATUS_META[status];
 
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5 text-xs font-normal tracking-normal transition-colors select-none",
-        isPaper ? config.paperClass : config.fieldClass,
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium tracking-normal transition-colors select-none",
+        isPaper && config.paperClass,
         className
       )}
+      style={isPaper ? undefined : { color, background: `color-mix(in srgb, ${color} 11%, white)`, borderColor: `color-mix(in srgb, ${color} 28%, white)` }}
     >
-      {/* 4px filled dot in semantic colour */}
-      <span className="size-1 rounded-full bg-current shrink-0" aria-hidden="true" />
-      <span>{label ?? config.label}</span>
+      <span className="size-1.5 rounded-full bg-current shrink-0" aria-hidden="true" />
+      <span>{label ?? (isPaper ? config.label : plain)}</span>
     </span>
   );
 }

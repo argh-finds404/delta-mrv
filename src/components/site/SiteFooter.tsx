@@ -10,10 +10,9 @@ const COLUMNS = [
     title: "Product",
     links: [
       { href: "/atlas", label: "Impact atlas" },
-      { href: "/verify", label: "Reverse verification" },
-      { href: "/trust", label: "Trust & limits" },
+      { href: "/verify", label: "Check a photo" },
+      { href: "/trust", label: "What it proves" },
       { href: "/#how", label: "How it works" },
-      { href: "/#limits", label: "What it proves" },
     ],
   },
   {
@@ -69,7 +68,15 @@ export function SiteFooter() {
         {/* What the licences ask for: who made each picture, under which licence, and what we changed. */}
         <div className="mt-12 space-y-2 border-t border-paper-rule pt-6 text-[12px] leading-normal text-paper-muted">
           <p>
-            The hero paintings are illustrations drawn in code; their plots, readings and coordinates are examples, not records.
+            The hero paintings are made in code from{" "}
+            <a href="https://cloudless.eox.at" className="underline underline-offset-2 hover:text-paper-ink">
+              Sentinel-2 cloudless 2016
+            </a>{" "}
+            by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2016,{" "}
+            <a href="https://creativecommons.org/licenses/by/4.0/" className="underline underline-offset-2 hover:text-paper-ink">
+              CC BY 4.0
+            </a>
+            ), repainted as watercolour around the demo sites&apos; public, approximate points. Their plots and readings are examples, not records.
           </p>
           <p>
             Photographs in “What the evidence protects”:{" "}

@@ -188,8 +188,8 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
         if (!res.success) {
           setGlobalError(res.error ?? "Registration failed. Please try again.");
         } else {
-          // shortcut: everyone lands on /lab until Stage 3 builds /dashboard (docs/05 §3)
-          router.push(safeNext(new URLSearchParams(window.location.search).get("next")) ?? "/lab");
+          // the role-aware home (docs/05-ROUTES.md §3), unless the proxy sent them from somewhere
+          router.push(safeNext(new URLSearchParams(window.location.search).get("next")) ?? "/dashboard");
         }
       }
     } catch {
@@ -204,7 +204,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
       {/* Header & Step Tracker */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] text-field-muted">
+          <span className="text-[13px] text-field-muted">
             Step {step} of 2 · {step === 1 ? "Your account" : "Organisation"}
           </span>
           <div className="flex gap-1.5">
@@ -223,10 +223,10 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
           </div>
         </div>
 
-        <h1 className="text-xl font-semibold tracking-tight text-field-text">
+        <h1 className="font-serif text-[40px] leading-[1.05] tracking-[-0.02em] text-field-text">
           {step === 1 ? "Create your Delta account" : "Register your organisation"}
         </h1>
-        <p className="text-xs text-field-muted">
+        <p className="text-[15px] leading-[1.55] text-field-muted">
           {step === 1
             ? "Your identity as a field researcher, verifier or project director."
             : "Every project and review is bound to an authenticated tenant organisation."}
@@ -236,7 +236,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
       {globalError && (
         <div
           role="alert"
-          className="rounded border border-fraud/40 bg-[#E2644F]/10 px-3 py-2 text-xs text-field-text"
+          className="rounded-lg border border-fraud/40 bg-fraud/10 px-4 py-3 text-[15px] text-field-text"
         >
           {globalError}
         </div>
@@ -249,7 +249,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
           <div className="space-y-1.5">
             <label
               htmlFor="name"
-              className="block text-xs font-medium text-field-muted"
+              className="block text-[14px] font-medium text-field-text"
             >
               Full name
             </label>
@@ -265,7 +265,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
               autoComplete="name"
               required
               className={cn(
-                "w-full rounded border px-3 py-2 text-xs text-field-text bg-field-raised/60 focus-visible:outline-none focus-visible:ring-1 transition-colors",
+                "h-12 w-full rounded-lg border px-3.5 text-[16px] text-field-text bg-field-canopy focus-visible:outline-none focus-visible:ring-2 transition-colors",
                 errors.name
                   ? "border-fraud focus-visible:ring-fraud"
                   : "border-field-hairline focus-visible:ring-signal"
@@ -273,7 +273,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
               placeholder="Dr. Tahmina Akhtar"
             />
             {errors.name && (
-              <p className="text-[11px] text-fraud">{errors.name}</p>
+              <p className="text-[13px] text-fraud">{errors.name}</p>
             )}
           </div>
 
@@ -281,7 +281,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
           <div className="space-y-1.5">
             <label
               htmlFor="email"
-              className="block text-xs font-medium text-field-muted"
+              className="block text-[14px] font-medium text-field-text"
             >
               Email address
             </label>
@@ -297,7 +297,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
               autoComplete="email"
               required
               className={cn(
-                "w-full rounded border px-3 py-2 text-xs text-field-text bg-field-raised/60 focus-visible:outline-none focus-visible:ring-1 transition-colors",
+                "h-12 w-full rounded-lg border px-3.5 text-[16px] text-field-text bg-field-canopy focus-visible:outline-none focus-visible:ring-2 transition-colors",
                 errors.email
                   ? "border-fraud focus-visible:ring-fraud"
                   : "border-field-hairline focus-visible:ring-signal"
@@ -305,7 +305,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
               placeholder="tahmina@sundarbans-trust.org"
             />
             {errors.email && (
-              <p className="text-[11px] text-fraud">{errors.email}</p>
+              <p className="text-[13px] text-fraud">{errors.email}</p>
             )}
           </div>
 
@@ -313,7 +313,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
           <div className="space-y-1.5">
             <label
               htmlFor="password"
-              className="block text-xs font-medium text-field-muted"
+              className="block text-[14px] font-medium text-field-text"
             >
               Password
             </label>
@@ -336,7 +336,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
                 autoComplete="new-password"
                 required
                 className={cn(
-                  "w-full rounded border px-3 py-2 pr-9 text-xs text-field-text bg-field-raised/60 focus-visible:outline-none focus-visible:ring-1 transition-colors",
+                  "h-12 w-full rounded-lg border px-3.5 pr-12 text-[16px] text-field-text bg-field-canopy focus-visible:outline-none focus-visible:ring-2 transition-colors",
                   errors.password
                     ? "border-fraud focus-visible:ring-fraud"
                     : "border-field-hairline focus-visible:ring-signal"
@@ -354,7 +354,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
             </div>
 
             {capsLockActive && (
-              <p className="text-[11px] text-review">Caps Lock is on</p>
+              <p className="text-[13px] text-review">Caps Lock is on</p>
             )}
 
             {/* 4-Segment Strength Bar (docs/15-UI-STATES.md §6) */}
@@ -380,20 +380,20 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
                     );
                   })}
                 </div>
-                <p className="text-[11px] text-field-muted">
+                <p className="text-[13px] text-field-muted">
                   {passwordStrength.guidance}
                 </p>
               </div>
             )}
 
             {errors.password && (
-              <p className="text-[11px] text-fraud">{errors.password}</p>
+              <p className="text-[13px] text-fraud">{errors.password}</p>
             )}
           </div>
 
           <button
             type="submit"
-            className="w-full flex items-center justify-center gap-2 rounded bg-signal px-4 py-2 text-xs font-semibold text-[#0A0C0B] hover:bg-signal/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal cursor-pointer"
+            className="h-12 w-full flex items-center justify-center gap-2 rounded-lg bg-signal px-5 text-[16px] font-medium text-field-abyss hover:bg-[#C6EE9E] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal cursor-pointer"
           >
             <span>Continue to organisation details</span>
             <ArrowRight className="size-3.5" />
@@ -408,7 +408,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
           <div className="space-y-1.5">
             <label
               htmlFor="orgName"
-              className="block text-xs font-medium text-field-muted"
+              className="block text-[14px] font-medium text-field-text"
             >
               Organisation legal name
             </label>
@@ -422,7 +422,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
               }}
               required
               className={cn(
-                "w-full rounded border px-3 py-2 text-xs text-field-text bg-field-raised/60 focus-visible:outline-none focus-visible:ring-1 transition-colors",
+                "h-12 w-full rounded-lg border px-3.5 text-[16px] text-field-text bg-field-canopy focus-visible:outline-none focus-visible:ring-2 transition-colors",
                 errors.orgName
                   ? "border-fraud focus-visible:ring-fraud"
                   : "border-field-hairline focus-visible:ring-signal"
@@ -430,7 +430,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
               placeholder="e.g. Sundarbans Restoration Trust"
             />
             {errors.orgName && (
-              <p className="text-[11px] text-fraud">{errors.orgName}</p>
+              <p className="text-[13px] text-fraud">{errors.orgName}</p>
             )}
           </div>
 
@@ -439,7 +439,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
             <div className="space-y-1.5">
               <label
                 htmlFor="country"
-                className="block text-xs font-medium text-field-muted"
+                className="block text-[14px] font-medium text-field-text"
               >
                 Country of registry
               </label>
@@ -449,14 +449,14 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
                 value={country}
                 onChange={(e) => setCountry(e.target.value)}
                 required
-                className="w-full rounded border border-field-hairline px-3 py-2 text-xs text-field-text bg-field-raised/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-signal"
+                className="h-12 w-full rounded-lg border border-field-hairline px-3.5 text-[16px] text-field-text bg-field-canopy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
               />
             </div>
 
             <div className="space-y-1.5">
               <label
                 htmlFor="website"
-                className="block text-xs font-medium text-field-muted"
+                className="block text-[14px] font-medium text-field-text"
               >
                 Website (optional)
               </label>
@@ -466,14 +466,14 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
                 value={website}
                 onChange={(e) => setWebsite(e.target.value)}
                 placeholder="https://example.org"
-                className="w-full rounded border border-field-hairline px-3 py-2 text-xs text-field-text bg-field-raised/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-signal"
+                className="h-12 w-full rounded-lg border border-field-hairline px-3.5 text-[16px] text-field-text bg-field-canopy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
               />
             </div>
           </div>
 
           {/* ORGANISATION TYPE SELECTOR (Three Cards, Never a Dropdown - docs/15-UI-STATES.md §6) */}
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-field-muted">
+            <label className="block text-[14px] font-medium text-field-text">
               Organisation type
             </label>
 
@@ -492,7 +492,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Building2 className={cn("size-4", orgType === "OWNER" ? "text-field-text" : "text-field-muted")} />
-                    <span className="text-xs font-medium text-field-text">Project owner</span>
+                    <span className="text-[15px] font-medium text-field-text">Project owner</span>
                   </div>
                   {orgType === "OWNER" && (
                     <span className="flex size-4 items-center justify-center rounded-full bg-field-text text-field-abyss">
@@ -500,7 +500,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
                     </span>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-field-muted pl-6">
+                <p className="mt-1 text-[14px] leading-[1.5] text-field-muted pl-6">
                   You run restoration projects and submit evidence
                 </p>
               </button>
@@ -519,7 +519,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className={cn("size-4", orgType === "VERIFIER" ? "text-field-text" : "text-field-muted")} />
-                    <span className="text-xs font-medium text-field-text">Independent verifier</span>
+                    <span className="text-[15px] font-medium text-field-text">Independent verifier</span>
                   </div>
                   {orgType === "VERIFIER" && (
                     <span className="flex size-4 items-center justify-center rounded-full bg-field-text text-field-abyss">
@@ -527,7 +527,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
                     </span>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-field-muted pl-6">
+                <p className="mt-1 text-[14px] leading-[1.5] text-field-muted pl-6">
                   You review other organisations&apos; evidence
                 </p>
               </button>
@@ -546,7 +546,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Coins className={cn("size-4", orgType === "FUNDER" ? "text-field-text" : "text-field-muted")} />
-                    <span className="text-xs font-medium text-field-text">Funder</span>
+                    <span className="text-[15px] font-medium text-field-text">Funder</span>
                   </div>
                   {orgType === "FUNDER" && (
                     <span className="flex size-4 items-center justify-center rounded-full bg-field-text text-field-abyss">
@@ -554,14 +554,14 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
                     </span>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-field-muted pl-6">
+                <p className="mt-1 text-[14px] leading-[1.5] text-field-muted pl-6">
                   You fund projects and review verified outcomes
                 </p>
               </button>
             </div>
 
             {/* Crucial conflict-of-interest notice (docs/15-UI-STATES.md §6) */}
-            <p className="mt-2 text-xs leading-relaxed text-field-muted/90 italic">
+            <p className="mt-2 text-[14px] leading-[1.5] text-field-muted">
               Organisation type determines what you can do. A project owner cannot
               review evidence, including its own. This cannot be changed later
               without administrator approval.
@@ -573,7 +573,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
             <button
               type="button"
               onClick={() => setStep(1)}
-              className="flex items-center gap-1.5 rounded border border-field-hairline px-3 py-2 text-xs font-medium text-field-muted hover:text-field-text transition-colors"
+              className="flex h-12 items-center gap-1.5 rounded-lg border border-field-hairline px-4 text-[15px] font-medium text-field-muted hover:text-field-text transition-colors"
             >
               <ArrowLeft className="size-3.5" />
               <span>Back</span>
@@ -582,7 +582,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 flex items-center justify-center gap-2 rounded bg-signal px-4 py-2 text-xs font-semibold text-[#0A0C0B] hover:bg-signal/90 disabled:opacity-60 transition-colors cursor-pointer"
+              className="flex-1 flex h-12 items-center justify-center gap-2 rounded-lg bg-signal px-5 text-[16px] font-medium text-field-abyss hover:bg-[#C6EE9E] disabled:opacity-60 transition-colors cursor-pointer"
             >
               {isSubmitting ? (
                 <>
@@ -601,7 +601,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
       )}
 
       {/* Auxiliary Link */}
-      <div className="pt-2 border-t border-field-hairline text-xs">
+      <div className="pt-6 border-t border-field-hairline text-[15px]">
         <span className="text-field-muted">Already registered? </span>
         <Link
           href="/sign-in"
