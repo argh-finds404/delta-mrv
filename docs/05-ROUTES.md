@@ -21,6 +21,12 @@ maintainer decision and an entry in this file.
 Theme: **Field** = dark workspace. **Paper** = warm public certificate.
 See `docs/06-DESIGN-SYSTEM.md`.
 
+> **As built (2026-11-13): there is no platform-admin account.** Every `admin` route and
+> action below is open to an owner or admin of any `VERIFIER` organisation
+> (`canRunAnchoring`, `src/lib/org-type.ts`), and a verifier organisation assigns itself to a
+> project ("take on for review"). Whether an operator account should hold this instead is an
+> open maintainer decision: `docs/SESSION-HANDOFF.md` §7.
+
 ---
 
 ## 1. Public — `src/app/(public)/` · theme Paper
@@ -29,10 +35,11 @@ See `docs/06-DESIGN-SYSTEM.md`.
 |---|---|---|
 | `/` | public | Landing. Problem, how it works, a real seeded proof, the "what this does not prove" block, CTA. |
 | `/atlas` | public | Impact Atlas. **Fuzzed geometry only** when unauthenticated. Exact polygons appear when an authorised session is present. |
-| `/projects/[id]` | public | Project overview, reported impact, evidence timeline, verification status, proof links. Sensitive fields filtered by caller. |
-| `/proof/[id]` | public | Proof dossier. The product's centrepiece. See §4. |
-| `/proof/[id]/print` | public | Print-optimised certificate. |
-| `/about` | public | Threat model summary, limitations, technology, open source links. |
+| `/p/[id]` | public | Project overview, reported impact, verification status, proof links. No session branch at all: area-level geometry, approved records only (A6). The workspace view is `/projects/[id]`, §3. |
+| `/proof/[id]` | public | Proof dossier. The product's centrepiece. See §4. Printing is the print stylesheet of this page (S7). |
+| `/proof/[id]/print` | public | **Not a separate address.** The print stylesheet on `/proof/[id]` is the print-optimised certificate. |
+| `/verify` | public | Reverse lookup: a proof id, a transaction hash, or a dropped file hashed in the browser (A7). |
+| `/trust` | public | What is proved and not, every finding rule, measured precision and recall, threat model summary, how fuzzing works (A8; replaces `/about`). |
 
 `/atlas` is deliberately public and deliberately shared between anonymous and
 authenticated callers. The same component renders both; the **server** decides
@@ -52,13 +59,17 @@ which geometry it receives. There is no client-side "if logged in, show exact".
 |---|---|---|
 | `/dashboard` | session | Role-aware home. Owner: project and submission status. Verifier: review queue depth. Funder: verified outcomes. |
 | `/projects/new` | owner | Create project. Boundary drawn on a MapLibre canvas, not typed as coordinates. |
-| `/projects/[id]/manage` | owner | Edit metadata, manage verifier assignments (request only — admin assigns). |
+| `/projects/[id]` | owner \| verifier | The project in the workspace: exact boundary, every submission and its state (A6). |
+| `/projects/[id]/manage` | owner | Edit the description; the name, the claim and the tolerance until evidence has been sent, after which they are fixed. Close the project. Shows which organisations review it. Requesting a reviewer is not built: it depends on the open decision above. |
 | `/projects/[id]/submit` | owner | Evidence intake. Before/after pair, previews, client-side hashing, offline queue. See §5. |
-| `/submissions/[id]` | owner \| verifier | Full submission detail: findings, EXIF, map, hashes, decision history. |
-| `/lab` | verifier | **The reviewer workspace.** See §3.1. |
-| `/lab/[submissionId]` | verifier | Single-submission deep inspection. |
-| `/admin` | admin | Queue health, retry stuck jobs, anchor now, verifier assignment, org management, audit chain verification. |
-| `/admin/tamper-demo` | admin, `DEMO_MODE` only | Breaks one sandbox audit row and shows verification failing. |
+| `/submissions/[id]` | owner \| verifier | Full submission detail: decisions and reasons, evidence and hashes, findings, EXIF, map, audit trail, anchor. A linked funder gets a 404 here and reads `/proof/[id]`. |
+| `/lab` | verifier | **The reviewer workspace.** See §3.1. `/lab?s=<submission id>` opens one record. |
+| `/lab/[submissionId]` | verifier | **Not a separate address.** `/lab?s=<submission id>` and `/submissions/[id]` cover it. |
+| `/admin` | admin | Queue health, retry stopped jobs, anchor now, verifier assignment ("take on for review"), audit chain verification, the tamper demo. Organisation management is the "People" panel on `/dashboard`. `matchRef` resolution is not built. |
+| `/admin/tamper-demo` | admin, `DEMO_MODE` only | **Not a separate address.** The demo is a panel on `/admin`; it changes one event in a copy of a real chain and shows verification failing there. |
+
+`/dashboard?invite=<invitation id>` is the far end of an invitation link (A14): the page shows
+the invitation to the account it was made for, and that account joins from there.
 
 ### 3.1 `/lab` — the queue
 
@@ -135,10 +146,20 @@ An unreachable RPC showing red would be a lie. `UNAVAILABLE` is neutral grey.
 | `/api/v1/projects/[id]` | api key | Project detail |
 | `/api/v1/submissions/[id]/proof` | public | Canonical manifest + Merkle proof. Powers third-party verification. |
 | `/api/v1/stats` | api key | Aggregate counts for the key's organisation: its funded projects, their approved and anchored records |
+| `/api/v1/proofs/lookup` | public | `/verify`'s lookup (A7): a proof id, a file's SHA-256 or a transaction hash, matched against public proofs only |
+| `/api/submissions` | session, owner | `POST`: start a draft submission |
+| `/api/submissions/[id]/upload-token` | session, owner | `POST`: a token for one direct upload to private storage |
+| `/api/submissions/[id]/finalize` | session, owner | `POST`: draft to pending forensics, in one transaction |
+| `/api/submissions/[id]/supplement` | session, owner | `POST`: one more photo after a request for more proof |
+| `/api/submissions/[id]/findings` | session | `GET`: the findings, visible exactly when the submission is |
+| `/api/submissions/[id]/decisions` | session | `GET`: review decisions, an open round's hidden until the caller has voted (A4) |
+| `/api/evidence/[fileId]` | session | `GET`: streams one original, visible exactly when its submission is; never public |
+| `/api/lab/queue` | session | `GET`: the caller's review queue; `?s=<id>` brings one record into the page |
+| `/api/lab/decision` | session, verifier | `POST`: one decision with its written reason |
 | `/api/internal/jobs/drain` | `CRON_SECRET` | Hourly queue drain |
 | `/api/internal/anchor/daily` | `CRON_SECRET` | Daily batch + anchor. `?before=<ISO time>` closes the batch at that moment |
 | `/api/dev/storage` | upload token; development only | Takes a browser upload when the server keeps evidence on its own disk (`LOCAL_STORAGE_DIR`). 404 in a production build and wherever that is unset |
-| `/api/webhooks/test` | api key | Signed delivery test |
+| `/api/webhooks/test` | api key | Signed delivery test. **Not built**: webhooks (S10) have no schema yet, `docs/03-DATABASE.md` §4 |
 
 All `/api/v1` handlers are thin adapters: Zod parse → one service call →
 response shape. No database access, no business rules.

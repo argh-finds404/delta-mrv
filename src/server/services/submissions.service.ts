@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Manifest } from "../../lib/crypto/manifest";
 import { ACCEPTED_EVIDENCE_TYPES, EXTENSION, HEIC_REFUSAL, MAX_EVIDENCE_BYTES, sniffImageType } from "../../lib/forensics/mime";
@@ -9,6 +9,7 @@ import { db } from "../db/client";
 import {
   anchorBatch,
   anchorLeaf,
+  auditEvent,
   evidenceFile,
   evidenceSubmission,
   forensicFinding,
@@ -21,10 +22,11 @@ import {
 } from "../db/schema";
 import { evidenceStorage, localStorage } from "../storage";
 import type { StoragePort } from "../storage/port";
+import type { GeoPoint } from "../db/schema/types";
 import { actorContext, assignedVerifierOrgs, isUuid, parseInput, type Actor, type ActorContext, type Executor } from "./access";
 import { ConflictError, NotFoundError, ValidationError } from "./errors";
 import { appendAuditEvent } from "./audit-chain.service";
-import { dHashOf, FORENSICS_JOB, RULE_VERSION } from "./forensics.service";
+import { dHashOf, FORENSICS_JOB, RULE_VERSION, type ExifFacts } from "./forensics.service";
 import { enqueueJob } from "./jobs.service";
 
 // Reads, and intake: draft, scoped upload token, finalize, supplement (Stage 4b).
@@ -154,6 +156,84 @@ export async function listFindings(actor: Actor | null, submissionId: string, x:
     .where(eq(forensicFinding.submissionId, submission.id))
     .orderBy(forensicFinding.createdAt, forensicFinding.kind, forensicFinding.id);
   return { submission, findings };
+}
+
+export type EvidenceFileView = {
+  id: string;
+  role: "BEFORE" | "AFTER" | "SUPPLEMENT";
+  round: number;
+  mime: string;
+  sizeBytes: number;
+  /** Computed by the server from the stored bytes: the record. */
+  sha256: string;
+  /** What the device computed before upload, when it sent one. A weak signal, never the record. */
+  clientSha256: string | null;
+  /** 64 characters of 0 and 1; null until the forensic pass has read the file. */
+  dhash: string | null;
+  /** As the file's own metadata states them. Null means the file does not say: never an inferred value. */
+  capturedAt: Date | null;
+  gps: GeoPoint | null;
+  exif: ExifFacts | null;
+};
+
+export type SubmissionDetail = {
+  submission: SubmissionSummary;
+  access: "owner" | "verifier";
+  project: { id: string; title: string; activityType: (typeof impactProject.$inferSelect)["activityType"]; ownerOrgName: string; toleranceMeters: number };
+  /** Every file of every round, oldest round first, before then after then supplements. */
+  files: EvidenceFileView[];
+  /** This submission's events on its owner's audit chain, oldest first. */
+  events: { seq: number; eventType: string; createdAt: Date; eventHash: string }[];
+};
+
+/**
+ * /submissions/[id] (docs/14-PAGE-SPEC.md §7): the full record of one submission, for the
+ * organisation that owns it and for an assigned verifier organisation. Anyone else, a linked
+ * funder included, gets the same 404 as a missing id: a funder reads the public proof page.
+ * Events come without their payloads, because a decision's payload states the verdict and an
+ * open round's verdicts stay hidden until the caller has voted (A4); getRoundDecisions is the
+ * one place decisions are read from.
+ */
+export async function getSubmissionDetail(actor: Actor, id: string, x: Executor = db): Promise<SubmissionDetail> {
+  const submission = await getSubmission(actor, id, x);
+  const ctx = await actorContext(x, actor);
+  const access = ctx.orgIds.includes(submission.ownerOrgId)
+    ? "owner"
+    : (await assignedVerifierOrgs(x, submission.projectId, ctx.verifierOrgIds)).length
+      ? "verifier"
+      : null;
+  if (!access) throw new NotFoundError(NOT_FOUND);
+
+  const [[project], files, events] = await Promise.all([
+    x
+      .select({ id: impactProject.id, title: impactProject.title, activityType: impactProject.activityType, toleranceMeters: impactProject.toleranceMeters, ownerOrgName: organization.name })
+      .from(impactProject)
+      .innerJoin(organization, eq(organization.id, impactProject.ownerOrgId))
+      .where(eq(impactProject.id, submission.projectId)),
+    x
+      .select({
+        id: evidenceFile.id,
+        role: evidenceFile.role,
+        round: evidenceFile.round,
+        mime: evidenceFile.mime,
+        sizeBytes: evidenceFile.sizeBytes,
+        sha256: evidenceFile.sha256,
+        clientSha256: evidenceFile.clientSha256,
+        dhash: evidenceFile.dhash,
+        capturedAt: evidenceFile.capturedAt,
+        gps: evidenceFile.gps,
+        exif: evidenceFile.exif,
+      })
+      .from(evidenceFile)
+      .where(eq(evidenceFile.submissionId, submission.id))
+      .orderBy(evidenceFile.round, sql`case ${evidenceFile.role} when 'BEFORE' then 0 when 'AFTER' then 1 else 2 end`, evidenceFile.createdAt, evidenceFile.id),
+    x
+      .select({ seq: auditEvent.seq, eventType: auditEvent.eventType, createdAt: auditEvent.createdAt, eventHash: auditEvent.eventHash })
+      .from(auditEvent)
+      .where(and(eq(auditEvent.orgId, submission.ownerOrgId), sql`${auditEvent.payload}->>'submissionId' = ${submission.id}`))
+      .orderBy(asc(auditEvent.seq)),
+  ]);
+  return { submission, access, project: project!, files: files.map((f) => ({ ...f, exif: (f.exif as ExifFacts | null) ?? null })), events };
 }
 
 export type PublicProof = {

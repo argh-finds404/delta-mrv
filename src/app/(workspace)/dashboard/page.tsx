@@ -4,6 +4,8 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { ArrowRight, Camera, ShieldCheck } from "lucide-react";
 import { AppShell, AppShellLoading } from "@/src/components/app/AppShell";
+import { JoinInvitation } from "@/src/components/app/JoinInvitation";
+import { OrgPeople } from "@/src/components/app/OrgPeople";
 import { SitesMap } from "@/src/components/app/SitesMap";
 import { StatusBadge } from "@/src/components/status-badge/status-badge";
 import { activityColor } from "@/src/lib/activity";
@@ -29,18 +31,19 @@ const primary =
   "inline-flex h-11 items-center gap-2 rounded-xl bg-signal px-4 text-[15px] font-medium text-white transition-colors hover:bg-[#14543D] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal";
 
 // Read at request time (cacheComponents): the body streams inside Suspense.
-export default function DashboardPage() {
+export default function DashboardPage({ searchParams }: { searchParams?: Promise<{ invite?: string }> }) {
   return (
     <React.Suspense fallback={<AppShellLoading />}>
-      <Dashboard />
+      <Dashboard searchParams={searchParams} />
     </React.Suspense>
   );
 }
 
-async function Dashboard() {
+async function Dashboard({ searchParams }: { searchParams?: Promise<{ invite?: string }> }) {
   await connection();
   const session = await requireSession();
   const actor = { userId: session.user.id };
+  const invite = (await searchParams)?.invite; // the far end of an invitation link (docs/16 A14)
 
   // no .catch: a failed read must reach the error boundary, not render as an all-clear dashboard
   const [queue, projects, counts, orgs, funded] = await Promise.all([reviewQueueOverview(actor), listProjects(actor), countSubmissionsByStatus(actor), myOrganisations(actor), myFunderPortfolio(actor)]);
@@ -57,6 +60,7 @@ async function Dashboard() {
   const isVerifier = queue.isVerifier;
   const isOwner = owned.length > 0;
   const org = orgs[0];
+  const manages = orgs.find((o) => o.role === "owner" || o.role === "admin");
   const firstName = (session.user.name || session.user.email).split(/[\s@]/)[0];
   const total = STATUS_ORDER.reduce((n, s) => n + counts[s], 0);
   const highCount = queue.items.filter((i) => i.findingCounts.high > 0).length;
@@ -91,6 +95,8 @@ async function Dashboard() {
             </Link>
           ) : null}
         </header>
+
+        {typeof invite === "string" && <JoinInvitation invitationId={invite} signedInAs={session.user.email} />}
 
         {/* A new organisation: what this page will hold, and the one step that fills it (docs/15 §2) */}
         {org && mine.length === 0 && !funded && (
@@ -167,17 +173,22 @@ async function Dashboard() {
                       A reviewer asked for more proof on round {s.round}, submitted {s.submittedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}.
                     </p>
                   </div>
-                  <Link href={`/projects/${s.projectId}/submit?supplement=${s.id}`} className={primary}>
-                    Add a photo
-                    <ArrowRight className="size-4" aria-hidden />
-                  </Link>
+                  <span className="flex flex-wrap items-center gap-4">
+                    <Link href={`/submissions/${s.id}`} className="rounded-sm text-[15px] font-medium text-signal hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal">
+                      Read the reason
+                    </Link>
+                    <Link href={`/projects/${s.projectId}/submit?supplement=${s.id}`} className={primary}>
+                      Add a photo
+                      <ArrowRight className="size-4" aria-hidden />
+                    </Link>
+                  </span>
                 </li>
               ))}
               {isVerifier &&
                 queue.items.slice(0, 4).map((item) => (
                   <li key={item.id}>
                     <Link
-                      href="/lab"
+                      href={`/lab?s=${item.id}`}
                       className="lift lift-hover flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-field-hairline bg-field-canopy p-4 pl-5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
                     >
                       <span className="min-w-0 space-y-1">
@@ -237,7 +248,7 @@ async function Dashboard() {
           </section>
         )}
 
-        {orgs.length === 0 && (
+        {orgs.length === 0 && typeof invite !== "string" && (
           <section className="rise-in mx-auto max-w-[560px] space-y-4 rounded-2xl border border-field-hairline bg-field-canopy p-8 text-center" style={rise(1)}>
             <h2 className="font-serif text-[28px] leading-tight">You are not in an organisation yet</h2>
             <p className="text-[15px] leading-[1.6] text-field-muted">
@@ -249,6 +260,9 @@ async function Dashboard() {
             </Link>
           </section>
         )}
+
+        {/* Who is in the organisation, for those who may bring people in (the auth service checks again) */}
+        {manages && <OrgPeople orgId={manages.orgId} orgName={manages.orgName} orgType={manages.orgType} />}
       </main>
     </AppShell>
   );

@@ -162,7 +162,10 @@ export function FindingCard({ finding, theme = "field", className }: FindingCard
             <span className="sr-only">{SEVERITY_LABEL[finding.severity]} severity. </span>
             {title}
           </span>
-          <span className={cn("mt-1 block pr-6 text-[13px] leading-5", muted)}>{findingSummary(finding)}</span>
+          <span className={cn("mt-1 block pr-6 text-[13px] leading-5", muted)}>
+            {finding.subject && <span className={ink}>{finding.subject}. </span>}
+            {findingSummary(finding)}
+          </span>
         </span>
         {showNumbers ? (
           <ChevronUp aria-hidden="true" className={cn("absolute bottom-4 right-4 size-5", muted)} />

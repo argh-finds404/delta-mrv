@@ -29,11 +29,10 @@ The one line that matters:
 
 ## 2. Current state
 
-**Date of this update:** 2026-11-13, second update of the day. Run for it: `pnpm check` (235
-unit tests), `pnpm test:integration` on local Docker (150 tests), `pnpm contracts:test` (16),
-`pnpm audit:verify` over the local database and `pnpm build`. `pnpm test:e2e` was **not**
-re-run: port 3000 was held by the maintainer's own dev server, and one checkout runs one
-`next dev`. Its last pass was earlier the same day, before the changes listed below.
+**Date of this update:** 2026-11-13, third update of the day. Run for it, all passing:
+`pnpm check` (235 unit tests), `pnpm test:integration` on local Docker (160 tests),
+`pnpm build`, and `pnpm test:e2e` (3 specs) against the local stack. `pnpm contracts:test` was
+not re-run: nothing under `contracts/` changed since its last pass (16 tests).
 
 | Stage | Status |
 |---|---|
@@ -44,7 +43,7 @@ re-run: port 3000 was held by the maintainer's own dev server, and one checkout 
 | 5 - Audit chain, Evidence Lab, quorum review, AI advisory | **Done** |
 | 6 - Contract and anchoring | **Built and tested on a local chain. Not deployed to Base Sepolia** |
 | 7 - Proof dossier, public API, API keys, funder view | **Built** |
-| 8 - Evidence, polish, E2E, ship | **Eval write-up, replay, chain verification, query timings, tamper demo, contrast and keyboard pass, README: done.** k6 and deploy: not done |
+| 8 - Evidence, polish, E2E, ship | **Eval write-up, replay, chain verification, query timings, tamper demo, contrast, keyboard, 320 px and 200 % zoom pass, README: done.** k6 and deploy: not done |
 
 **Built since the last update:** `contracts/` (Foundry; `ImpactAnchorRegistry.sol`, 16 tests
 reading the committed vectors); manifest sealing at approval; `anchor.service` behind a chain
@@ -74,18 +73,41 @@ the maintainer's watercolour illustrations.
 - `README.md` rewritten from `docs/00-PRODUCT.md`: the overclaims are gone, the measured
   numbers and the threat-model summary are in.
 
+**Built in the third update:**
+
+- `/submissions/[id]` (docs/14 §7): decisions and reasons first, then the stored originals with
+  their fingerprints, findings, the site, the anchor and the audit trail. Owner and assigned
+  verifier only; a linked funder gets a 404 and reads the proof page. Linked from the project
+  page and from "Needs your attention".
+- `/projects/[id]/manage`: description, close the project, who reviews it. **New service rule:**
+  the name, the claim and the tolerance cannot change once evidence has been sent, because the
+  proof page shows them beside approvals the reviewers gave for the old values
+  (`test/integration/project-manage.test.ts`).
+- `/admin` has the job queue (M6): counts, the jobs that stopped, and "Retry stopped jobs".
+- The review workspace showed no photographs for any record in round 2 or later, never showed a
+  supplement, and labelled a file's id as its SHA-256. It now shows the latest pair, the
+  supplements, and the real fingerprint, capture time and position.
+- Invitations (docs/04 §2, A14): a "People" panel on `/dashboard` for owners and admins, a link
+  shown once, a one-step sign-up for the invited person, and the join card at
+  `/dashboard?invite=<id>`. This is the auth library's invitation flow; the link works only for
+  an account with the invited address, for 48 hours.
+- The offline capture queue is cleared at sign-out (A11), after a confirmation when it holds
+  unsent work.
+- `.githooks/pre-commit`: the secret scan passed every large commit unscanned (`grep -q` under
+  `pipefail`). It now scans file by file and names the file. The local Docker URL is exempt;
+  nothing else is, so a change to `test/fixtures/crypto/vectors.json` will be refused.
+- `LICENSE` (Apache-2.0, as the README already said), a not-found page, a workspace error page.
+- `docs/05-ROUTES.md` now lists the routes that exist, and marks the ones that do not.
+
 **Not built or not done:**
 
 - The Base Sepolia deployment and a real batch; the hosted deployment. Both by hand.
-- k6 (see the timing script above), a platform-admin role, webhooks (S10: its tables are
-  still undefined in `docs/03-DATABASE.md`).
-- Clearing the offline queue at sign-out (docs/16 A11). Left alone on purpose: it would delete
-  a field worker's unsent photos without a warning. Needs a decision.
-- Routes in `docs/05-ROUTES.md` that do not exist: `/proof/[id]/print` (the print stylesheet
-  on `/proof/[id]` covers S7), `/projects/[id]/manage`, `/submissions/[id]`,
-  `/lab/[submissionId]` (`/lab?s=<id>` opens one record), `/admin/tamper-demo` (the demo is a
-  panel on `/admin`), `/api/webhooks/test`. Build them or strike them from the doc.
-- `README.md` names Apache-2.0 and the repository has no `LICENSE` file.
+- **A platform-admin account** (docs/00 §4, docs/05 legend). See §7: this is the one decision
+  to make before sign-up is open to the public.
+- `matchRef` resolution and a way for an owner to request a reviewer: both wait on that decision.
+- Webhooks (S10): its tables are still undefined in `docs/03-DATABASE.md`, and
+  `/api/webhooks/test` does not exist.
+- k6: `pnpm bench:queries` stands in for it.
 
 ## 3. The documents are the contract
 
@@ -209,9 +231,21 @@ These are in the docs but worth knowing so they are not re-litigated:
 
 - The **pooled connection path is only exercised on Neon.** Local Docker has
   no pgbouncer, so `prepare: false` is untested locally.
-- No **platform admin role** in the schema. The COI test proves only that no
-  voting path exists for a user with no organisation.
-- The **session-expired screen** has never been exercised.
+- **No platform admin, and it matters once sign-up is public.** `/admin` (anchor now, retry
+  jobs, audit chain names and counts) is open to an owner or admin of any `VERIFIER`
+  organisation, and such an organisation assigns itself to a project. Anyone can register one.
+  So an owner could register a second, verifier organisation, take on their own project and
+  approve it with two accounts: the conflict-of-interest rule only refuses a person who belongs
+  to both organisations. `docs/THREAT_MODEL.md` T3 says assignment is "controlled by an admin",
+  which the build does not do. The COI test still proves only that a user with no organisation
+  has no path to a vote.
+- A stale or invalid session cookie sends every workspace page to `/sign-in` (checked by hand).
+  It does not bring the person back to the page they were on.
+- `docs/18-VISUAL-CORRECTION.md` labels `PERCEPTUAL_MATCH_SAME_ORG` "Matches your
+  organisation's other project". A reviewer reads that as their own organisation. Left as the
+  doc says.
+- The invitation browser test adds one member to the demo verifier organisation in the local
+  database on every run.
 - Seeded rows (the 5,200 of history and the hand-made narrative records) were written by SQL,
   not by the pipeline, so `pnpm forensics:replay` fails on them by design. Replay a record that
   went through intake: all three in the local database replay byte for byte.
@@ -230,12 +264,9 @@ These are in the docs but worth knowing so they are not re-litigated:
    `NEXT_PUBLIC_CONTRACT_ADDRESS`. Press "Anchor now" as the audit admin.
 2. After deploying, set the repository secrets `APP_URL` and `CRON_SECRET` so
    `.github/workflows/scheduled.yml` starts calling the two internal routes.
-3. Decide the two open items in the session report: the pre-commit secret scan against
-   `test/fixtures/crypto/vectors.json`, and whether `scripts/dev-local.ts` should be exempt from
-   the `ANCHOR_PRIVATE_KEY` guard (today it needs no exemption).
-4. Run `pnpm test:e2e` with port 3000 free, then look at the workspace with the darker
-   status colours.
-5. Decide the open items listed under "Not built or not done" in section 2.
+3. Decide who may assign reviewers and open `/admin` (§7), before sign-up is public.
+4. Decide webhooks: specify the two tables, or strike S10.
+5. Look at the workspace with the darker status colours and say if a hue is wrong.
 
 Local development: `docker compose up -d`, then `pnpm dev:local`.
 

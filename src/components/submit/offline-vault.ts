@@ -110,6 +110,18 @@ export async function deleteOfflineDraft(id: string): Promise<void> {
   });
 }
 
+/** Sign-out (docs/16-AMENDMENTS-v2.md A11): the next person at this device must not find these photos. */
+export async function clearOfflineDrafts(): Promise<void> {
+  const db = await openDb();
+  if (!db) return;
+
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear();
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
 export function fileToStored(file: File, sha256: string): Promise<StoredEvidenceFile> {
   return file.arrayBuffer().then((data) => ({
     name: file.name,

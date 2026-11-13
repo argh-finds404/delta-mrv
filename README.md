@@ -186,6 +186,8 @@ Workspace (signed in)
   /projects/new           Register a site and draw its boundary
   /projects/[id]          Project workspace with the exact boundary
   /projects/[id]/submit   Evidence intake and the offline queue
+  /projects/[id]/manage   Description, closing the project, who reviews it
+  /submissions/[id]       One submission in full: decisions, evidence, findings, audit trail
   /lab                    Review queue for assigned verifiers
   /admin                  Anchoring, audit chain verification, review assignment
 

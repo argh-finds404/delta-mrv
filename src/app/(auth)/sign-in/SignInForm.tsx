@@ -164,7 +164,17 @@ export function SignInForm({ onSubmit, demoEnabled = false }: SignInPageProps) {
       <div className="space-y-3 border-t border-field-hairline pt-6 text-[15px]">
         <p className="text-field-muted">
           New organisation?{" "}
-          <Link href="/sign-up" className="text-field-text underline decoration-field-hairline underline-offset-[5px] transition-colors hover:decoration-field-text">
+          <Link
+            href="/sign-up"
+            // someone who arrived with an invitation link keeps it through sign-up
+            onClick={(e) => {
+              const next = safeNext(new URLSearchParams(window.location.search).get("next"));
+              if (!next?.startsWith("/dashboard?invite=")) return;
+              e.preventDefault();
+              router.push(`/sign-up?next=${encodeURIComponent(next)}`);
+            }}
+            className="text-field-text underline decoration-field-hairline underline-offset-[5px] transition-colors hover:decoration-field-text"
+          >
             Create an account
           </Link>
         </p>

@@ -1,6 +1,6 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
-import { and, asc, desc, eq, gt, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { locationCommitment } from "../../lib/crypto/location";
 import { db } from "../db/client";
@@ -264,12 +264,7 @@ export async function getPublicProject(id: string, x: Executor = db): Promise<Pu
   const [row] = await selectPublic(x).where(and(eq(impactProject.id, id), eq(impactProject.status, "ACTIVE")));
   if (!row) throw new NotFoundError(NOT_FOUND);
 
-  const verifiers = await x
-    .select({ name: organization.name })
-    .from(projectAssignment)
-    .innerJoin(organization, eq(organization.id, projectAssignment.verifierOrgId))
-    .where(eq(projectAssignment.projectId, id))
-    .orderBy(asc(organization.name));
+  const verifierOrgNames = await reviewerNames(x, id);
   const [record] = await x
     .select({
       approved: sql<number>`count(*) filter (where ${evidenceSubmission.status} = 'APPROVED')::int`,
@@ -278,7 +273,23 @@ export async function getPublicProject(id: string, x: Executor = db): Promise<Pu
     .from(evidenceSubmission)
     .where(eq(evidenceSubmission.projectId, id));
 
-  return { ...row, verifierOrgNames: verifiers.map((v) => v.name), record: record! };
+  return { ...row, verifierOrgNames, record: record! };
+}
+
+async function reviewerNames(x: Executor, projectId: string): Promise<string[]> {
+  const rows = await x
+    .select({ name: organization.name })
+    .from(projectAssignment)
+    .innerJoin(organization, eq(organization.id, projectAssignment.verifierOrgId))
+    .where(eq(projectAssignment.projectId, projectId))
+    .orderBy(asc(organization.name));
+  return rows.map((r) => r.name);
+}
+
+/** The verifier organisations assigned to a project, for anyone who may see the project. The public page names them too. */
+export async function listProjectReviewers(actor: Actor | null, id: string, x: Executor = db): Promise<string[]> {
+  const { row } = await loadVisible(x, actor, id);
+  return reviewerNames(x, row.id);
 }
 
 /**
@@ -422,6 +433,21 @@ export async function updateProject(actor: Actor, id: string, patch: UpdateProje
     const row = await loadForOwnerWrite(tx, actor, id);
     if (data.status && !NEXT_STATUS[row.status].includes(data.status)) {
       throw new ConflictError(`a ${row.status} project cannot become ${data.status}`);
+    }
+    // Reviewers judge evidence against the name, the claim and the tolerance, and the proof page
+    // shows them beside every approval. Once evidence has been sent, they are what was reviewed.
+    const changesWhatWasReviewed =
+      (data.title !== undefined && data.title !== row.title) ||
+      (data.claimedQuantity !== undefined && (row.claimedQuantity === null || data.claimedQuantity !== Number(row.claimedQuantity))) ||
+      (data.claimedUnit !== undefined && data.claimedUnit !== row.claimedUnit) ||
+      (data.toleranceMeters !== undefined && data.toleranceMeters !== row.toleranceMeters);
+    if (changesWhatWasReviewed) {
+      const [sent] = await tx
+        .select({ id: evidenceSubmission.id })
+        .from(evidenceSubmission)
+        .where(and(eq(evidenceSubmission.projectId, id), ne(evidenceSubmission.status, "DRAFT")))
+        .limit(1);
+      if (sent) throw new ConflictError("The name, the claim and the tolerance are fixed once evidence has been sent, because reviewers judge the evidence against them.");
     }
     const [updated] = await tx
       .update(impactProject)

@@ -4,10 +4,11 @@
 //   - the tamper demo edits a copy, never the stored chain, and names the exact event it changed
 //   - a project is taken on by an independent organisation only: never by one whose admin
 //     also belongs to the owner, and the assignment is on the owner's audit chain
+//   - the job queue (M6): what has stopped is listed, and one press puts it back in the queue
 import { asc, eq } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
-import { auditEvent, member, projectAssignment } from "../../src/server/db/schema";
-import { auditChainHealth, takeOnReview, tamperDemo, unassignedProjects } from "../../src/server/services/admin.service";
+import { auditEvent, job, member, projectAssignment } from "../../src/server/db/schema";
+import { auditChainHealth, jobQueueHealth, retryHaltedJobs, takeOnReview, tamperDemo, unassignedProjects } from "../../src/server/services/admin.service";
 import { verifyChainRows } from "../../src/server/services/audit-chain.service";
 import { ConflictError, ConflictOfInterestError, ForbiddenError, NotFoundError } from "../../src/server/services/errors";
 import { createProject, updateProject } from "../../src/server/services/projects.service";
@@ -85,5 +86,46 @@ describe("taking a project on for review", () => {
       // and it does what it is for: that organisation's reviewers can now decide on the project
       const s = await addSubmission(tx, { projectId: fresh.id, ownerOrgId: w.org.owner.id, userId: w.u.ownerMember.id });
       expect(await castDecision(actor(w.u.v1), s.id, { decision: "APPROVE", reason: REASON }, tx)).toMatchObject({ status: "IN_REVIEW" });
+    }));
+});
+
+describe("the job queue on /admin", () => {
+  it("lists the jobs that have stopped and puts them back in the queue, for a verifier-organisation admin only", () =>
+    inRollback(async (tx) => {
+      const w = await world(tx);
+      const kind = `test.admin.${w.tag}`;
+      const longAgo = new Date(Date.now() - 60 * 60 * 1000);
+      const rows = await tx
+        .insert(job)
+        .values([
+          { kind, payload: {}, status: "FAILED", attempts: 5, lastError: "storage did not answer", idempotencyKey: `${kind}:failed` },
+          { kind, payload: {}, status: "STUCK", attempts: 5, idempotencyKey: `${kind}:stuck` },
+          // its worker died on the last allowed attempt: nothing will ever pick it up again
+          { kind, payload: {}, status: "RUNNING", attempts: 5, lockedAt: longAgo, idempotencyKey: `${kind}:abandoned` },
+          { kind, payload: {}, status: "DONE", attempts: 1, idempotencyKey: `${kind}:done` },
+          { kind, payload: {}, status: "PENDING", attempts: 2, idempotencyKey: `${kind}:waiting` },
+        ])
+        .returning();
+      const [failed, stuck, abandoned, done, waiting] = rows.map((r) => r.id);
+
+      for (const who of [w.u.ownerAdmin, w.u.v1, w.u.funder, w.u.platformAdmin]) {
+        await expect(jobQueueHealth(actor(who), tx)).rejects.toBeInstanceOf(ForbiddenError);
+        await expect(retryHaltedJobs(actor(who), tx)).rejects.toBeInstanceOf(ForbiddenError);
+      }
+
+      const health = await jobQueueHealth(actor(w.u.vAdmin), tx);
+      const mine = health.halted.filter((j) => j.kind === kind);
+      expect(mine.map((j) => [j.id, j.status]).sort()).toEqual([[failed, "FAILED"], [stuck, "STUCK"], [abandoned, "STUCK"]].sort());
+      expect(mine.find((j) => j.id === failed)).toMatchObject({ attempts: 5, lastError: "storage did not answer" });
+      expect(health.counts.FAILED).toBeGreaterThanOrEqual(1);
+      expect(health.counts.STUCK).toBeGreaterThanOrEqual(2);
+
+      expect(await retryHaltedJobs(actor(w.u.vAdmin), tx)).toBeGreaterThanOrEqual(3);
+      const after = new Map((await tx.select().from(job).where(eq(job.kind, kind))).map((j) => [j.id, j]));
+      for (const id of [failed, stuck, abandoned]) expect(after.get(id!)).toMatchObject({ status: "PENDING", attempts: 0, lastError: null, lockedAt: null });
+      // what had not stopped is left alone
+      expect(after.get(done!)).toMatchObject({ status: "DONE", attempts: 1 });
+      expect(after.get(waiting!)).toMatchObject({ status: "PENDING", attempts: 2 });
+      expect((await jobQueueHealth(actor(w.u.vAdmin), tx)).halted.filter((j) => j.kind === kind)).toEqual([]);
     }));
 });

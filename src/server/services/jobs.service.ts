@@ -97,16 +97,18 @@ export async function runOneJob(x: Executor = db, opts: { kinds?: string[] } = {
   }
 }
 
-/**
- * Runs due jobs until the queue is empty or the time budget is spent. A job whose worker died on
- * its last allowed attempt becomes STUCK, which is what the admin retry is for.
- */
-export async function drainJobs(opts: { budgetMs?: number; max?: number } = {}, x: Executor = db) {
-  const { budgetMs = 20_000, max = 50 } = opts;
+/** A job whose worker died on its last allowed attempt becomes STUCK, which is what the admin retry is for. */
+export async function markStuckJobs(x: Executor = db) {
   await x
     .update(job)
     .set({ status: "STUCK", lockedAt: null })
     .where(and(eq(job.status, "RUNNING"), sql`${job.attempts} >= ${job.maxAttempts}`, sql`${job.lockedAt} < ${stale()}`));
+}
+
+/** Runs due jobs until the queue is empty or the time budget is spent. */
+export async function drainJobs(opts: { budgetMs?: number; max?: number } = {}, x: Executor = db) {
+  const { budgetMs = 20_000, max = 50 } = opts;
+  await markStuckJobs(x);
   const start = Date.now();
   const tally = { done: 0, retry: 0, failed: 0, superseded: 0 };
   for (let i = 0; i < max && Date.now() - start < budgetMs; i++) {
@@ -126,10 +128,8 @@ export function drainAfterResponse() {
   );
 }
 
-/** Puts a FAILED or STUCK job back in the queue with a fresh attempt budget. */
+/** Puts a FAILED or STUCK job back in the queue with a fresh attempt budget. Who may is the caller's rule (admin.service). */
 export async function retryJob(id: string, x: Executor = db): Promise<boolean> {
-  // shortcut: no caller check here; the only caller will be the admin panel (Stage 6e), which
-  // must check for an admin role once one exists (no platform admin in the schema yet)
   const res = await x
     .update(job)
     .set({ status: "PENDING", attempts: 0, lastError: null, lockedAt: null, runAt: sql`now()` })

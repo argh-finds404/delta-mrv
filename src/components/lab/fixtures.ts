@@ -6,6 +6,8 @@ import type { SubmissionStatus } from "@/src/components/status-badge/status-badg
 export interface LabFinding {
   id: string;
   kind: string;
+  /** Which photo the finding is about ("Before photo"), when it concerns one file. */
+  subject?: string;
   severity: "INFO" | "LOW" | "MEDIUM" | "HIGH";
   humanReason: string;
   evidence: {

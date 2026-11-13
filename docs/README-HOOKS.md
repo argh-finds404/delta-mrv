@@ -25,7 +25,9 @@ clone — re-run it after cloning, and note it in the README.
 - `package-lock.json`, `yarn.lock`
 - `middleware.ts`
 - Staged lines containing a 64-hex private key, a Google API key, a blob token,
-  or a Postgres URL with an inline password
+  or a Postgres URL with an inline password. The file is named; the line is not
+  printed. One exemption: the local Docker database's URL, which
+  `docker-compose.yml` publishes. The hook does not scan itself
 - `NEXT_PUBLIC_ANCHOR_PRIVATE_KEY`
 
 ## Bypassing

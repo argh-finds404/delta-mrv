@@ -37,17 +37,24 @@ done <<<"$STAGED"
 
 # Secrets must never be staged. The anchor key may appear in exactly one source
 # file, and only as a process.env reference.
-if [[ -n "$STAGED" ]]; then
-  if git diff --cached -U0 -- $STAGED 2>/dev/null \
-      | grep -E '^\+' \
-      | grep -qE '(0x[a-fA-F0-9]{64}|AIza[0-9A-Za-z_-]{20,}|BLOB_READ_WRITE_TOKEN=|postgres(ql)?://[^$ ]*:[^$ @]+@)'; then
-    die "Possible hardcoded secret or key in the staged diff. Review before committing."
+#
+# Every grep below reads its whole input. Piping git diff into `grep -q` under `pipefail` let
+# every large commit through unscanned: grep -q exits at its first match, git diff dies of
+# SIGPIPE, the pipeline counts as failed, and the `if` read that as "no secret".
+SECRET='(0x[a-fA-F0-9]{64}|AIza[0-9A-Za-z_-]{20,}|BLOB_READ_WRITE_TOKEN=.|postgres(ql)?://[^$ ]*:[^$ @]+@)'
+while IFS= read -r f; do
+  [[ -z "$f" ]] && continue
+  [[ "$f" == .githooks/pre-commit ]] && continue # this file spells out the patterns it looks for
+  ADDED="$(git diff --cached -U0 -- ":(literal)$f" | grep -E '^\+' || true)"
+  # The local Docker database's URL is not a secret: docker-compose.yml publishes it.
+  # The file is named and the line is not printed: a hook must not echo what it found.
+  if grep -vF 'delta:delta_local@localhost' <<<"$ADDED" | grep -E "$SECRET" >/dev/null; then
+    die "Possible hardcoded secret or key in $f. Review before committing."
   fi
-  if git diff --cached -U0 -- $STAGED 2>/dev/null \
-      | grep -E '^\+' | grep -q 'NEXT_PUBLIC_ANCHOR_PRIVATE_KEY'; then
-    die "ANCHOR_PRIVATE_KEY must never be exposed as NEXT_PUBLIC_."
+  if grep -F 'NEXT_PUBLIC_ANCHOR_PRIVATE_KEY' <<<"$ADDED" >/dev/null; then
+    die "ANCHOR_PRIVATE_KEY must never be exposed as NEXT_PUBLIC_ (in $f)."
   fi
-fi
+done <<<"$STAGED"
 
 if (( FAIL )); then
   printf '\n  Commit rejected. See docs/12-AGENT-SCOPE.md §3 and §4.\n\n' >&2

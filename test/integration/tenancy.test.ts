@@ -360,7 +360,8 @@ describe("reviews: reviewQueueOverview (what the Lab shows)", () => {
       .values({ submissionId: w.submission.id, role: "BEFORE", storageKey: "test/k.jpg", mime: "image/jpeg", sizeBytes: 1, sha256: "0".repeat(64) })
       .returning();
     const o = await reviewQueueOverview(actor(w.u.v1), 100, tx);
-    expect(o.items.find((i) => i.id === w.submission.id)?.files).toEqual([{ id: f!.id, role: "BEFORE", round: 1 }]);
+    // with what the stored file says about itself: its fingerprint, and no capture time or position it does not carry
+    expect(o.items.find((i) => i.id === w.submission.id)?.files).toEqual([{ id: f!.id, role: "BEFORE", round: 1, sha256: "0".repeat(64), capturedAt: null, gps: null }]);
   });
 
   scenario("an owner or a funder gets an empty overview that says why, never an error", async (tx, w) => {

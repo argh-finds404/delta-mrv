@@ -1,16 +1,18 @@
 import "server-only";
-import { and, asc, eq, inArray, notExists, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, notExists, sql } from "drizzle-orm";
 import { env } from "../../env";
 import { canRunAnchoring } from "../../lib/org-type";
 import { db } from "../db/client";
-import { auditEvent, impactProject, organization, projectAssignment } from "../db/schema";
+import { auditEvent, impactProject, job, organization, projectAssignment } from "../db/schema";
 import { actorContext, isUuid, type Actor, type Executor } from "./access";
 import { appendAuditEvent, verifyAuditChains, verifyChainRows, type ChainVerdict } from "./audit-chain.service";
 import { ConflictError, ConflictOfInterestError, ForbiddenError, NotFoundError } from "./errors";
+import { markStuckJobs, retryJob } from "./jobs.service";
 
-// The audit-chain panels of /admin (docs/05-ROUTES.md §3). Same gate as anchoring: an admin of
-// a verifier organisation. Both are read-only: verification reads the chains, and the tamper
-// demo alters a copy in memory, because the table itself refuses every UPDATE.
+// The panels of /admin beyond anchoring (docs/05-ROUTES.md §3): audit chains, the tamper demo,
+// taking a project on for review, and the job queue. Same gate as anchoring: an admin of a
+// verifier organisation. Chain verification reads the chains, and the tamper demo alters a copy
+// in memory, because the table itself refuses every UPDATE.
 
 async function assertAdmin(x: Executor, actor: Actor): Promise<void> {
   const { memberships } = await actorContext(x, actor);
@@ -110,4 +112,37 @@ export async function takeOnReview(actor: Actor, projectId: string, x: Executor 
     });
     return { verifierOrgId: mine.orgId };
   });
+}
+
+export type QueueHealth = {
+  /** Jobs by state. Finished jobs are history and are not counted. */
+  counts: Record<"PENDING" | "RUNNING" | "FAILED" | "STUCK", number>;
+  /** Jobs that will not run again unless someone retries them, newest first (at most 50). */
+  halted: { id: string; kind: string; status: "FAILED" | "STUCK"; attempts: number; lastError: string | null; createdAt: Date }[];
+};
+
+/** The job queue as it stands (docs/01-FEATURE-LOCK.md M6). An abandoned job is marked STUCK first, as a drain would. */
+export async function jobQueueHealth(actor: Actor, x: Executor = db): Promise<QueueHealth> {
+  await assertAdmin(x, actor);
+  await markStuckJobs(x);
+  const counts = { PENDING: 0, RUNNING: 0, FAILED: 0, STUCK: 0 };
+  const rows = await x.select({ status: job.status, n: sql<number>`count(*)::int` }).from(job).where(ne(job.status, "DONE")).groupBy(job.status);
+  for (const r of rows) if (r.status !== "DONE") counts[r.status] = r.n;
+  const halted = await x
+    .select({ id: job.id, kind: job.kind, status: job.status, attempts: job.attempts, lastError: job.lastError, createdAt: job.createdAt })
+    .from(job)
+    .where(inArray(job.status, ["FAILED", "STUCK"]))
+    .orderBy(desc(job.createdAt))
+    .limit(50);
+  return { counts, halted: halted as QueueHealth["halted"] };
+}
+
+/** "Retry stuck jobs" (M6): every FAILED or STUCK job goes back in the queue with a fresh attempt budget. Returns how many. */
+export async function retryHaltedJobs(actor: Actor, x: Executor = db): Promise<number> {
+  await assertAdmin(x, actor);
+  await markStuckJobs(x);
+  const rows = await x.select({ id: job.id }).from(job).where(inArray(job.status, ["FAILED", "STUCK"]));
+  let retried = 0;
+  for (const r of rows) if (await retryJob(r.id, x)) retried++;
+  return retried;
 }

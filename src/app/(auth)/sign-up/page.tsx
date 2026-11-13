@@ -103,6 +103,15 @@ function evaluatePasswordStrength(password: string): {
 export default function SignUpPage({ onSubmit }: SignUpPageProps) {
   const router = useRouter();
   const [step, setStep] = React.useState<1 | 2>(1);
+  // Read from the address bar, so the page needs no Suspense boundary; "" on the server.
+  const search = React.useSyncExternalStore(
+    () => () => {},
+    () => window.location.search,
+    () => "",
+  );
+  const next = safeNext(new URLSearchParams(search).get("next"));
+  // Someone following an invitation link joins an existing organisation: they do not register one.
+  const joining = next?.startsWith("/dashboard?invite=") ?? false;
 
   // Step 1: User state
   const [name, setName] = React.useState("");
@@ -148,7 +157,19 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
     }
 
     setErrors({});
-    setStep(2);
+    if (!joining) return setStep(2);
+
+    // invited: the account only; the invitation itself is accepted on the overview
+    setIsSubmitting(true);
+    setGlobalError(null);
+    authClient.signUp
+      .email({ name: name.trim(), email: email.trim(), password })
+      .then((account) => {
+        if (account.error) setGlobalError(account.error.message ?? "Could not create the account.");
+        else router.push(next ?? "/dashboard");
+      })
+      .catch(() => setGlobalError("Could not connect to the authentication service. Please try again."))
+      .finally(() => setIsSubmitting(false));
   };
 
   // Final submit
@@ -205,8 +226,9 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-[13px] text-field-muted">
-            Step {step} of 2 · {step === 1 ? "Your account" : "Organisation"}
+            {joining ? "You were invited" : `Step ${step} of 2 · ${step === 1 ? "Your account" : "Organisation"}`}
           </span>
+          {!joining && (
           <div className="flex gap-1.5">
             <span
               className={cn(
@@ -221,13 +243,16 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
               )}
             />
           </div>
+          )}
         </div>
 
         <h1 className="font-serif text-[40px] leading-[1.05] tracking-[-0.02em] text-field-text">
           {step === 1 ? "Create your Delta account" : "Register your organisation"}
         </h1>
         <p className="text-[15px] leading-[1.55] text-field-muted">
-          {step === 1
+          {joining
+            ? "Use the email address the invitation was made for. You join the organisation on the next screen."
+            : step === 1
             ? "Your identity as a field researcher, verifier or project director."
             : "Every project and review is bound to an authenticated tenant organisation."}
         </p>
@@ -393,9 +418,10 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
 
           <button
             type="submit"
-            className="h-12 w-full flex items-center justify-center gap-2 rounded-lg bg-signal px-5 text-[16px] font-medium text-field-abyss hover:bg-[#14543D] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal cursor-pointer"
+            disabled={isSubmitting}
+            className="h-12 w-full flex items-center justify-center gap-2 rounded-lg bg-signal px-5 text-[16px] font-medium text-field-abyss hover:bg-[#14543D] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal cursor-pointer disabled:opacity-60"
           >
-            <span>Continue to organisation details</span>
+            <span>{joining ? (isSubmitting ? "Creating your account…" : "Create account") : "Continue to organisation details"}</span>
             <ArrowRight className="size-3.5" />
           </button>
         </form>
@@ -604,7 +630,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
       <div className="pt-6 border-t border-field-hairline text-[15px]">
         <span className="text-field-muted">Already registered? </span>
         <Link
-          href="/sign-in"
+          href={joining && next ? `/sign-in?next=${encodeURIComponent(next)}` : "/sign-in"}
           className="text-field-text underline underline-offset-2 hover:text-field-muted transition-colors"
         >
           Sign in

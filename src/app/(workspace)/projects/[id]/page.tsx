@@ -86,6 +86,11 @@ async function ProjectBody({ params }: Props) {
               Public page
               <ExternalLink className="size-4" aria-hidden />
             </Link>
+            {isOwner && (
+              <Link href={`/projects/${project.id}/manage`} className={secondary}>
+                Manage
+              </Link>
+            )}
             {isOwner && project.status === "ACTIVE" && (
               <Link href={`/projects/${project.id}/submit`} className={primary}>
                 <Camera className="size-[18px]" aria-hidden />
@@ -146,7 +151,7 @@ async function ProjectBody({ params }: Props) {
                       {s.submittedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                     </time>
                     <span className="font-mono text-[13px] text-field-muted">{s.id.slice(0, 8)}</span>
-                    <span className="ml-auto flex items-center gap-2">
+                    <span className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1">
                       {s.status === "NEEDS_MORE_PROOF" && isOwner && (
                         <Link href={`/projects/${project.id}/submit?supplement=${s.id}`} className="text-[14px] font-medium text-signal hover:underline">
                           Add a photo
@@ -156,6 +161,11 @@ async function ProjectBody({ params }: Props) {
                         <Link href={`/proof/${s.id}`} className="inline-flex items-center gap-1 text-[14px] font-medium text-signal hover:underline">
                           Proof
                           <ArrowRight className="size-3.5" aria-hidden />
+                        </Link>
+                      )}
+                      {project.access !== "public" && (
+                        <Link href={`/submissions/${s.id}`} className="text-[14px] font-medium text-signal hover:underline">
+                          Full record
                         </Link>
                       )}
                     </span>

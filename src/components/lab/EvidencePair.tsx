@@ -19,8 +19,9 @@ import { cn } from "@/src/lib/utils";
 export interface EvidenceImage {
   url: string;
   sha256: string;
-  capturedAt: string;
-  dhash: string;
+  /** When the file's own metadata says it was taken. Null when the file does not say. */
+  capturedAt: string | null;
+  dhash?: string;
   width?: number;
   height?: number;
   /** Where the photo was taken, if the file says. Shown in mono under the image. */
@@ -223,7 +224,7 @@ export function EvidencePair({
       ) : (
         <Image
           src={img.url}
-          alt={`${label} photo, captured ${formatDate(img.capturedAt)}`}
+          alt={img.capturedAt ? `${label} photo, captured ${formatDate(img.capturedAt)}` : `${label} photo`}
           width={img.width ?? 800}
           height={img.height ?? 600}
           unoptimized
@@ -247,7 +248,7 @@ export function EvidencePair({
   const caption = (img: EvidenceImage, label: string, align: "left" | "right") => (
     <p className={cn("min-w-0 text-[13px] leading-5 text-field-muted", align === "right" && "text-right")}>
       <span className="block truncate">
-        {label} capture · {formatDate(img.capturedAt)}
+        {img.capturedAt ? `${label} capture · ${formatDate(img.capturedAt)}` : `${label} · capture time not in the file`}
       </span>
       {img.gps && (
         <span className="block truncate font-mono tabular-nums text-field-text">{formatCoordinate(img.gps)}</span>
@@ -257,7 +258,7 @@ export function EvidencePair({
 
   const segment = (active: boolean) =>
     cn(
-      "flex h-8 items-center gap-2 rounded-sm px-3 text-[13px] transition-colors duration-[120ms]",
+      "flex h-8 items-center gap-2 whitespace-nowrap rounded-sm px-3 text-[13px] transition-colors duration-[120ms]",
       active ? "bg-field-raised text-field-text" : "text-field-muted hover:text-field-text"
     );
 
@@ -267,7 +268,7 @@ export function EvidencePair({
   return (
     <div className={cn("flex min-h-0 flex-col gap-2", className)}>
       {/* Controls: one 40px row */}
-      <div className="flex h-10 shrink-0 items-center justify-between gap-4 select-none">
+      <div className="flex min-h-10 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 select-none">
         <div role="group" aria-label="View mode" className="flex items-center rounded-lg border border-field-hairline bg-field-canopy p-1">
           <button type="button" aria-pressed={sliderMode} onClick={() => setViewMode("slider")} className={segment(sliderMode)}>
             <SlidersHorizontal className="size-3.5" aria-hidden="true" /> Slider
@@ -402,7 +403,7 @@ export function EvidencePair({
                 <dt className="text-field-text">{label}</dt>
                 <dd className="flex items-center justify-between gap-4">
                   <span className="text-field-muted">Captured</span>
-                  <span className="font-mono tabular-nums text-field-text">{img.capturedAt}</span>
+                  <span className="font-mono tabular-nums text-field-text">{img.capturedAt ?? "Not in the file"}</span>
                 </dd>
                 <dd className="flex items-center justify-between gap-4">
                   <span className="text-field-muted">SHA-256</span>

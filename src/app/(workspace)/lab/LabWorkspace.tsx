@@ -15,6 +15,7 @@ import {
   type QueueItem,
 } from "@/src/components/lab";
 import { sampleLabSubmissions, type LabFinding, type LabSubmission } from "@/src/components/lab/fixtures";
+import { SEVERITY_ORDER, toLabFinding, type ApiFinding } from "@/src/components/lab/to-lab-finding";
 import { StatusBadge } from "@/src/components/status-badge/status-badge";
 import { EmptyState } from "@/src/components/empty-state/empty-state";
 import { cn } from "@/src/lib/utils";
@@ -42,8 +43,17 @@ type RealItem = QueueItem & {
   rejectionsCount: number;
   requiredQuorum: number;
   userDecision?: DecisionAction;
-  files: { id: string; role: "BEFORE" | "AFTER" | "SUPPLEMENT"; round: number }[];
+  files: LabFile[];
 };
+
+/** An evidence file as the queue reports it: what the stored file says about itself, nothing inferred. */
+type LabFile = { id: string; role: "BEFORE" | "AFTER" | "SUPPLEMENT"; round: number; sha256: string; capturedAt: string | null; gps: { coordinates: [number, number] } | null };
+const toImage = (f: LabFile) => ({
+  url: `/api/evidence/${f.id}`,
+  sha256: f.sha256,
+  capturedAt: f.capturedAt,
+  gps: f.gps ? { lat: f.gps.coordinates[1], lng: f.gps.coordinates[0] } : undefined,
+});
 
 /** The shape of GET /api/lab/queue (dates arrive as strings). */
 type ApiOverview = {
@@ -62,7 +72,7 @@ type ApiOverview = {
     rejections: number;
     userDecision: DecisionAction | null;
     findingCounts: QueueItem["findingCounts"];
-    files: { id: string; role: "BEFORE" | "AFTER" | "SUPPLEMENT"; round: number }[];
+    files: LabFile[];
   }[];
 };
 
@@ -75,27 +85,6 @@ type Source =
 type QueueState = "ok" | "not-a-verifier" | "no-assignments" | "queue-clear";
 
 const QUORUM = 2; // docs/01-FEATURE-LOCK.md
-
-const SEVERITY_ORDER = { HIGH: 0, MEDIUM: 1, LOW: 2, INFO: 3 } as const;
-
-/** A finding as stored (forensics.service); cross-organisation matches carry only a matchRef. */
-type ApiFinding = { id: string; kind: string; severity: LabFinding["severity"]; reason: string; ruleVersion: string; evidence: Record<string, unknown> };
-
-const num = (v: unknown) => (typeof v === "number" ? v : undefined);
-const toLabFinding = (f: ApiFinding): LabFinding => ({
-  id: f.id,
-  kind: f.kind,
-  severity: f.severity,
-  humanReason: f.reason,
-  evidence: {
-    ruleVersion: f.ruleVersion,
-    threshold: num(f.evidence.threshold) ?? 0,
-    hammingDistance: num(f.evidence.distance),
-    distanceMeters: num(f.evidence.distanceMeters),
-    toleranceMeters: num(f.evidence.toleranceMeters),
-    matchRef: typeof f.evidence.matchRef === "string" ? f.evidence.matchRef : undefined,
-  },
-});
 
 const sentenceCase = (enumName: string) => {
   const s = enumName.toLowerCase().replaceAll("_", " ");
@@ -177,6 +166,10 @@ export function LabWorkspace() {
   }, [reloadKey]);
 
   // The selected real submission's findings, as stored (GET /api/submissions/[id]/findings)
+  const itemsRef = React.useRef(items); // read inside the fetch, without re-fetching when the queue reloads
+  React.useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
   const [realFindings, setRealFindings] = React.useState<{ id: string; state: "loading" | "error" | LabFinding[] } | null>(null);
   React.useEffect(() => {
     if (source.kind !== "real" || !selectedId) return;
@@ -189,7 +182,7 @@ export function LabWorkspace() {
         const res = await fetch(`/api/submissions/${selectedId}/findings`, { cache: "no-store" });
         if (!res.ok) throw new Error(String(res.status));
         const data = (await res.json()) as { findings: ApiFinding[] };
-        if (!ignore) setRealFindings({ id: selectedId, state: data.findings.map(toLabFinding) });
+        if (!ignore) setRealFindings({ id: selectedId, state: data.findings.map((f) => toLabFinding(f, itemsRef.current.find((i) => i.id === selectedId)?.files)) });
       } catch {
         if (!ignore) setRealFindings({ id: selectedId, state: "error" });
       }
@@ -283,7 +276,7 @@ export function LabWorkspace() {
   };
 
   const headerButton =
-    "flex h-9 items-center gap-2 rounded-lg border border-field-hairline bg-field-canopy px-3 text-[14px] text-field-text transition-colors duration-150 hover:bg-field-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal disabled:opacity-40";
+    "flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border border-field-hairline bg-field-canopy px-3 text-[14px] text-field-text transition-colors duration-150 hover:bg-field-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal disabled:opacity-40";
   const position = list.findIndex((s) => s.id === selectedId);
   const step = (by: number) => {
     const next = list[position + by];
@@ -303,7 +296,7 @@ export function LabWorkspace() {
   return (
     <div className="flex min-h-0 flex-1 flex-col font-sans text-field-text">
       {/* The Lab's own toolbar: the queue (a drawer, not a sidebar), stepping, and tools */}
-      <div className="flex h-14 shrink-0 select-none items-center gap-2 border-b border-field-hairline bg-field-canopy/70 px-4 sm:px-6">
+      <div className="flex min-h-14 shrink-0 select-none flex-wrap items-center gap-2 border-b border-field-hairline bg-field-canopy/70 px-4 py-2 sm:px-6">
         <button type="button" onClick={() => setQueueOpen(true)} className={headerButton} aria-haspopup="dialog" aria-expanded={queueOpen}>
           <ListChecks className="size-4" aria-hidden="true" />
           Queue
@@ -433,27 +426,29 @@ export function LabWorkspace() {
                     </div>
                   }
                 />
-              ) : activeReal &&
-                activeReal.files.some((f) => f.role === "BEFORE" && f.round === activeReal.round) &&
-                activeReal.files.some((f) => f.role === "AFTER" && f.round === activeReal.round) ? (
+              ) : activeReal && activeReal.files.some((f) => f.role === "BEFORE") && activeReal.files.some((f) => f.role === "AFTER") ? (
                 (() => {
-                  const beforeFile = activeReal.files.find((f) => f.role === "BEFORE" && f.round === activeReal.round)!;
-                  const afterFile = activeReal.files.find((f) => f.role === "AFTER" && f.round === activeReal.round)!;
+                  // the pair belongs to the round it was sent in; a later round adds supplements to it
+                  const beforeFile = activeReal.files.findLast((f) => f.role === "BEFORE")!;
+                  const afterFile = activeReal.files.findLast((f) => f.role === "AFTER")!;
+                  const supplements = activeReal.files.filter((f) => f.role === "SUPPLEMENT");
                   return (
+                    <>
+                    {supplements.length > 0 && (
+                      // the new evidence of a later round: in view, not folded into the details
+                      <p className="flex shrink-0 flex-wrap items-baseline gap-x-4 gap-y-1 rounded-lg border border-field-hairline bg-field-raised px-3 py-2 text-[14px]">
+                        <span className="text-field-muted">Sent after more proof was asked for:</span>
+                        {supplements.map((f, i) => (
+                          <a key={f.id} href={`/api/evidence/${f.id}`} target="_blank" rel="noreferrer" className="font-medium text-signal underline underline-offset-4">
+                            Supplementary photo {i + 1}, round {f.round}
+                          </a>
+                        ))}
+                      </p>
+                    )}
                     <EvidencePair
                       className="flex-1"
-                      before={{
-                        url: `/api/evidence/${beforeFile.id}`,
-                        sha256: beforeFile.id,
-                        capturedAt: activeReal.submittedAt,
-                        dhash: "—",
-                      }}
-                      after={{
-                        url: `/api/evidence/${afterFile.id}`,
-                        sha256: afterFile.id,
-                        capturedAt: activeReal.submittedAt,
-                        dhash: "—",
-                      }}
+                      before={toImage(beforeFile)}
+                      after={toImage(afterFile)}
                       beforeLabel="Before"
                       afterLabel="After"
                       details={
@@ -477,15 +472,16 @@ export function LabWorkspace() {
                         </div>
                       }
                     />
+                    </>
                   );
                 })()
               ) : (
                 <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-field-hairline bg-field-canopy p-8 text-center">
                   <ImageOff className="size-6 text-field-muted" aria-hidden="true" />
-                  <h2 className="text-base font-medium text-field-text">The photographs are not available yet</h2>
+                  <h2 className="text-base font-medium text-field-text">No photographs are stored for this record</h2>
                   <p className="prose-column text-[13px] leading-5 text-field-muted">
-                    This submission is a real record, but its images live in private storage, which is connected in Stage 3. You can read the
-                    record and decide on it, though without the pictures there is little to decide on.
+                    The record exists, but no before and after photo is stored with it, so there is nothing to compare. A record like this cannot be
+                    judged on its evidence.
                   </p>
                   <dl className="mt-1 space-y-1 text-[13px] leading-5">
                     <div className="flex justify-between gap-8">

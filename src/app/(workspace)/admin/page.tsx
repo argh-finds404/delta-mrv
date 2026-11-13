@@ -3,17 +3,18 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { AnchorNow } from "@/src/components/admin/AnchorNow";
+import { RetryJobs } from "@/src/components/admin/RetryJobs";
 import { TakeOnReview } from "@/src/components/admin/TakeOnReview";
 import { TamperDemo } from "@/src/components/admin/TamperDemo";
 import { AppShell, AppShellLoading } from "@/src/components/app/AppShell";
 import { explorerAddress, explorerTx } from "@/src/lib/chain/registry";
 import { ACTIVITY_LABEL, formatCount } from "@/src/lib/format";
 import { requireSession } from "@/src/server/auth/session";
-import { auditChainHealth, unassignedProjects } from "@/src/server/services/admin.service";
+import { auditChainHealth, jobQueueHealth, unassignedProjects } from "@/src/server/services/admin.service";
 import { anchorOverview } from "@/src/server/services/anchor.service";
 import { ForbiddenError } from "@/src/server/services/errors";
 import { myOrganisations } from "@/src/server/services/projects.service";
-import { anchorNowAction, takeOnReviewAction, tamperDemoAction } from "./actions";
+import { anchorNowAction, retryJobsAction, takeOnReviewAction, tamperDemoAction } from "./actions";
 
 export const metadata: Metadata = {
   title: "Anchoring · Delta",
@@ -26,6 +27,13 @@ const STATUS = {
   CONFIRMED: { label: "Confirmed", color: "#4F55C8" },
   FAILED: { label: "Not anchored, will retry", color: "#C8402B" },
 } as const;
+
+// what each kind of background job does, in words (a job's stored name never reaches the screen)
+const JOB_LABEL: Record<string, string> = {
+  "forensics.run": "Forensic checks on a submission",
+  "ai.audit": "Advisory AI review of a submission",
+  "drafts.sweep": "Daily sweep of abandoned drafts",
+};
 
 const when = (d: Date | null) => (d ? `${d.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" })} UTC` : "");
 const short = (h: string) => `${h.slice(0, 10)}…${h.slice(-8)}`;
@@ -50,7 +58,7 @@ async function Anchoring() {
     }),
     myOrganisations(actor),
   ]);
-  const [chains, waitingProjects] = await Promise.all([auditChainHealth(actor), unassignedProjects(actor)]);
+  const [chains, waitingProjects, queue] = await Promise.all([auditChainHealth(actor), unassignedProjects(actor), jobQueueHealth(actor)]);
   const demoMode = process.env.DEMO_MODE === "true";
   const { waiting, unsealed, configured, batches } = overview;
   const unfinished = batches.filter((b) => b.status !== "CONFIRMED").length;
@@ -176,6 +184,52 @@ async function Anchoring() {
                 </li>
               ))}
             </ul>
+            </>
+          )}
+        </section>
+
+        <section aria-labelledby="jobs" className="rise-in space-y-4">
+          <h2 id="jobs" className="font-serif text-[28px] leading-tight tracking-[-0.01em]">
+            Background jobs
+          </h2>
+          <p className="max-w-[68ch] text-[15px] leading-[1.6] text-field-muted">
+            The forensic checks and the advisory AI review run in a queue after a submission is sent. A job that fails is tried again, five attempts in all, then stops and is listed here.
+          </p>
+          <dl className="grid max-w-[720px] grid-cols-2 gap-3 sm:grid-cols-4">
+            {(
+              [
+                ["Waiting", queue.counts.PENDING],
+                ["Running", queue.counts.RUNNING],
+                ["Failed", queue.counts.FAILED],
+                ["Stuck", queue.counts.STUCK],
+              ] as const
+            ).map(([label, n]) => (
+              <div key={label} className="rounded-2xl border border-field-hairline bg-field-canopy px-4 py-3">
+                <dt className="text-[13px] text-field-muted">{label}</dt>
+                <dd className="font-serif text-[28px] leading-tight tabular-nums" data-testid={`jobs-${label.toLowerCase()}`}>
+                  {formatCount(n)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {queue.halted.length === 0 ? (
+            <p className="text-[15px] text-field-muted">No job has stopped. Nothing needs a retry.</p>
+          ) : (
+            <>
+              <ul className="divide-y divide-field-hairline rounded-2xl border border-field-hairline bg-field-canopy">
+                {queue.halted.map((j) => (
+                  <li key={j.id} className="space-y-1 px-5 py-3.5 text-[14px]">
+                    <p className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                      <span className="font-medium">{JOB_LABEL[j.kind] ?? "Background job"}</span>
+                      <span className="text-[13px] text-field-muted">
+                        {j.status === "STUCK" ? "Stuck: its worker stopped mid-run" : "Failed"} after {formatCount(j.attempts)} {j.attempts === 1 ? "attempt" : "attempts"} · queued {when(j.createdAt)}
+                      </span>
+                    </p>
+                    {j.lastError && <p className="break-words font-mono text-[13px] text-field-muted">{j.lastError.slice(0, 300)}</p>}
+                  </li>
+                ))}
+              </ul>
+              <RetryJobs action={retryJobsAction} />
             </>
           )}
         </section>

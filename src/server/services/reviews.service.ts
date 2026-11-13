@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { assertTransition, InvalidTransitionError, type SubmissionStatus } from "../../lib/state-machine";
 import { db } from "../db/client";
+import type { GeoPoint } from "../db/schema/types";
 import {
   decision as decisionEnum,
   evidenceFile,
@@ -265,8 +266,12 @@ export type ReviewQueueItem = SubmissionSummary & {
   rejections: number;
   userDecision: "APPROVE" | "REJECT" | "REQUEST_MORE_PROOF" | null;
   findingCounts: { high: number; medium: number; low: number; info: number };
-  /** The evidence files, every round, oldest first. Open one through GET /api/evidence/[id]. */
-  files: { id: string; role: "BEFORE" | "AFTER" | "SUPPLEMENT"; round: number }[];
+  /**
+   * The evidence files, every round, oldest first: a record in a later round keeps the pair of
+   * its first. Open one through GET /api/evidence/[id]. `capturedAt` and `gps` are what the file
+   * itself states, null when it does not say.
+   */
+  files: { id: string; role: "BEFORE" | "AFTER" | "SUPPLEMENT"; round: number; sha256: string; capturedAt: Date | null; gps: GeoPoint | null }[];
 };
 
 export type ReviewQueueOverview = {
@@ -304,7 +309,7 @@ export async function reviewQueueOverview(actor: Actor, limit = 100, x: Executor
     x.select({ id: organization.id, name: organization.name }).from(organization).where(inArray(organization.id, [...new Set(page.map((s) => s.ownerOrgId))])),
     x.select({ submissionId: reviewDecision.submissionId, round: reviewDecision.round, decision: reviewDecision.decision, reviewer: reviewDecision.reviewerUserId }).from(reviewDecision).where(inArray(reviewDecision.submissionId, ids)),
     x.select({ submissionId: forensicFinding.submissionId, severity: forensicFinding.severity, n: sql<number>`count(*)::int` }).from(forensicFinding).where(inArray(forensicFinding.submissionId, ids)).groupBy(forensicFinding.submissionId, forensicFinding.severity),
-    x.select({ submissionId: evidenceFile.submissionId, id: evidenceFile.id, role: evidenceFile.role, round: evidenceFile.round }).from(evidenceFile).where(inArray(evidenceFile.submissionId, ids)).orderBy(asc(evidenceFile.round), asc(evidenceFile.role), asc(evidenceFile.createdAt)),
+    x.select({ submissionId: evidenceFile.submissionId, id: evidenceFile.id, role: evidenceFile.role, round: evidenceFile.round, sha256: evidenceFile.sha256, capturedAt: evidenceFile.capturedAt, gps: evidenceFile.gps }).from(evidenceFile).where(inArray(evidenceFile.submissionId, ids)).orderBy(asc(evidenceFile.round), asc(evidenceFile.role), asc(evidenceFile.createdAt)),
   ]);
   const project = new Map(projects.map((p) => [p.id, p]));
   const org = new Map(orgs.map((o) => [o.id, o.name]));
@@ -322,7 +327,7 @@ export async function reviewQueueOverview(actor: Actor, limit = 100, x: Executor
       rejections: current.filter((v) => v.decision === "REJECT").length,
       userDecision: current.find((v) => v.reviewer === actor.userId)?.decision ?? null,
       findingCounts: counts,
-      files: files.filter((f) => f.submissionId === s.id).map(({ id, role, round }) => ({ id, role, round })),
+      files: files.filter((f) => f.submissionId === s.id).map(({ id, role, round, sha256, capturedAt, gps }) => ({ id, role, round, sha256, capturedAt, gps })),
     };
   });
   return { isVerifier: true, hasAssignments: true, total: queue.length, items };
