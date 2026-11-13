@@ -11,6 +11,7 @@ import { Reveal } from "@/src/components/site/Reveal";
 import { SiteFooter } from "@/src/components/site/SiteFooter";
 import { SiteHeader } from "@/src/components/site/SiteHeader";
 import { ACTIVITY_LABEL, formatClaim, formatCount } from "@/src/lib/format";
+import { hasConfirmedAnchor } from "@/src/server/services/anchor.service";
 import { getPublicOverview, listPublicProjects } from "@/src/server/services/projects.service";
 
 export const metadata: Metadata = {
@@ -58,8 +59,8 @@ const STEPS = [
   { title: "Automatic checks", body: "Each file is checked for reuse, location and timing. Every flag carries a reason a person can read.", built: true },
   { title: "Independent review", body: "Two reviewers from an organisation independent of the claimant must agree. Nobody reviews their own work.", built: true },
   { title: "Permanent record", body: "Every decision is appended to a log that no one, including us, can edit or delete.", built: true },
-  { title: "Daily anchor", body: "Approved records are batched into one fingerprint and published once a day.", built: false },
-  { title: "Anyone verifies", body: "A stranger recomputes the fingerprint in their browser and compares it with the published one.", built: false },
+  { title: "Daily anchor", body: "Approved records are batched into one fingerprint and published once a day.", built: true, needsAnchor: true },
+  { title: "Anyone verifies", body: "A stranger recomputes the fingerprint in their browser and compares it with the published one.", built: true, needsAnchor: true },
 ];
 
 export default function Home() {
@@ -183,27 +184,13 @@ export default function Home() {
           <div className={`${container} py-16 lg:py-24`}>
             <SectionHeading dark id="how-heading" eyebrow="How it works" title="Six links, each one checkable">
               Every link depends on the one before it. Teal means that link is built and running in this demonstration;
-              amber means it is still being built.
+              amber means it is not running yet.
             </SectionHeading>
             <Reveal className="relative mt-14">
               <span aria-hidden className="reveal-line absolute inset-x-0 top-[6px] hidden h-px bg-field-hairline xl:block" />
-              <ol className="grid gap-x-6 gap-y-10 md:grid-cols-3 xl:grid-cols-6">
-                {STEPS.map((s, i) => (
-                  <li key={s.title} className="reveal-item relative space-y-3" style={{ "--i": i } as CSSProperties}>
-                    <span
-                      aria-hidden
-                      className={`relative block size-[13px] rounded-full border-2 ${s.built ? "border-verified bg-verified" : "border-review bg-field-abyss"}`}
-                    />
-                    <p className="pt-2 text-[13px] text-field-muted">Step {i + 1}</p>
-                    <h3 className="font-serif text-[22px] leading-[1.2]">{s.title}</h3>
-                    <p className="text-[15px] leading-[1.6] text-field-muted">{s.body}</p>
-                    <p className="inline-flex items-center gap-2 text-[13px] text-field-text">
-                      <span aria-hidden className={`size-1.5 rounded-full ${s.built ? "bg-verified" : "bg-review"}`} />
-                      {s.built ? "Built and running" : "In progress"}
-                    </p>
-                  </li>
-                ))}
-              </ol>
+              <Suspense fallback={<Steps anchored={false} />}>
+                <LiveSteps />
+              </Suspense>
             </Reveal>
           </div>
         </section>
@@ -339,6 +326,34 @@ function MapFrame({ children, caption }: { children?: ReactNode; caption?: React
       </Link>
       <figcaption className="min-h-[3em] max-w-[64ch] text-[13px] leading-[1.5] text-paper-muted">{caption}</figcaption>
     </figure>
+  );
+}
+
+// The last two links run only where a chain is configured: they say "running" once a batch is confirmed.
+async function LiveSteps() {
+  await connection();
+  return <Steps anchored={await hasConfirmedAnchor()} />;
+}
+
+function Steps({ anchored }: { anchored: boolean }) {
+  return (
+              <ol className="grid gap-x-6 gap-y-10 md:grid-cols-3 xl:grid-cols-6">
+      {STEPS.map((s, i) => (
+        <li key={s.title} className="reveal-item relative space-y-3" style={{ "--i": i } as CSSProperties}>
+          <span
+            aria-hidden
+            className={`relative block size-[13px] rounded-full border-2 ${s.built ? "border-verified bg-verified" : "border-review bg-field-abyss"}`}
+          />
+          <p className="pt-2 text-[13px] text-field-muted">Step {i + 1}</p>
+          <h3 className="font-serif text-[22px] leading-[1.2]">{s.title}</h3>
+          <p className="text-[15px] leading-[1.6] text-field-muted">{s.body}</p>
+          <p className="inline-flex items-center gap-2 text-[13px] text-field-text">
+            <span aria-hidden className={`size-1.5 rounded-full ${s.built ? "bg-verified" : "bg-review"}`} />
+            {!s.built ? "In progress" : "needsAnchor" in s && !anchored ? "Built, nothing anchored here yet" : "Built and running"}
+          </p>
+        </li>
+      ))}
+    </ol>
   );
 }
 

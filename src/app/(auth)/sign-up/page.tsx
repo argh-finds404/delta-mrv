@@ -89,7 +89,7 @@ function evaluatePasswordStrength(password: string): {
     return { score: 2, guidance: "Mix in uppercase, lowercase and numbers" };
   }
   if (score === 3) {
-    return { score: 3, guidance: "Good strength — consider adding a symbol" };
+    return { score: 3, guidance: password.length < 12 ? "Good strength — 12 characters or more makes it strong" : "Good strength — mix upper and lower case with a number or symbol" };
   }
   return { score: 4, guidance: "Strong password" };
 }
@@ -393,7 +393,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
 
           <button
             type="submit"
-            className="h-12 w-full flex items-center justify-center gap-2 rounded-lg bg-signal px-5 text-[16px] font-medium text-field-abyss hover:bg-[#C6EE9E] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal cursor-pointer"
+            className="h-12 w-full flex items-center justify-center gap-2 rounded-lg bg-signal px-5 text-[16px] font-medium text-field-abyss hover:bg-[#14543D] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal cursor-pointer"
           >
             <span>Continue to organisation details</span>
             <ArrowRight className="size-3.5" />
@@ -582,7 +582,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 flex h-12 items-center justify-center gap-2 rounded-lg bg-signal px-5 text-[16px] font-medium text-field-abyss hover:bg-[#C6EE9E] disabled:opacity-60 transition-colors cursor-pointer"
+              className="flex-1 flex h-12 items-center justify-center gap-2 rounded-lg bg-signal px-5 text-[16px] font-medium text-field-abyss hover:bg-[#14543D] disabled:opacity-60 transition-colors cursor-pointer"
             >
               {isSubmitting ? (
                 <>

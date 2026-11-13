@@ -134,9 +134,10 @@ An unreachable RPC showing red would be a lie. `UNAVAILABLE` is neutral grey.
 | `/api/v1/projects` | api key | List projects. Fuzzed geometry. Paginated. |
 | `/api/v1/projects/[id]` | api key | Project detail |
 | `/api/v1/submissions/[id]/proof` | public | Canonical manifest + Merkle proof. Powers third-party verification. |
-| `/api/v1/stats` | api key | Aggregate counts |
+| `/api/v1/stats` | api key | Aggregate counts for the key's organisation: its funded projects, their approved and anchored records |
 | `/api/internal/jobs/drain` | `CRON_SECRET` | Hourly queue drain |
-| `/api/internal/anchor/daily` | `CRON_SECRET` | Daily batch + anchor |
+| `/api/internal/anchor/daily` | `CRON_SECRET` | Daily batch + anchor. `?before=<ISO time>` closes the batch at that moment |
+| `/api/dev/storage` | upload token; development only | Takes a browser upload when the server keeps evidence on its own disk (`LOCAL_STORAGE_DIR`). 404 in a production build and wherever that is unset |
 | `/api/webhooks/test` | api key | Signed delivery test |
 
 All `/api/v1` handlers are thin adapters: Zod parse → one service call →

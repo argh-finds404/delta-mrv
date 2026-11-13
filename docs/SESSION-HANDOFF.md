@@ -29,34 +29,63 @@ The one line that matters:
 
 ## 2. Current state
 
-**Date of this update:** 2026-11-12. `pnpm check` green (147 unit tests). The
-integration suite was not re-run for this update; the last recorded result is
-74/74 on local Docker (2026-11-03), and the Stage 4-5 integration tests added
-since have not been recorded here.
+**Date of this update:** 2026-11-13, second update of the day. Run for it: `pnpm check` (235
+unit tests), `pnpm test:integration` on local Docker (150 tests), `pnpm contracts:test` (16),
+`pnpm audit:verify` over the local database and `pnpm build`. `pnpm test:e2e` was **not**
+re-run: port 3000 was held by the maintainer's own dev server, and one checkout runs one
+`next dev`. Its last pass was earlier the same day, before the changes listed below.
 
 | Stage | Status |
 |---|---|
 | 1 - Toolchain, schema, PostGIS/Hamming spike, Better Auth | **Done** |
 | 2 - State machine, tenancy, conflict-of-interest, seed | **Done - gate green** |
 | 3 - Atlas, public read path, blob storage | **Done** |
-| 4 - Intake, job queue, forensics, scoring v1 | **Code and tests written** |
-| 5 - Audit chain, Evidence Lab, quorum review, AI advisory | **Code and tests written** |
-| 6 - Contract and anchoring | **Not started** (no `contracts/`, no `anchor.service`) |
-| 7 - Proof dossier, drop-photo verifier, public API | **UI built; nothing anchored to verify against** |
-| 8 - Evidence, polish, E2E, ship | Not started (no `test/e2e/`, k6 or demo path) |
+| 4 - Intake, job queue, forensics, scoring v1 | **Done** |
+| 5 - Audit chain, Evidence Lab, quorum review, AI advisory | **Done** |
+| 6 - Contract and anchoring | **Built and tested on a local chain. Not deployed to Base Sepolia** |
+| 7 - Proof dossier, public API, API keys, funder view | **Built** |
+| 8 - Evidence, polish, E2E, ship | **Eval write-up, replay, chain verification, query timings, tamper demo, contrast and keyboard pass, README: done.** k6 and deploy: not done |
 
-**Built:** schema with append-only enforcement; Better Auth with three
-organisation types; COI rule and tenancy isolation; state machine; coordinate
-fuzzing and location commitment; manifest v2 builder and Merkle tree in
-`src/lib/crypto/`; job queue with `SKIP LOCKED`; forensics (SHA-256, dHash,
-EXIF, PostGIS geofence, duplicate detection); versioned scoring; audit chain;
-2-of-N quorum review; Gemini advisory job; storage port and blob adapter;
-submission and lab API routes; landing, atlas, project, dashboard, submit,
-lab, proof, verify and trust pages.
+**Built since the last update:** `contracts/` (Foundry; `ImpactAnchorRegistry.sol`, 16 tests
+reading the committed vectors); manifest sealing at approval; `anchor.service` behind a chain
+port, the daily cron route and the `/admin` anchor panel; the proof page's in-browser
+verification against the contract; the public proof API; API keys (`dmrv_...`) and
+`/api/v1/stats`; the funder section of `/dashboard`; a local-disk evidence store for
+development; `pnpm dev:local` (Docker database + anvil + local storage); the hero built from
+the maintainer's watercolour illustrations.
 
-**Not built:** `ImpactAnchorRegistry.sol`, `anchor.service`, daily anchor cron,
-API keys and funder view, `/projects/new`, platform-admin role, Playwright demo
-path, k6 and forensic eval write-up.
+**Built in the second update (Stage 8):**
+
+- `pnpm eval:forensics` writes `docs/FORENSIC_EVAL.md` from the same measurement the suite
+  asserts. `/trust` still reads `src/lib/forensics/eval-results.ts`, not a JSON file.
+- `pnpm forensics:replay <submissionId>` and `pnpm audit:verify`. Scripts may not import
+  `src/server`, so each script starts a one-file vitest run from `test/tools/`.
+- `pnpm bench:queries`: p50 and p95 of the duplicate search and the geofence check on local
+  Docker. It stands in for k6, which speaks HTTP and has no endpoint to aim at for either query.
+- `.github/workflows/scheduled.yml`: hourly drain and daily anchor. It does nothing until the
+  repository secrets `APP_URL` and `CRON_SECRET` are set.
+- `public/sw.js`, `public/offline.html` and their registration (docs/16 A11), production only.
+- `test/contrast.test.ts` (docs/16 A10). It failed on first run, so the tokens changed:
+  `--signal`, `--verified`, `--verified-fill`, `--chain`, `--review`, `--fraud` and three
+  status hues in `src/lib/status.ts` are darker. **Look at the pages and say if a hue is wrong.**
+- Keyboard: `* { box-shadow: none !important }` was cancelling every `ring-*` focus indicator;
+  controls that drop their outline now get one back. The photo pickers on the submit form and
+  the proof page were mouse-only and now take Enter and Space.
+- `README.md` rewritten from `docs/00-PRODUCT.md`: the overclaims are gone, the measured
+  numbers and the threat-model summary are in.
+
+**Not built or not done:**
+
+- The Base Sepolia deployment and a real batch; the hosted deployment. Both by hand.
+- k6 (see the timing script above), a platform-admin role, webhooks (S10: its tables are
+  still undefined in `docs/03-DATABASE.md`).
+- Clearing the offline queue at sign-out (docs/16 A11). Left alone on purpose: it would delete
+  a field worker's unsent photos without a warning. Needs a decision.
+- Routes in `docs/05-ROUTES.md` that do not exist: `/proof/[id]/print` (the print stylesheet
+  on `/proof/[id]` covers S7), `/projects/[id]/manage`, `/submissions/[id]`,
+  `/lab/[submissionId]` (`/lab?s=<id>` opens one record), `/admin/tamper-demo` (the demo is a
+  panel on `/admin`), `/api/webhooks/test`. Build them or strike them from the doc.
+- `README.md` names Apache-2.0 and the repository has no `LICENSE` file.
 
 ## 3. The documents are the contract
 
@@ -180,14 +209,14 @@ These are in the docs but worth knowing so they are not re-litigated:
 
 - The **pooled connection path is only exercised on Neon.** Local Docker has
   no pgbouncer, so `prepare: false` is untested locally.
-- The **seed has not run against Docker.**
-- `/sign-in` links to `/demo` even when `DEMO_MODE` is off, which 404s.
-- Everyone lands on `/lab` after auth because `/dashboard` does not exist yet.
 - No **platform admin role** in the schema. The COI test proves only that no
   voting path exists for a user with no organisation.
 - The **session-expired screen** has never been exercised.
-- `/projects/new` is deferred — seed data covers testing, but nobody but the
-  maintainer can create a project until it exists.
+- Seeded rows (the 5,200 of history and the hand-made narrative records) were written by SQL,
+  not by the pipeline, so `pnpm forensics:replay` fails on them by design. Replay a record that
+  went through intake: all three in the local database replay byte for byte.
+- The pending labels of the pipeline stepper use `--field-inert` (2.8:1). Treated as an
+  inactive state; raise it if they should read as text.
 - `docker` is not on the Git Bash PATH; it lives at
   `C:\Users\orgho\AppData\Local\Programs\DockerDesktop\resources\bin`.
 
@@ -195,14 +224,20 @@ These are in the docs but worth knowing so they are not re-litigated:
 
 ## 8. What to do next
 
-1. Run `docker compose up -d` and `pnpm test:integration`; record the result.
-2. Stage 6: Foundry contract and test matrix, then `anchor.service`. The
-   maintainer deploys to Base Sepolia by hand.
-3. Wire `/proof/[id]` and `/verify` to real anchor data (Stage 7 gate).
-4. Stage 8: Playwright demo path, forensic eval, accessibility pass.
+1. Read `contracts/src/ImpactAnchorRegistry.sol`, then deploy it to Base Sepolia by hand with
+   the command in `contracts/script/Deploy.s.sol`, verify it on BaseScan, and set
+   `BASE_SEPOLIA_RPC_URL`, `ANCHOR_PRIVATE_KEY`, `ANCHOR_CONTRACT_ADDRESS` and
+   `NEXT_PUBLIC_CONTRACT_ADDRESS`. Press "Anchor now" as the audit admin.
+2. After deploying, set the repository secrets `APP_URL` and `CRON_SECRET` so
+   `.github/workflows/scheduled.yml` starts calling the two internal routes.
+3. Decide the two open items in the session report: the pre-commit secret scan against
+   `test/fixtures/crypto/vectors.json`, and whether `scripts/dev-local.ts` should be exempt from
+   the `ANCHOR_PRIVATE_KEY` guard (today it needs no exemption).
+4. Run `pnpm test:e2e` with port 3000 free, then look at the workspace with the darker
+   status colours.
+5. Decide the open items listed under "Not built or not done" in section 2.
 
-Check `src/lib/crypto/manifest.ts` and `merkle.ts` against ADR-0005 before
-Stage 6 builds on them.
+Local development: `docker compose up -d`, then `pnpm dev:local`.
 
 ## 9. What to expect from me in the new session
 

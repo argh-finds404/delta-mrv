@@ -18,28 +18,31 @@ export function mulberry32(seed: number) {
 // Eight synthetic photos. Hashes are real: sha256 of the bytes, dHash by the §4.2 pipeline
 // (grayscale first, then DHASH_RESIZE: 9x8, lanczos3, named in the contract). Stage 4 moves the
 // sharp half into the forensics service; DHASH_RESIZE and packDHash are the shared parts.
+type SeedImage = { key: string; jpeg: Buffer; bytes: number; sha256: string; dhash: string };
+
+/** A JPEG's real hashes: sha256 of the bytes, dHash by the §4.2 pipeline. */
+export async function describeImage(key: string, jpeg: Buffer): Promise<SeedImage> {
+  const { data, info } = await sharp(jpeg).grayscale().resize(DHASH_RESIZE).raw().toBuffer({ resolveWithObject: true });
+  if (info.channels !== 1) throw new Error(`expected 1 channel after grayscale, got ${info.channels}`);
+  return { key, jpeg, bytes: jpeg.length, sha256: createHash("sha256").update(jpeg).digest("hex"), dhash: packDHash(new Uint8Array(data)) };
+}
+
+/** One synthetic photo: a grid of flat colour blocks, fixed by its seed. */
+export async function synthPhoto(seed: number, key: string): Promise<SeedImage> {
+  const r = mulberry32(seed);
+  const [W, H, B] = [96, 72, 8];
+  const raw = Buffer.alloc(W * H * 3);
+  const blocks = Array.from({ length: (W / B) * (H / B) }, () => [r() * 255, r() * 255, r() * 255]);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++)
+      for (let c = 0; c < 3; c++)
+        raw[(y * W + x) * 3 + c] = Math.round(blocks[Math.floor(y / B) * (W / B) + Math.floor(x / B)]![c]!);
+  return describeImage(key, await sharp(raw, { raw: { width: W, height: H, channels: 3 } }).jpeg({ quality: 80 }).toBuffer());
+}
+
 export async function makePool() {
-  const pool: { key: string; jpeg: Buffer; bytes: number; sha256: string; dhash: string }[] = [];
-  for (let k = 0; k < 8; k++) {
-    const r = mulberry32(1000 + k);
-    const [W, H, B] = [96, 72, 8];
-    const raw = Buffer.alloc(W * H * 3);
-    const blocks = Array.from({ length: (W / B) * (H / B) }, () => [r() * 255, r() * 255, r() * 255]);
-    for (let y = 0; y < H; y++)
-      for (let x = 0; x < W; x++)
-        for (let c = 0; c < 3; c++)
-          raw[(y * W + x) * 3 + c] = Math.round(blocks[Math.floor(y / B) * (W / B) + Math.floor(x / B)]![c]!);
-    const jpeg = await sharp(raw, { raw: { width: W, height: H, channels: 3 } }).jpeg({ quality: 80 }).toBuffer();
-    const { data, info } = await sharp(jpeg).grayscale().resize(DHASH_RESIZE).raw().toBuffer({ resolveWithObject: true });
-    if (info.channels !== 1) throw new Error(`expected 1 channel after grayscale, got ${info.channels}`);
-    pool.push({
-      key: `seed/pool/${k}.jpg`,
-      jpeg,
-      bytes: jpeg.length,
-      sha256: createHash("sha256").update(jpeg).digest("hex"),
-      dhash: packDHash(new Uint8Array(data)),
-    });
-  }
+  const pool: SeedImage[] = [];
+  for (let k = 0; k < 8; k++) pool.push(await synthPhoto(1000 + k, `seed/pool/${k}.jpg`));
   // The pool must not look like near-duplicates of itself, or Stage 4's duplicate demo is noise.
   for (let i = 0; i < pool.length; i++)
     for (let j = i + 1; j < pool.length; j++)

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Newsreader } from "next/font/google";
+import { RegisterServiceWorker } from "@/src/components/site/RegisterServiceWorker";
 import "./globals.css";
 
 const geist = Geist({
@@ -39,6 +40,7 @@ export default function RootLayout({
     >
       <body className="antialiased min-h-screen bg-field-abyss text-field-text">
         {children}
+        <RegisterServiceWorker />
       </body>
     </html>
   );

@@ -26,13 +26,14 @@
   --field-muted: #57635F;    /* Secondary text, labels */
   --field-inert: #8D9692;    /* Disabled, placeholder */
 
-  /* Semantic hues: colour means state. Forest green is the one action. */
-  --signal: #1F7A58;         /* Primary action (white text on it: 5.3:1) */
-  --verified: #12846A;       /* A hash matched, a check passed (Teal) */
-  --verified-fill: #1F8A6C;  /* Verified as a fill, with white on it */
-  --chain: #4F55C8;          /* Anchored, on-chain (Indigo) */
-  --review: #A86400;         /* A human must look (Amber) */
-  --fraud: #C8402B;          /* High-severity finding, mismatch (Coral red) */
+  /* Semantic hues: colour means state. Forest green is the one action. Each is dark enough to
+     be text (4.5:1) on every surface and on its own 14% badge tint: test/contrast.test.ts. */
+  --signal: #1C6C4F;         /* Primary action (white text on it: 6.3:1) */
+  --verified: #0E6C57;       /* A hash matched, a check passed (Teal) */
+  --verified-fill: #1E8468;  /* Verified as a fill, with white on it */
+  --chain: #4D52C2;          /* Anchored, on-chain (Indigo) */
+  --review: #8A5200;         /* A human must look (Amber) */
+  --fraud: #AA3625;          /* High-severity finding, mismatch (Coral red) */
 
   /* Activity hues, the map's and the cards' colour: one per kind of restoration */
   --act-mangrove: #13896F;
@@ -198,6 +199,16 @@ samp {
 }
 
 /*
+  The ban above also cancels Tailwind's ring-* utilities, which are box-shadows. A control that
+  swaps its outline for a ring would be left with no keyboard focus indicator at all, so every
+  such control gets a real outline back. Unlayered, so it outranks the outline-none utility.
+*/
+[class*="outline-none"]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/*
   The one exception to the rule above: floating HUD islands over a full-bleed map (maintainer
   direction 2026-11-11, pattern 1). Over moving imagery a panel needs blur and a shadow to stay
   legible and separate; nowhere else does.
@@ -333,14 +344,32 @@ samp {
   complete still image, and a pause control stops the band (WCAG 2.2.2).
   Base rules first: they are the whole design without motion.
 */
-.hero-scene {
-  visibility: hidden;
-}
-.hero-scene[data-active] {
-  visibility: visible;
-}
 .scene-pulse {
   opacity: 0;
+}
+/* the wash brushed across one phrase of a hero caption, in the scene's colour */
+.hdr-key {
+  color: inherit;
+  font-weight: 500;
+  border-radius: 3px;
+  padding: 0 2px;
+  margin: 0 -2px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  background: linear-gradient(var(--wash, rgba(0, 122, 90, 0.22)), var(--wash, rgba(0, 122, 90, 0.22))) no-repeat 0 0 / 100% 100%;
+}
+/* on a phone the reading card must not cover the painting it describes */
+@media (max-width: 639px) {
+  .hda-pane {
+    zoom: 0.76;
+  }
+}
+/* one showing of a hero scene; without motion the one leaving simply goes */
+.hero-layer {
+  position: relative;
+}
+.hero-layer[data-exiting] {
+  display: none;
 }
 /* the highlighter swept across one phrase of a caption, in the signal lime */
 mark.brush {
@@ -364,69 +393,44 @@ mark.brush {
     margin-right: calc(-1 * (max(0px, (100vw - 1280px) / 2) + 4rem + 8vw));
   }
 }
-/* The mark in slow motion: water runs down the delta's channels, the tide line breathes. */
 @media (prefers-reduced-motion: no-preference) {
-  .delta-flow path {
-    stroke-dasharray: 2.2 1.6;
-    animation: delta-flow 5.5s linear infinite;
-  }
-  .delta-flow path:nth-child(2n) {
-    animation-duration: 7s;
-  }
-  .delta-tide {
-    transform-box: fill-box;
-    transform-origin: center;
-    animation: delta-tide 6s ease-in-out infinite;
-  }
-}
-@keyframes delta-flow {
-  to { stroke-dashoffset: -19; }
-}
-@keyframes delta-tide {
-  0%, 100% { transform: scaleX(1); opacity: 1; }
-  50% { transform: scaleX(0.82); opacity: 0.7; }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .hero-scene {
-    visibility: visible;
+  /* The hero as a film: each scene is drawn on bare paper, takes its colour, then drifts slowly
+     until the next one is drawn beneath it while it dissolves. Nothing shows before the first
+     frame, so no finished painting flashes ahead of its own drawing. */
+  .dw-fig[data-phase="idle"] img,
+  .dw-fig[data-phase="idle"] .dw-canvas {
     opacity: 0;
-    transition:
-      opacity 450ms var(--ease-exit),
-      visibility 0s linear 450ms;
   }
-  .hero-scene[data-active] {
-    opacity: 1;
-    transition: opacity 200ms var(--ease-enter);
+  .dw-fig img {
+    transition: opacity 600ms var(--ease-enter);
   }
-  /* Felt-style authentic watercolor hero engine */
-  .dw-canvas {
-    image-rendering: auto;
+  .hero-layer {
+    transition: opacity 900ms var(--ease-exit);
   }
-  .dw-done img {
-    opacity: 1 !important;
+  .hero-layer[data-exiting] {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .hero-drift {
+    animation: hero-drift 12s linear both;
+    will-change: transform;
+  }
+  .hero-caption {
+    animation: rise-in 500ms var(--ease-enter) both;
+  }
+  [data-paused] .hero-drift,
+  [data-exiting] .hero-drift,
+  [data-paused] .hda-ui > *,
+  [data-paused] .hdr-key {
+    animation-play-state: paused;
   }
   .hdr-key {
-    position: relative;
-    display: inline;
-    background: transparent;
-    color: inherit;
-    font-style: normal;
-    font-weight: 500;
-  }
-  .hdr-key::before {
-    content: "";
-    position: absolute;
-    left: -4px;
-    right: -4px;
-    top: 15%;
-    bottom: 5%;
-    z-index: -1;
-    background-color: var(--wash, rgba(0, 122, 90, 0.22));
-    border-radius: 4px;
-    transform-origin: left center;
-    transform: scaleX(0);
-    animation: hdr-brush 0.5s cubic-bezier(0.2, 0.9, 0.3, 1) 0.2s forwards;
+    background-size: 0% 100%;
+    animation: brush 0.6s var(--ease-enter) 4.4s forwards;
   }
   /* Felt-style overlay system */
   .hda-ui {
@@ -441,7 +445,8 @@ mark.brush {
     top: calc(var(--y, 0) * 100%);
     opacity: 0;
     transform: scale(0.9) translateY(4px);
-    animation: hda-pop-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.3) calc(var(--d, 0) * 0.35s + 0.3s) forwards;
+    /* after the colour has arrived: the plot, then its photo points, then the card */
+    animation: hda-pop-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.3) calc(var(--d, 0) * 0.35s + 3.2s) forwards;
   }
   .hda-area {
     position: absolute;
@@ -449,9 +454,6 @@ mark.brush {
     width: 100%;
     height: 100%;
     overflow: visible;
-  }
-  .hda-area.edge-dash polygon {
-    stroke-dasharray: 4 2;
   }
   .hda-pt {
     box-sizing: border-box;
@@ -468,15 +470,6 @@ mark.brush {
     height: 18px;
     margin: -9px 0 0 -9px;
     box-shadow: 0 1px 8px rgba(0, 0, 0, 0.3), 0 0 0 6px color-mix(in srgb, var(--pt, #D97706) 35%, transparent);
-  }
-  .hda-pt-green {
-    --pt: #007A5A;
-  }
-  .hda-pt-blue {
-    --pt: #2674BA;
-  }
-  .hda-pt-orange {
-    --pt: #D97706;
   }
   .hda-pane {
     max-width: min(280px, 90vw);
@@ -527,10 +520,6 @@ mark.brush {
   from { stroke-dashoffset: 1; }
   to { stroke-dashoffset: 0; }
 }
-@keyframes hdr-brush {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
-}
 @keyframes hda-pop-in {
   from {
     opacity: 0;
@@ -540,6 +529,10 @@ mark.brush {
     opacity: 1;
     transform: scale(1) translateY(0);
   }
+}
+@keyframes hero-drift {
+  from { transform: scale(1); }
+  to { transform: scale(1.04); }
 }
 @keyframes hero-progress {
   from { width: 0%; }
@@ -679,4 +672,25 @@ mark.brush {
 .maplibregl-map .maplibregl-ctrl-attrib * {
   font-size: 11px !important;
   line-height: 1.5 !important;
+}
+
+/* A printed proof (docs/01 S7): the page itself, with its working shown and nothing to click. */
+@media print {
+  @page {
+    margin: 16mm;
+  }
+  body {
+    background: #fff !important;
+  }
+  details::details-content {
+    content-visibility: visible;
+    display: block;
+  }
+  details > :not(summary) {
+    display: block !important;
+  }
+  pre {
+    max-height: none !important;
+    overflow: visible !important;
+  }
 }

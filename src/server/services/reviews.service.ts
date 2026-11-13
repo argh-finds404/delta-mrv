@@ -16,6 +16,7 @@ import {
 import { actorContext, assignedVerifierOrgs, isUuid, parseInput, type Actor, type Executor } from "./access";
 import { appendAuditEvent } from "./audit-chain.service";
 import { ConflictError, ConflictOfInterestError, ForbiddenError } from "./errors";
+import { sealManifest } from "./manifest.service";
 import { getSubmission, toSummary, type SubmissionSummary } from "./submissions.service";
 
 export type ReviewGate = {
@@ -142,7 +143,7 @@ export async function castDecision(
         decision: data.decision,
         reason: data.reason,
       })
-      .returning({ id: reviewDecision.id });
+      .returning({ id: reviewDecision.id, createdAt: reviewDecision.createdAt });
 
     if (!next) {
       const votes = await tx
@@ -163,12 +164,16 @@ export async function castDecision(
       status = next;
     }
     // on the claimant's chain: their record changed; the event names who reviewed it
-    await appendAuditEvent(tx, {
+    const { eventHash } = await appendAuditEvent(tx, {
       orgId: gate.submission.ownerOrgId,
       eventType: "REVIEW_DECISION",
       actorUserId: actor.userId,
       payload: { submissionId, decisionId: row!.id, round, decision: data.decision, reviewerOrgId: gate.reviewerOrgId, from: current, status },
     });
+    // the approved record, fixed as one canonical document: what gets anchored (A2)
+    if (status === "APPROVED") {
+      await sealManifest(tx, submissionId, { verifierOrgId: gate.reviewerOrgId, approvedAt: row!.createdAt, orgAuditChainHead: eventHash });
+    }
     return { decisionId: row!.id, status, round };
   });
 }
@@ -274,9 +279,10 @@ export type ReviewQueueOverview = {
 
 /**
  * Everything the Lab's queue pane needs in one call. Scoped exactly like listReviewQueue, so a
- * caller outside an assigned verifier org gets an empty overview, never an error.
+ * caller outside an assigned verifier org gets an empty overview, never an error. The page is
+ * the oldest `limit` submissions, plus `focusId` when it is in the caller's queue.
  */
-export async function reviewQueueOverview(actor: Actor, limit = 100, x: Executor = db): Promise<ReviewQueueOverview> {
+export async function reviewQueueOverview(actor: Actor, limit = 100, x: Executor = db, focusId?: string): Promise<ReviewQueueOverview> {
   const ctx = await actorContext(x, actor);
   if (!ctx.verifierOrgIds.length) return { isVerifier: false, hasAssignments: false, total: 0, items: [] };
 
@@ -287,6 +293,9 @@ export async function reviewQueueOverview(actor: Actor, limit = 100, x: Executor
     .limit(1);
   const queue = await listReviewQueue(actor, x);
   const page = queue.slice(0, limit);
+  // a deep link (/lab?s=id) to a submission beyond the first page still opens it, if it is in the caller's queue at all
+  const focus = focusId && !page.some((s) => s.id === focusId) ? queue.find((s) => s.id === focusId) : undefined;
+  if (focus) page.unshift(focus);
   if (page.length === 0) return { isVerifier: true, hasAssignments: Boolean(assignment), total: 0, items: [] };
 
   const ids = page.map((s) => s.id);

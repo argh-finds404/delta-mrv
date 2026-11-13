@@ -19,6 +19,8 @@ export type AuditEventType =
   | "SUBMISSION_SUPPLEMENTED"
   | "FORENSICS_COMPLETED"
   | "REVIEW_DECISION"
+  | "ANCHOR_CONFIRMED"
+  | "VERIFIER_ASSIGNED"
   | "PROJECT_STATUS_CHANGED";
 
 /** What is hashed: the whole event except its own hash, so type, actor, time and order are covered too. */

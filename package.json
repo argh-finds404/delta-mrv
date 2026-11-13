@@ -16,6 +16,14 @@
     "db:check-typmod": "node scripts/check-geography-typmod.mjs",
     "test:integration": "NODE_OPTIONS=--network-family-autoselection-attempt-timeout=5000 vitest run --config vitest.integration.config.ts",
     "db:seed": "NODE_OPTIONS=--network-family-autoselection-attempt-timeout=5000 tsx scripts/seed.ts",
+    "dev:local": "tsx scripts/dev-local.ts",
+    "contracts:build": "forge build --root contracts",
+    "contracts:test": "forge test --root contracts -vvv",
+    "test:e2e": "playwright test",
+    "eval:forensics": "tsx scripts/eval-forensics.ts",
+    "audit:verify": "tsx scripts/verify-audit-chain.ts",
+    "forensics:replay": "tsx scripts/replay-forensics.ts",
+    "bench:queries": "tsx scripts/bench-queries.ts",
     "seed:images": "NODE_OPTIONS=--network-family-autoselection-attempt-timeout=5000 tsx scripts/upload-seed-images.ts"
   },
   "dependencies": {

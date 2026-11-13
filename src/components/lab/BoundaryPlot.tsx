@@ -154,7 +154,7 @@ export function BoundaryPlot({
                 {Math.abs(gps.lng).toFixed(4)}° {gps.lng >= 0 ? "E" : "W"}
               </span>
             ) : (
-              <span className="text-field-inert">No EXIF coordinates recorded</span>
+              <span className="text-field-muted">No EXIF coordinates recorded</span>
             )}
           </span>
         </div>

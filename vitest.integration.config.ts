@@ -8,7 +8,9 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["test/integration/**/*.test.ts"],
+    // DELTA_TOOL: scripts/replay-forensics.ts and scripts/verify-audit-chain.ts borrow this config
+    // to run their one file in test/tools, because scripts may not import src/server
+    include: process.env.DELTA_TOOL ? [`test/tools/${process.env.DELTA_TOOL}.ts`] : ["test/integration/**/*.test.ts"],
     setupFiles: ["test/integration/setup.ts"],
     // Every query is a round trip to Neon, and a suspended compute needs a moment to wake.
     testTimeout: 180_000,

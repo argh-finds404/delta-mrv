@@ -1,0 +1,67 @@
+{
+  "_comment": "Known-answer vectors for the frozen contract (docs/02 §4.4 and §4.6, ADR-0005). The canonical string was written by hand in RFC 8785 key order; its sha256 came from the sha256sum CLI; the Merkle roots from viem keccak256 and ABI encoding, independent of @openzeppelin/merkle-tree. The Solidity tests read this file too. Every hash here is 64 lowercase hex characters without a 0x prefix; a reader that wants a bytes32 adds it.",
+  "manifest": {
+    "input": {
+      "submissionId": "11111111-1111-4111-8111-111111111111",
+      "projectId": "33333333-3333-4333-8333-333333333333",
+      "ownerOrgId": "22222222-2222-4222-8222-222222222222",
+      "verifierOrgId": "44444444-4444-4444-8444-444444444444",
+      "files": [
+        {
+          "role": "SUPPLEMENT",
+          "round": 2,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "dhash": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "role": "AFTER",
+          "round": 1,
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "dhash": null
+        },
+        {
+          "role": "BEFORE",
+          "round": 1,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "dhash": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "locationCommitment": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "fuzzedLocation": {
+        "type": "Point",
+        "coordinates": [
+          89.325,
+          22.325
+        ]
+      },
+      "approvedAtIso": "2026-11-10T09:30:00.123Z",
+      "quorumReviewIds": [
+        "66666666-6666-4666-8666-666666666666",
+        "55555555-5555-4555-8555-555555555555"
+      ],
+      "orgAuditChainHead": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    },
+    "canonical": "{\"approvedAtIso\":\"2026-11-10T09:30:00.123Z\",\"files\":[{\"dhash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"role\":\"BEFORE\",\"round\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},{\"dhash\":null,\"role\":\"AFTER\",\"round\":1,\"sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},{\"dhash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"role\":\"SUPPLEMENT\",\"round\":2,\"sha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}],\"fuzzedLocation\":{\"coordinates\":[89.325,22.325],\"type\":\"Point\"},\"locationCommitment\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"orgAuditChainHead\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"ownerOrgId\":\"22222222-2222-4222-8222-222222222222\",\"projectId\":\"33333333-3333-4333-8333-333333333333\",\"quorumReviewIds\":[\"55555555-5555-4555-8555-555555555555\",\"66666666-6666-4666-8666-666666666666\"],\"schema\":\"delta.manifest.v2\",\"submissionId\":\"11111111-1111-4111-8111-111111111111\",\"verifierOrgId\":\"44444444-4444-4444-8444-444444444444\"}",
+    "sha256": "9d0363464d0e55e6f961263307ca14c6cf075372611cbb8637e2cc46eee8ea98"
+  },
+  "merkle": {
+    "leaves": [
+      {
+        "submissionId": "11111111-1111-4111-8111-111111111111",
+        "manifestHash": "9d0363464d0e55e6f961263307ca14c6cf075372611cbb8637e2cc46eee8ea98",
+        "approvedAtIso": "2026-11-10T09:30:00.123Z",
+        "bytes32": "0000000000000000000000000000000011111111111141118111111111111111",
+        "timestamp": "1794303000"
+      },
+      {
+        "submissionId": "99999999-9999-4999-8999-999999999999",
+        "manifestHash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "approvedAtIso": "2026-11-10T09:31:00.000Z",
+        "bytes32": "0000000000000000000000000000000099999999999949998999999999999999",
+        "timestamp": "1794303060"
+      }
+    ],
+    "oneLeafRoot": "de14858bc3688e0aa0b5a4cefe1fbb33280d1f409e13fe15bc1d6c2cd6e319ee",
+    "twoLeafRoot": "8486d40b4d3729e890d4583e879826ed6755f7e7ff5ff29b3e9d696f1f61bf17"
+  }
+}

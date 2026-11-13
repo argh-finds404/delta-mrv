@@ -127,12 +127,11 @@ export function QueuePane({
   // Empty state handling per docs/15-UI-STATES.md §2
   if (emptyStateMode === "no-assignments") {
     return (
-      <aside className={cn(paneClass, "px-5 py-4")}>
+      <aside className={cn(paneClass, "px-5 pb-4 pt-14")}>
         <EmptyState
           title="Your review queue"
-          reason="Your organisation is not assigned to any projects yet. A platform administrator assigns verifier organisations to the projects they audit."
-          honestNote="Independent verifier organizations only review assigned workloads. Platform administrators assign audit lanes."
-          action={{ label: "Contact support", onClick: () => alert("Redirecting to administrator support...") }}
+          reason="Your organisation has not taken on a project yet, so nothing can reach this queue."
+          honestNote="An administrator of your organisation takes on projects that have no reviewer, on the Anchoring tab."
           theme={theme}
         />
       </aside>
@@ -141,7 +140,7 @@ export function QueuePane({
 
   if (emptyStateMode === "not-a-verifier") {
     return (
-      <aside className={cn(paneClass, "px-5 py-4")}>
+      <aside className={cn(paneClass, "px-5 pb-4 pt-14")}>
         <EmptyState
           title="No review queue"
           reason="The Evidence Lab is for verifier organisations. Your organisation does not review submissions, so there is nothing to show here."
@@ -154,11 +153,10 @@ export function QueuePane({
 
   if (emptyStateMode === "queue-clear" || (submissions.length === 0 && filterQuery === "")) {
     return (
-      <aside className={cn(paneClass, "px-5 py-4")}>
+      <aside className={cn(paneClass, "px-5 pb-4 pt-14")}>
         <EmptyState
           title="Queue clear"
           reason="Nothing is awaiting your review. New submissions appear here automatically once forensic processing completes."
-          honestNote="Last reviewed 14 minutes ago."
           theme={theme}
         />
       </aside>
@@ -178,7 +176,7 @@ export function QueuePane({
     <aside className={cn(paneClass, "select-none")}>
       {/* Header: heading, then its content 16px below, rows of controls 8px apart */}
       <div className={cn("shrink-0 border-b px-5 py-4", isPaper ? "border-paper-rule" : "border-field-hairline")}>
-        <div className="flex h-6 items-center justify-between">
+        <div className="flex h-6 items-center justify-between pr-10">
           <h2 className={cn("text-base font-medium leading-6", isPaper ? "text-paper-ink" : "text-field-text")}>
             Review queue
             <span className="ml-2 font-mono text-[13px] font-normal tabular-nums text-field-muted">

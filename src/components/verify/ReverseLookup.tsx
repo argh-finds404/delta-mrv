@@ -74,7 +74,7 @@ export function ReverseLookup() {
             spellCheck={false}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="h-12 min-w-0 flex-1 rounded-lg border border-paper-rule bg-paper-card px-3.5 font-mono text-[15px] outline-none transition-colors focus-visible:border-paper-ink focus-visible:ring-2 focus-visible:ring-paper-ink/15"
+            className="h-12 min-w-0 shrink-0 sm:flex-1 rounded-lg border border-paper-rule bg-paper-card px-3.5 font-mono text-[15px] outline-none transition-colors focus-visible:border-paper-ink focus-visible:ring-2 focus-visible:ring-paper-ink/15"
           />
           <button
             type="submit"
@@ -117,6 +117,8 @@ export function ReverseLookup() {
           ref={inputRef}
           type="file"
           accept="image/*"
+          tabIndex={-1}
+          aria-label="Photo to check"
           className="sr-only"
           onChange={(e) => {
             const f = e.target.files?.[0];

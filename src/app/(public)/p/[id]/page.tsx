@@ -179,7 +179,7 @@ async function ProjectBody({ params }: ProjectPageProps) {
                   </span>
                 </div>
                 <div className="text-xl font-semibold font-mono tabular-nums text-paper-ink">
-                  {formatCount(project.record.approved)} approved
+                  {formatCount(totalEvidence)} approved
                   {project.record.anchored > 0 && ` (${formatCount(project.record.anchored)} anchored)`}
                 </div>
                 <p className="text-xs text-paper-muted leading-relaxed">

@@ -3,7 +3,7 @@
 import * as React from "react";
 
 // Our watercolour reveal, written for Delta. Three inputs per scene, all made by
-// scripts/render-hero-watercolour.ts from Sentinel-2 imagery of the seeded sites' regions:
+// scripts/render-hero-from-art.ts from the hero illustrations:
 //   <art>.webp        the finished painting (also the still frame and the no-WebGL fallback)
 //   <art>-ink.webp    R: when each ink line is drawn (0..1), G: where the ink is
 //   <art>-wash.webp   R: when the colour wash reaches each place (0..1)
@@ -21,11 +21,10 @@ export interface DrawnWatercolorProps {
   art: string;
   alt: string;
   meta: DrawnWatercolorMeta;
-  active: boolean;
   paused?: boolean;
-  onDone?: () => void;
-  className?: string;
 }
+
+export const heroArtFiles = (art: string) => [`/images/hero/${art}.webp`, `/images/hero/${art}-ink.webp`, `/images/hero/${art}-wash.webp`] as const;
 
 const VERTEX = `#version 300 es
 void main() {
@@ -103,10 +102,13 @@ const load = (src: string) =>
     img.src = src;
   });
 
-export function DrawnWatercolor({ art, alt, meta, active, paused = false, onDone, className = "" }: DrawnWatercolorProps) {
+// idle: bare paper, nothing drawn yet. drawing: the canvas covers the still. done: the still alone.
+type Phase = "idle" | "drawing" | "done";
+
+export function DrawnWatercolor({ art, alt, meta, paused = false }: DrawnWatercolorProps) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const boxRef = React.useRef<HTMLDivElement>(null);
-  const [done, setDone] = React.useState(false);
+  const [phase, setPhase] = React.useState<Phase>("idle");
   const pausedRef = React.useRef(paused);
   React.useEffect(() => {
     pausedRef.current = paused;
@@ -115,11 +117,11 @@ export function DrawnWatercolor({ art, alt, meta, active, paused = false, onDone
   React.useEffect(() => {
     const canvas = canvasRef.current;
     const box = boxRef.current;
-    if (!active || !canvas || !box) return;
+    if (!canvas || !box) return;
     // no motion wanted, or no WebGL2: the finished painting, at once
     const gl = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? null : canvas.getContext("webgl2", { alpha: false, antialias: false });
     if (!gl) {
-      const t = setTimeout(() => setDone(true), 0);
+      const t = setTimeout(() => setPhase("done"), 0);
       return () => clearTimeout(t);
     }
 
@@ -129,8 +131,8 @@ export function DrawnWatercolor({ art, alt, meta, active, paused = false, onDone
 
     void (async () => {
       try {
-        const [paint, ink, wash] = await Promise.all([load(`/images/hero/${art}.webp`), load(`/images/hero/${art}-ink.webp`), load(`/images/hero/${art}-wash.webp`)]);
-        if (disposed) return;
+        const [paint, ink, wash] = await Promise.all(heroArtFiles(art).map(load));
+        if (disposed || !paint || !ink || !wash) return;
         const program = gl.createProgram()!;
         gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, VERTEX));
         gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, FRAGMENT));
@@ -156,6 +158,7 @@ export function DrawnWatercolor({ art, alt, meta, active, paused = false, onDone
         const draw = (now: number) => {
           if (disposed) return;
           if (last) t += pausedRef.current ? 0 : (now - last) / 1000;
+          else setPhase("drawing");
           last = now;
           const dpr = Math.min(window.devicePixelRatio || 1, 2);
           const w = Math.round(box.clientWidth * dpr);
@@ -168,15 +171,13 @@ export function DrawnWatercolor({ art, alt, meta, active, paused = false, onDone
           gl.uniform2f(uRes, w, h);
           gl.uniform1f(uT, t);
           gl.drawArrays(gl.TRIANGLES, 0, 3);
-          if (t >= end) {
-            setDone(true);
-            onDone?.();
-          } else frame = requestAnimationFrame(draw);
+          if (t >= end) setPhase("done");
+          else frame = requestAnimationFrame(draw);
         };
         frame = requestAnimationFrame(draw);
       } catch {
         // a missing file or a driver without WebGL2 features: show the finished painting
-        if (!disposed) setDone(true);
+        if (!disposed) setPhase("done");
       }
     })();
 
@@ -186,14 +187,14 @@ export function DrawnWatercolor({ art, alt, meta, active, paused = false, onDone
       owned.textures.forEach((tex) => gl.deleteTexture(tex));
       if (owned.program) gl.deleteProgram(owned.program);
     };
-  }, [active, art, meta, onDone]);
+  }, [art, meta]);
 
   return (
-    <div ref={boxRef} className={`dw-fig relative aspect-[2/1] w-full overflow-hidden ${done ? "dw-done" : ""} ${className}`}>
+    <div ref={boxRef} data-phase={phase} className="dw-fig relative aspect-[2/1] w-full overflow-hidden">
       {/* the finished painting: the still frame, the reduced-motion view, and what the canvas ends on.
           A plain img (not next/image) so the canvas lies on exactly the same pixels. */}
       <img src={`/images/hero/${art}.webp`} alt={alt} width={1800} height={900} className="absolute inset-0 h-full w-full object-cover" draggable={false} />
-      {!done && <canvas ref={canvasRef} aria-hidden="true" className="dw-canvas pointer-events-none absolute inset-0 h-full w-full" />}
+      {phase !== "done" && <canvas ref={canvasRef} aria-hidden="true" className="dw-canvas pointer-events-none absolute inset-0 h-full w-full" />}
     </div>
   );
 }

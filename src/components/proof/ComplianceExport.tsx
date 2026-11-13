@@ -28,7 +28,7 @@ export function ComplianceExport({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `delta_verification_bundle_${submissionId.slice(0, 8)}.json`;
+    a.download = `delta-audit-bundle-${submissionId.slice(0, 8)}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -58,7 +58,7 @@ export function ComplianceExport({
         <div className="flex items-center justify-between">
           <h3 className="text-base font-medium flex items-center gap-2">
             <FileJson className={isPaper ? "size-4 text-paper-seal" : "size-4 text-signal"} />
-            <span>Institutional Funder Compliance Export</span>
+            <span>Keep a copy</span>
           </h3>
           <span
             className={cn(
@@ -68,7 +68,7 @@ export function ComplianceExport({
                 : "border-field-hairline text-field-muted bg-field-raised",
             )}
           >
-            Standalone Audit Package
+            Self-contained
           </span>
         </div>
         <p
@@ -77,8 +77,8 @@ export function ComplianceExport({
             isPaper ? "text-paper-muted" : "text-field-muted",
           )}
         >
-          Export the complete cryptographic proof bundle for <strong className="text-current font-medium">{projectTitle}</strong> for independent offline verification, grant
-          disbursement records, or institutional carbon registry audits.
+          Everything on this page for <strong className="text-current font-medium">{projectTitle}</strong> as one file. With it, anyone can repeat the check later
+          without Delta.
         </p>
       </div>
 
@@ -90,11 +90,11 @@ export function ComplianceExport({
             "inline-flex h-9 items-center gap-2 rounded-lg px-4 text-xs font-medium transition-colors shadow-xs",
             isPaper
               ? "bg-paper-seal text-paper-card hover:bg-paper-seal/90"
-              : "bg-signal text-field-abyss hover:bg-[#B9EA5F]",
+              : "bg-signal text-field-abyss hover:bg-[#14543D]",
           )}
         >
           <Download className="size-3.5" />
-          <span>{downloaded ? "Bundle Exported!" : "Download Verification Bundle (.json)"}</span>
+          <span>{downloaded ? "Downloaded" : "Download the audit bundle (.json)"}</span>
         </button>
 
         <button
@@ -108,7 +108,7 @@ export function ComplianceExport({
           )}
         >
           <Printer className="size-3.5" />
-          <span>Print Dossier Certificate</span>
+          <span>Print this page</span>
         </button>
       </div>
 
@@ -121,8 +121,8 @@ export function ComplianceExport({
         <span className="flex items-center gap-1.5">
           <ShieldCheck className="size-3.5 text-paper-seal shrink-0" />
           <span>
-            Self-contained verification bundle contains: Canonical RFC 8785 manifest, raw SHA-256
-            image hashes, Base Sepolia Merkle proof path, and reviewer quorum signatures.
+            The bundle holds the canonical record (RFC 8785 JSON), each file&apos;s SHA-256, every review decision with its reason, and the
+            Merkle proof path with the contract address. It holds no photo and no exact location.
           </span>
         </span>
       </div>

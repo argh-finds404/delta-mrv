@@ -5,14 +5,17 @@
 //
 //   pnpm db:seed
 //
-// Refuses to run against production, and refuses to run twice: review_decision is
-// append-only, so a seeded database cannot be wiped. Recreate the branch to reseed.
+// Refuses to run against production. The bulk history is written once: review_decision is
+// append-only, so a seeded database cannot be wiped (recreate the branch to reseed). Every run,
+// first or later, then tops the data up (scripts/lib/seed-narrative.ts): sealed manifests for
+// approved records, and four hand-made records that show the states worth demonstrating.
 import { randomBytes, randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import postgres from "postgres";
 import { locationCommitment } from "../src/lib/crypto/location";
 import { DEMO_PASSWORD } from "../src/lib/demo-accounts";
 import { fuzzCentroid, polygonCentroid, type LonLat } from "../src/lib/geo/fuzz";
+import { topUp } from "./lib/seed-narrative";
 import { makePool, mulberry32 } from "./lib/seed-pool";
 
 try {
@@ -62,8 +65,9 @@ async function main() {
   try {
     const [{ n }] = (await sql`select count(*)::int as n from organization where slug = 'sundarbans-restoration-trust'`) as unknown as [{ n: number }];
     if (n > 0) {
-      console.log("already seeded; nothing to do (recreate the branch to reseed)");
-      process.exit(0);
+      console.log("bulk history already seeded (recreate the branch to reseed it); topping up");
+      await topUp(sql);
+      return;
     }
 
     const pool = await makePool();
@@ -156,6 +160,7 @@ async function main() {
       console.log(`organisations 3 | users ${people.length} | projects ${projects.length} | submissions ${submissions.length} | evidence files ${files.length} | decisions ${decisions.length}`);
     });
 
+    await topUp(sql);
     console.log(`seeded in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     console.log(`\nDemo sign-ins (password "${DEMO_PASSWORD}"):`);
     for (const e of ["admin", "submitter", "verifier1", "verifier2", "audit-admin", "funder"]) console.log(`  ${e}@delta-demo.example`);

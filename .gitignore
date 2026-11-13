@@ -41,3 +41,16 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .neon
+
+# foundry build output and local broadcast logs
+/contracts/out/
+/contracts/cache/
+/contracts/broadcast/
+
+# pnpm dev:local: anvil chain state and evidence stored on disk; playwright output
+/.local/
+/test-results/
+/playwright-report/
+
+# original artwork the hero is rendered from (scripts/render-hero-from-art.ts); the rendered files are committed
+/art/

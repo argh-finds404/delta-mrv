@@ -6,7 +6,7 @@ import { SubmitWizard } from "@/src/components/submit/SubmitWizard";
 import { env } from "@/src/env";
 import { requireSession } from "@/src/server/auth/session";
 import { NotFoundError } from "@/src/server/services/errors";
-import { AppShell } from "@/src/components/app/AppShell";
+import { AppShell, AppShellLoading } from "@/src/components/app/AppShell";
 import { getProject, myOrganisations } from "@/src/server/services/projects.service";
 
 interface SubmitPageProps {
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 
 export default function SubmitEvidencePage({ params, searchParams }: SubmitPageProps) {
   return (
-    <React.Suspense fallback={<div className="min-h-dvh bg-field-abyss" aria-busy />}>
+    <React.Suspense fallback={<AppShellLoading />}>
       <SubmitPageBody params={params} searchParams={searchParams} />
     </React.Suspense>
   );

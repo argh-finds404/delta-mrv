@@ -25,3 +25,6 @@ export class ValidationError extends DomainError {}
 
 /** Storage is not configured on this server: callers answer 503, never an internal error. */
 export { StorageUnavailable } from "../storage/port";
+
+/** No chain is configured on this server: callers answer 503, never an internal error. */
+export { ChainUnavailable } from "../chain/port";

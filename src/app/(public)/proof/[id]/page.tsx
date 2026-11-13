@@ -4,11 +4,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { HashDisplay } from "@/src/components/hash-display/hash-display";
-import { DropPhotoVerifier } from "@/src/components/proof";
+import { ComplianceExport, DropPhotoVerifier, ProofVerifier } from "@/src/components/proof";
 import { SiteFooter } from "@/src/components/site/SiteFooter";
 import { SiteHeader } from "@/src/components/site/SiteHeader";
 import { ACTIVITY_LABEL, formatClaim, formatLatLon } from "@/src/lib/format";
-import { DOES_NOT_PROVE, NOT_BUILT_YET, PROVES } from "@/src/lib/limits";
+import { explorerAddress, explorerTx } from "@/src/lib/chain/registry";
+import { DOES_NOT_PROVE, PROVES } from "@/src/lib/limits";
 import { NotFoundError } from "@/src/server/services/errors";
 import { getPublicProof, type PublicProof } from "@/src/server/services/submissions.service";
 
@@ -47,7 +48,7 @@ async function Dossier({ params }: ProofPageProps) {
     if (e instanceof NotFoundError) notFound();
     throw e;
   });
-  const { submission, project, files, decisions } = proof;
+  const { submission, project, files, decisions, manifest, anchor } = proof;
   const claim = formatClaim(project.claimedQuantity, project.claimedUnit);
 
   return (
@@ -77,17 +78,21 @@ async function Dossier({ params }: ProofPageProps) {
         </p>
       </header>
 
-      {/* 2. Verification state */}
+      {/* 2. Verification state: computed in the visitor's browser, never asserted by the server */}
       <section aria-labelledby="state" className="space-y-4">
         <h2 id="state" className="type-section">
-          Not anchored yet
+          Has this record changed?
         </h2>
-        <div className="flex flex-wrap items-start gap-4 rounded-xl border border-paper-rule bg-paper-card p-5">
-          <span className="rounded-md border border-paper-rule px-2.5 py-1 font-mono text-[13px] text-paper-muted">PENDING</span>
-          <p className="max-w-[62ch] flex-1 text-[15px] leading-[1.6]">
-            Two independent reviewers approved this submission. It has not been written to a public chain yet: daily anchoring is not built in this version of Delta. Until it is, you can still check a photo against the fingerprints below.
-          </p>
-        </div>
+        {manifest ? (
+          <ProofVerifier manifest={manifest} anchor={anchor} />
+        ) : (
+          <div className="flex flex-wrap items-start gap-4 rounded-xl border border-paper-rule bg-paper-card p-5">
+            <span className="rounded-md border border-paper-rule px-2.5 py-1 font-mono text-[13px] text-paper-muted">PENDING</span>
+            <p className="max-w-[62ch] flex-1 text-[15px] leading-[1.6]">
+              Two independent reviewers approved this submission, but it was recorded without the sealed document that anchoring needs, so it cannot be compared against a chain. You can still check a photo against the fingerprints below.
+            </p>
+          </div>
+        )}
       </section>
 
       {/* 3. Evidence */}
@@ -146,14 +151,46 @@ async function Dossier({ params }: ProofPageProps) {
       <Location project={project} />
 
       {/* 7. Chain anchor */}
-      <section aria-labelledby="anchor" className="space-y-3">
+      <section aria-labelledby="anchor" className="space-y-4">
         <h2 id="anchor" className="type-section">
           Chain anchor
         </h2>
-        <p className="max-w-[62ch] text-[15px] leading-[1.6] text-paper-muted">
-          None yet. When anchoring ships, this section will show the chain, the contract, the transaction on BaseScan, the Merkle root and this record&apos;s proof path, and your browser will check them itself.
-        </p>
+        {anchor ? (
+          <>
+            <p className="max-w-[62ch] text-[15px] leading-[1.6] text-paper-muted">
+              Approved records are batched once a day into a single fingerprint, a Merkle root, and that root is written to a public blockchain. Only the root goes on chain: no photo, no location, no name.
+            </p>
+            <dl className="divide-y divide-paper-rule border-y border-paper-rule text-[15px]">
+              {(
+                [
+                  ["Chain", `Base Sepolia (chain id ${anchor.chainId})`],
+                  ["Batch", `${anchor.batchId} · ${ANCHOR_STATUS[anchor.status]}`],
+                  ["Contract", <ExternalHash key="c" href={explorerAddress(anchor.contractAddress)} value={anchor.contractAddress} />],
+                  ["Transaction", anchor.txHash ? <ExternalHash key="t" href={explorerTx(anchor.txHash)} value={anchor.txHash} /> : "Not recorded"],
+                  ["Block", anchor.blockNumber ?? "Not confirmed yet"],
+                  ["Merkle root", <span key="r" className="break-all font-mono text-[13px]">{anchor.merkleRoot}</span>],
+                  ["Leaf", `number ${anchor.leafIndex + 1} in the batch, with a proof path of ${anchor.proof.length} ${anchor.proof.length === 1 ? "hash" : "hashes"}`],
+                ] as const
+              ).map(([k, v]) => (
+                <div key={k} className="grid gap-1 py-3 sm:grid-cols-[160px_minmax(0,1fr)] sm:items-center sm:gap-4">
+                  <dt className="text-paper-muted">{k}</dt>
+                  <dd>{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </>
+        ) : (
+          <p className="max-w-[62ch] text-[15px] leading-[1.6] text-paper-muted">
+            None yet. Approved records are batched once a day into a single fingerprint that is written to a public blockchain. When this record is in a batch, this section shows the contract, the transaction and its proof path.
+          </p>
+        )}
       </section>
+
+      {manifest && (
+        <section aria-label="Keep a copy" className="print:hidden">
+          <ComplianceExport submissionId={submission.id} projectTitle={project.title} bundleData={{ ...proof, exportedAt: new Date().toISOString(), verify: "Hash `manifest` as RFC 8785 JSON with SHA-256, build the leaf [submissionId, hash, approved second], and call verify(batchId, proof, leafHash) on the contract." }} theme="paper" />
+        </section>
+      )}
 
       {/* 8. What this does not prove: verbatim, docs/00-PRODUCT.md §3 */}
       <section aria-labelledby="limits" className="space-y-5 border-t border-paper-rule pt-10">
@@ -175,7 +212,7 @@ async function Dossier({ params }: ProofPageProps) {
             </div>
           ))}
         </div>
-        <p className="text-[14px] text-paper-muted">{NOT_BUILT_YET} The fingerprints above are the check available today.</p>
+        <p className="text-[14px] text-paper-muted">The chain comparison applies once a record is in a confirmed batch. Until then the fingerprints above are the check available.</p>
         <p className="text-[15px]">
           <Link href={`/p/${project.id}`} className="underline decoration-paper-rule underline-offset-[5px] hover:decoration-paper-ink">
             See the project
@@ -183,6 +220,16 @@ async function Dossier({ params }: ProofPageProps) {
         </p>
       </section>
     </main>
+  );
+}
+
+const ANCHOR_STATUS = { PENDING: "waiting to be sent", SUBMITTED: "sent, not confirmed yet", CONFIRMED: "confirmed", FAILED: "not confirmed, will be sent again" } as const;
+
+function ExternalHash({ href, value }: { href: string; value: string }) {
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className="break-all font-mono text-[13px] underline decoration-paper-rule underline-offset-4 hover:decoration-paper-ink">
+      {value}
+    </a>
   );
 }
 

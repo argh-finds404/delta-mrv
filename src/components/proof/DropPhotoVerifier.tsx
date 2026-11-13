@@ -127,8 +127,12 @@ export function DropPhotoVerifier({
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onClick={() => inputRef.current?.click()}
+        role="button"
+        tabIndex={0}
+        aria-label="Choose the original photo to check. It is hashed on this device and never uploaded."
+        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), inputRef.current?.click())}
         className={cn(
-          "rounded-lg border-2 border-dashed p-6 text-center cursor-pointer transition-colors duration-150 flex flex-col items-center justify-center space-y-2 print:hidden",
+          "rounded-lg border-2 border-dashed p-6 text-center cursor-pointer transition-colors duration-150 flex flex-col items-center justify-center space-y-2 print:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]",
           isDragging
             ? isPaper
               ? "border-paper-seal bg-paper-seal/5"

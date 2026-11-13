@@ -15,5 +15,5 @@ export const DOES_NOT_PROVE = [
   "Anything the AI “observed” — that is an opinion, logged as an opinion",
 ] as const;
 
-/** What the two claims above that depend on unbuilt parts rest on today. Shown beside them. */
-export const NOT_BUILT_YET = "In this version the chain comparison and the hash-chained audit log are not built yet.";
+/** What the chain comparison above rests on. Shown beside the two lists. */
+export const CHAIN_NOTE = "The chain comparison applies once a record is in a confirmed batch; until then its proof page says it is pending and compares nothing.";

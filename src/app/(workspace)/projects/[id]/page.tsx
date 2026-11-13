@@ -4,12 +4,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { ArrowLeft, ArrowRight, Camera, ExternalLink } from "lucide-react";
-import { AppShell } from "@/src/components/app/AppShell";
+import { AppShell, AppShellLoading } from "@/src/components/app/AppShell";
 import { SitesMap } from "@/src/components/app/SitesMap";
 import { HashDisplay } from "@/src/components/hash-display/hash-display";
 import { StatusBadge } from "@/src/components/status-badge/status-badge";
 import { activityColor } from "@/src/lib/activity";
 import { ACTIVITY_LABEL, formatClaim, formatCount, formatLatLon } from "@/src/lib/format";
+import { canRunAnchoring } from "@/src/lib/org-type";
 import { STATUS_META, STATUS_ORDER } from "@/src/lib/status";
 import { requireSession } from "@/src/server/auth/session";
 import { NotFoundError } from "@/src/server/services/errors";
@@ -28,14 +29,14 @@ export const metadata: Metadata = {
 
 const RECENT = 30;
 const primary =
-  "inline-flex h-11 items-center gap-2 rounded-xl bg-signal px-4 text-[15px] font-medium text-white transition-colors hover:bg-[#186747] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal";
+  "inline-flex h-11 items-center gap-2 rounded-xl bg-signal px-4 text-[15px] font-medium text-white transition-colors hover:bg-[#14543D] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal";
 const secondary =
   "inline-flex h-11 items-center gap-2 rounded-xl border border-field-hairline bg-field-canopy px-4 text-[15px] font-medium transition-colors hover:bg-field-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal";
 const rise = (i: number) => ({ "--i": i }) as React.CSSProperties;
 
 export default function WorkspaceProjectPage({ params }: Props) {
   return (
-    <React.Suspense fallback={<div className="min-h-dvh bg-field-abyss" aria-busy />}>
+    <React.Suspense fallback={<AppShellLoading />}>
       <ProjectBody params={params} />
     </React.Suspense>
   );
@@ -59,7 +60,7 @@ async function ProjectBody({ params }: Props) {
   const isVerifierOrg = orgs.some((o) => o.orgType === "VERIFIER");
 
   return (
-    <AppShell userName={session.user.name || session.user.email} context={orgs[0]?.orgName} review={isVerifierOrg ? { count: 0 } : null}>
+    <AppShell userName={session.user.name || session.user.email} context={orgs[0]?.orgName} review={isVerifierOrg ? { count: 0 } : null} anchoring={canRunAnchoring(orgs)}>
       <main className="mx-auto max-w-[1200px] space-y-10 px-4 py-8 sm:px-6 lg:py-12">
         <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-[14px] text-field-muted transition-colors hover:text-field-text">
           <ArrowLeft className="size-4" aria-hidden />
@@ -144,7 +145,7 @@ async function ProjectBody({ params }: Props) {
                     <time className="text-[14px] tabular-nums text-field-muted" dateTime={s.submittedAt.toISOString()}>
                       {s.submittedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                     </time>
-                    <span className="font-mono text-[13px] text-field-inert">{s.id.slice(0, 8)}</span>
+                    <span className="font-mono text-[13px] text-field-muted">{s.id.slice(0, 8)}</span>
                     <span className="ml-auto flex items-center gap-2">
                       {s.status === "NEEDS_MORE_PROOF" && isOwner && (
                         <Link href={`/projects/${project.id}/submit?supplement=${s.id}`} className="text-[14px] font-medium text-signal hover:underline">

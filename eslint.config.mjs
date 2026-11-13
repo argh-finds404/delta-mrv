@@ -50,7 +50,8 @@ const eslintConfig = defineConfig([
       patterns: ANY_SERVER,
     }),
   },
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
+  // contracts/lib holds vendored Foundry libraries (git submodules) with lint configs of their own
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "contracts/lib/**", "contracts/out/**", "contracts/cache/**", "contracts/broadcast/**"]),
 ]);
 
 export default eslintConfig;

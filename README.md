@@ -1,172 +1,215 @@
-# Delta-MRV: High-Integrity Autonomous Ecological Verification
+# Delta
 
-**Delta-MRV** is an autonomous, tamper-proof Measurement, Reporting & Verification (MRV) platform designed to eliminate fraud in carbon offset and ecological grant disbursements (e.g., mangrove restoration across the Sundarbans ecological corridor).
+Delta is a multi-tenant Measurement, Reporting and Verification (MRV) platform for
+environmental restoration: mangrove planting, wetland recovery, river cleanups.
 
-Instead of relying on corruptible manual paper spreadsheets, PDF certifications, or unverified self-reported imagery, Delta cross-references **native PostGIS spatial geofences**, **perceptual image deduplication (`pgvector` + `dHash`)**, **3-tenant conflict-of-interest consensus**, and **Base Sepolia Merkle anchoring** with zero-trust in-browser verification.
+It turns restoration claims from things people say into things anyone can check, by making the
+evidence, the reviewer, and the review itself verifiable by a stranger with a browser.
 
 ```
-PROJECT REGISTERED → EVIDENCE INTAKE → DETERMINISTIC FORENSICS → INDEPENDENT QUORUM → MERKLE ANCHOR → PUBLIC ZERO-TRUST PROOF
+PROJECT → SUBMIT EVIDENCE → ANALYSE → INDEPENDENT REVIEW → ANCHOR → PUBLIC VERIFY
 ```
 
----
+## The problem
 
-## What Delta Proves, and What It Does Not
+Restoration is funded on the strength of spreadsheets, PDFs and self-reported photographs.
+Four frauds are routine and hard to detect:
 
-### It proves
-- The evidence file existed at a recorded point in time.
-- The evidence has not changed since approval (cryptographic hash comparison against on-chain Merkle root).
-- It passed stated consistency checks — PostGIS polygon containment, perceptual duplicate radar, EXIF plausibility.
-- It was approved by named humans from an organisation independent of the claimant under a strict conflict-of-interest gate.
-- The review history has not been silently rewritten (hash-chained audit log with trigger-enforced append-only tables).
+| Fraud | What it looks like |
+|---|---|
+| Double claiming | The same photo submitted against two grants or two projects |
+| Location spoofing | Photos taken outside the claimed restoration boundary |
+| Self-auditing | The organisation that did the work also signs off that it was done |
+| Silent tampering | Review logs or evidence metadata edited after approval |
 
-### It does not prove
-- That trees were actually planted, or that they survived indefinitely.
-- That the photograph was taken where or when the EXIF says (GPS and timestamps can be spoofed; physical ground reality can diverge from digital records).
-- Anything an AI model "observed" — AI findings are logged strictly as unprivileged advisory notes, never as proof.
+## What it proves, and what it does not
 
-*Independent physical ground auditing remains essential. A matching hash confirms record integrity; multi-tenant human consensus confirms evidentiary standards.*
+**It proves**
 
----
+- The evidence file existed at a recorded point in time
+- The evidence has not changed since approval (hash comparison against chain)
+- It passed stated consistency checks — location, duplicates, timestamps
+- It was approved by named humans from an organisation independent of the claimant
+- The review history has not been silently rewritten (hash-chained audit log)
 
-## The 8 Core Production Features
+**It does not prove**
 
-### Part 1: The 4 Foundational Verification Pillars
+- That trees were actually planted, or that they survived
+- That the photograph was taken where or when the EXIF says
+- Anything the AI "observed" — that is an opinion, logged as an opinion
 
-| # | Core Feature | The Real-World Problem It Solves | Implementation in Delta |
+EXIF can be forged, an AI cannot count saplings, and a matching hash only means the record is
+unchanged. Inspection on the ground is still needed.
+
+## How it works
+
+1. **An NGO submits a before/after pair** for a project with a drawn boundary. The browser
+   uploads straight to private storage. The server reads the stored bytes back and hashes
+   those: a hash sent by the client is never trusted. Photos captured with no signal wait in
+   an on-device queue.
+2. **A forensic pipeline writes findings.** Exact reuse (SHA-256), near-duplicates (64-bit
+   dHash, Hamming distance under 8), position against the boundary (PostGIS), capture time, and
+   whether before and after differ at all. Each finding has a severity and a reason a person
+   can read. A finding is a signal. It approves nothing and blocks nothing.
+3. **Verifiers from a different organisation decide.** Two approvals from two distinct people
+   are needed. Every decision needs a written reason. A reviewer cannot see a colleague's vote
+   until they have cast their own. One approval and one rejection escalate to an admin inside
+   the verifier organisation.
+4. **Approved records are anchored.** Each approved record is sealed into a canonical manifest
+   (RFC 8785). A day's manifests become one Merkle root, written to a registry contract on
+   Base Sepolia.
+5. **Anyone can check.** The public proof page recomputes the manifest hash in the visitor's
+   browser and verifies the Merkle proof against the contract. Drop the original photo on the
+   page and it is hashed locally and compared. The file never leaves the browser.
+
+## The rules the code enforces
+
+- **No one reviews their own organisation's work.** Enforced in the service layer, with no
+  admin override, no feature flag and no demo bypass. Proven by a dedicated test suite.
+- **AI never changes state.** The optional Gemini pass writes one low-severity advisory note.
+  It cannot approve, reject, score or change a status.
+- **Append-only means append-only.** Review decisions, audit events and anchor leaves cannot
+  be updated, deleted or truncated: grants are revoked and a trigger refuses the statement.
+- **Signals, not a magic number.** The risk score is a cached sum of the findings, versioned,
+  always shown beside the findings that produced it. It never gates a transition.
+- **Exact site locations stay private.** Public pages and the public API receive the centre of
+  a grid cell about 5.6 km across, plus a salted commitment to the real boundary.
+
+## Threat model, in short
+
+The full version is [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
+
+| Threat | What stops it | What remains |
+|---|---|---|
+| A photo reused across projects or grants | SHA-256 and dHash search across every tenant | A cropped or rotated copy evades the fingerprint (measured below) |
+| A photo taken outside the boundary | EXIF position checked against the PostGIS polygon | EXIF position is easy to forge |
+| Self-approval | The conflict-of-interest rule, a two-person quorum, explicit assignment | Two independent organisations can still collude. It is visible and attributable, not prevented |
+| History rewritten after approval | Append-only tables, a hash chain per organisation, public anchoring | A database superuser can rewrite rows, but not what is already anchored |
+| Site coordinates leaked | Server-side fuzzing, leak tests on every public endpoint | Many fuzzed centres could narrow a location |
+| Prompt injection through a photo | The AI output has no field that can change anything | A misleading advisory note a reviewer may ignore |
+| One tenant learning about another through a match | A match discloses its distance and an opaque reference, nothing else | That a match exists is itself a small signal |
+| A network failure shown as tampering | Four verification states. An unreachable chain is neutral, never a mismatch | |
+
+Out of scope: proving an activity physically happened, verifying an organisation's identity,
+availability, and the legal weight of any record.
+
+## Measured, not asserted
+
+**Duplicate detection** ([docs/FORENSIC_EVAL.md](docs/FORENSIC_EVAL.md), regenerated by
+`pnpm eval:forensics`). Three real photographs, each edited five ways, through the real
+fingerprint at the real threshold:
+
+| | |
+|---|---|
+| Precision | 100% (5 of 5 matches were real copies) |
+| Recall over resize, re-compression and a 10% crop | 56% (5 of 9) |
+| Recall over every edited copy, including rotation and a 40% crop | 33% (5 of 15) |
+| False matches between different photographs | 0 of 6 |
+
+A re-saved or shrunk copy is usually caught. A cropped or rotated copy is not. Three
+photographs is a small sample. The same table is published on the `/trust` page, and the test
+suite fails if the pipeline stops producing exactly these counts.
+
+**Query latency** (`pnpm bench:queries`, 2026-11-13). The seeded history of 5,208 submissions
+and 10,416 fingerprinted files, PostgreSQL 18 in local Docker on a laptop, 400 runs each,
+milliseconds:
+
+| Query | Clients | p50 | p95 |
 |---|---|---|---|
-| **1** | **Deterministic Forensic Intake & `pgvector` Duplicate Radar** | NGOs or contractors reusing the same sapling/cleanup photos across multiple grant milestones or different projects (double-dipping). | • Private blob storage with 5 MB cap.<br>• Server-side `sharp` computes SHA-256 + 64-bit `dHash` (`bit(64)`).<br>• `pgvector` Hamming distance query (`<~> 8`): Cross-project match = `HIGH` fraud alert; same-project match = `LOW` time-series signal.<br>• Compares `beforeDHash` vs `afterDHash` (`NO_VISIBLE_CHANGE` if distance < 4 bits). |
-| **2** | **PostGIS Polygon Geofencing & Location Commitment** | Field photos taken at a commercial plant nursery 30 km away instead of inside the restoration plot — plus protecting endangered habitats from public coordinate scraping. | • Project boundaries stored as `geometry(Polygon, 4326)` in PostGIS.<br>• Evaluates `ST_Covers` and `ST_Distance` against extracted EXIF GPS.<br>• **Privacy Commitment:** Public routes display only a fuzzed centroid (~5.5 km grid cell) + `SHA256("DELTA_LOC_V1:" + saltHex + ":" + canonicalize(exactGeoJson))`. Exact coordinates are unlocked only by authorized auditors in the Evidence Lab. |
-| **3** | **3-Tenant Conflict-of-Interest (COI) Engine & 2-of-N Quorum** | Self-certification ("grading your own homework") or a single compromised reviewer rubber-stamping fake claims. | • Better Auth organization multi-tenancy with strict tenant types: `OWNER_NGO`, `VERIFIER_AUDITOR`, `FUNDER_READONLY`.<br>• Service-layer guard throws `ConflictOfInterestError` if `actorOrgId === project.ownerOrgId`.<br>• Requires **2 distinct independent verifier signatures** (`2-of-N quorum`) with mandatory written justifications ($\ge 20$ chars) before a submission can be approved.<br>• **Blind-until-vote review:** Reviewers cannot see peers' votes until they have cast their own. |
-| **4** | **Hash-Chained Audit Ledger & Base Sepolia Merkle Anchoring** | Silent database tampering (an administrator editing Postgres rows months later before a funder audit) and fake "Verified" badges that require trusting a server. | • Database-enforced append-only tables (`audit_event`, `review_decision`, `anchor_leaf`) where `UPDATE` and `DELETE` are revoked via triggers.<br>• 1-per-day OpenZeppelin `StandardMerkleTree` anchored to `ImpactAnchorRegistry.sol` on Base Sepolia (`84532`) via `viem`.<br>• **Zero-Trust Proof Dossier (`/proof/[id]`):** Strangers verify the Merkle proof directly in their own browser over `eth_call`.<br>• **Local Drop-Photo Verifier:** Anyone can drag-and-drop an original photo; browser WebCrypto hashes the file locally to prove it matches the anchored manifest byte-for-byte. |
+| Near-duplicate search (Hamming distance under 8) | 1 | 6.4 | 15.2 |
+| Near-duplicate search (Hamming distance under 8) | 8 | 6.7 | 11.4 |
+| Geofence check (`ST_Covers`, `ST_DWithin`, `ST_Distance`) | 1 | 1.7 | 2.1 |
+| Geofence check (`ST_Covers`, `ST_DWithin`, `ST_Distance`) | 8 | 2.0 | 3.6 |
 
-### Part 2: The 4 Real-World Readiness Features
+The duplicate search is an exact scan on purpose. An approximate index would let a replay
+disagree with the first run.
 
-| # | Real-World Upgrade | The Real-World Reality It Handles | Implementation in Delta |
-|---|---|---|---|
-| **5** | **Disconnected Field Worker Resilience (Offline Vault & EXIF Pre-flight)** | Field officers taking photos in coastal mangrove belts or rural wetlands rarely have stable 4G when on-site; messaging apps silently strip EXIF metadata. | • **IndexedDB Field Vault (`delta_field_vault`):** Queues raw before/after photographs, client SHA-256 hashes, field observations, and GPS fixes on-device. Auto-recovers and syncs upon reconnection.<br>• **Client-Side EXIF Pre-Flight:** Native browser `exifr` warns field workers immediately if EXIF GPS is missing (*"Metadata stripped by WhatsApp/Telegram — camera original recommended"*). Displays sensor pills (`📷 Sony Alpha 7 IV`). |
-| **6** | **Tamper-Evident Dispute & Remediation Loop** | Legitimate field workers being rejected outright due to a blurry photo, bad vantage angle, or obscured marker post without an audit trail for remediation. | • Formal `NEEDS_MORE_PROOF` state with 4 structured dispute codes: `[EXIF_STRIPPED]`, `[BOUNDARY_MARKER_NOT_VISIBLE]`, `[BLURRY_AFTER_PHOTO]`, `[SUSPECTED_CROSS_PLOT_OVERLAP]`.<br>• Project owners submit supplementary evidence (`role: SUPPLEMENT`) in remediation round $N+1$, triggering an incremental forensics pass while preserving historical rounds. |
-| **7** | **Institutional Funder Compliance Export & Reverse Lookup** | Funder compliance officers and auditors requiring portable, machine-verifiable cryptographic archives that can be validated offline years later. | • **1-Click Cryptographic Verification Bundle (`.json`):** Exports the canonical RFC 8785 manifest, Merkle proof path, root, Base Sepolia transaction metadata, and review signatures.<br>• **Printable Proof Certificate:** Clean `@media print` certificate styling.<br>• **Reverse Proof Lookup (`/verify`):** Public reverse lookup tool accepting a proof ID, transaction hash, or dropped image file. |
-| **8** | **Built-in Adversarial Fraud Simulator** | Grant committees, donors, and technical evaluators needing live proof that the platform actually catches sophisticated fraud attempts. | • Built directly into the intake interface under `DEMO_MODE=true`:<br>  - **Scenario A: Legitimate Sundarbans Mangrove Planting (`Clean Pass`)** — In-polygon coordinates (`21.9497° N, 89.1833° E`), valid Sony Alpha EXIF, genuine vegetative delta.<br>  - **Scenario B: Adversarial Cross-Project Double-Claim (`Duplicate Fraud`)** — Injects duplicate image bytes to trigger `pgvector` perceptual dHash collision (`< 4` bits).<br>  - **Scenario C: Adversarial Off-Site Nursery Spoof (`Boundary Violation`)** — Injects coordinates from a commercial plant nursery in Khulna city (28.4 km outside boundary) to trigger PostGIS `ST_Covers` failure. |
+**Tests.** 235 unit tests, 150 integration tests against a real PostGIS database, 16 Foundry
+tests on the contract, and a Playwright run of the whole path from a field photo to a proof
+checked in a browser.
 
----
+## Status
 
-## Architectural Principles & Strict Rules
+Built and tested end to end on a local stack: intake, forensics, review, the audit chain,
+anchoring, the proof page, the public API and the funder view.
 
-1. **Service Layer Pattern**: Domain logic lives exclusively in `src/server/services/`. Server Actions and route handlers are thin adapters (validate input with Zod, invoke one service, return response).
-2. **Frozen Cryptography**: Core cryptographic primitives in `src/lib/crypto/` (RFC 8785 canonical serialization, `DELTA_LOC_V1` location commitments, and Merkle leaf hashing) are frozen to guarantee that old anchors verify forever across Node and browser runtimes.
-3. **No AI in the Loop for Authority**: Multimodal AI produces advisory notes only. An AI model never approves, rejects, transitions submission states, or signs audit records.
-4. **Living Earth Design System**: Two distinct themes driven by audience rather than toggles:
-   - **Field Theme (`data-theme="field"`, `#0C1413`)**: Dark, instrument-panel workspace for field workers and auditors reviewing hundreds of submissions.
-   - **Paper Theme (`data-theme="paper"`, `#F7F3EA`)**: Warm, generous certificate aesthetic for public proof dossiers and funder reviews.
-5. **Zero External Paid APIs ($0/Month Constraint)**: Free-tier Postgres (Neon), Vercel Blob private storage, Base Sepolia testnet L2, and client-side browser WebCrypto.
+Not done yet:
 
----
+- The registry contract is **not deployed to Base Sepolia**. Anchoring has only run against a
+  local chain, so no proof on a public network exists yet.
+- There is no hosted deployment.
+- Webhooks are not built.
+- No email is sent: no address verification and no password reset.
 
-## Routes Catalog (21 Routes)
+## Run it locally
 
-```
-Public Exploration & Verification (Paper Theme)
-├── /                                Landing page, problem statement, live proof teaser
-├── /atlas                           Impact Atlas with MapLibre GL GIS visualization
-├── /p/[id]                          Public project overview with fuzzed geometry
-├── /proof/[id]                      Canonical public proof dossier with client-side Merkle verifier
-├── /verify                          Public reverse proof lookup (ID, tx hash, or dropped photo)
-└── /trust                           Trust & limits disclosure, forensics rule table, ADR catalog
-
-Workspace & Audit Console (Field Theme)
-├── /dashboard                       Role-adaptive workspace (Owner, Verifier, Funder metrics)
-├── /projects/[id]                   Authenticated project management with exact boundary & salt
-├── /projects/[id]/submit            Before/after photographic intake & offline vault
-├── /lab                             Evidence Lab review queue with 2-of-N quorum voting
-├── /demo                            1-click seeded persona switcher (Demo mode only)
-├── /sign-in                         Multi-tenant authentication
-└── /sign-up                         Organization registration
-
-API Endpoints
-├── /api/auth/[...all]               Better Auth handler
-├── /api/evidence/[fileId]           Scoped evidence image stream
-├── /api/submissions                Draft creation
-├── /api/submissions/[id]/upload-token Private blob scoped upload tokens
-├── /api/submissions/[id]/finalize   Atomic transaction finalizing intake & triggering forensics
-├── /api/submissions/[id]/supplement Remediation supplement upload (round N+1)
-├── /api/submissions/[id]/findings   Forensics findings stream
-├── /api/lab/decision                Reviewer decision recording (COI guarded)
-├── /api/lab/queue                   Assigned verifier review queue
-├── /api/internal/jobs/drain         Postgres job queue drain worker
-└── /api/v1/projects                 Public project metadata API
-```
-
----
-
-## Tech Stack
-
-- **Framework**: Next.js 16.4.3 (App Router, Turbopack, Partial Prerendering) + React 19
-- **Database & ORM**: PostgreSQL with PostGIS (`v3.6.4`) + pgvector (`v0.8.6`) via Drizzle ORM (`0.45.4`) and `postgres.js` over TCP
-- **Authentication**: Better Auth (`1.7.13`) with multi-tenant organization plugin
-- **Image Forensics & Telemetry**: `sharp` (dHash calculation), `exifr` (EXIF/GPS extraction in browser & Node)
-- **Web3 & Anchoring**: Base Sepolia (`84532`), OpenZeppelin `StandardMerkleTree`, `viem` (`2.57.11`), Foundry (`ImpactAnchorRegistry.sol`)
-- **Cartography**: MapLibre GL (`5.24.0`)
-- **Styling**: Tailwind CSS v4 + Shadcn UI primitives + Lucide Icons
-
----
-
-## Getting Started
-
-### 1. Prerequisites
-- **Node.js**: `>=22`
-- **pnpm**: `pnpm@11.28.10`
-- **PostgreSQL**: Postgres 16+ instance with PostGIS and pgvector extensions enabled (e.g. Neon)
-
-### 2. Environment Configuration
-Copy the configuration template and configure your local environment:
+Needs Node 22+, pnpm 11, Docker, and [Foundry](https://getfoundry.sh) for the local chain.
 
 ```bash
-cp .env.example .env.local
-```
+pnpm install
+cp .env.example .env.local        # set BETTER_AUTH_SECRET to 32 or more random characters
+docker compose up -d              # PostgreSQL 18 with PostGIS and pgvector
 
-Key environment variables defined in `.env.example`:
-- `DATABASE_URL`: PostgreSQL connection string using `postgres.js` over TCP (never serverless HTTP)
-- `BETTER_AUTH_SECRET`: Random 32+ character authentication secret
-- `BETTER_AUTH_URL`: Local or production application origin (`http://localhost:3000`)
-- `BLOB_READ_WRITE_TOKEN`: Private Vercel Blob store token for raw evidence photos
-- `BASE_SEPOLIA_RPC_URL`: JSON-RPC provider endpoint for Base Sepolia testnet
-- `NEXT_PUBLIC_CHAIN_ID`: Target EVM network identifier (`84532` for Base Sepolia)
-- `DEMO_MODE`: Set to `"true"` to enable 1-click persona switching and fraud simulator
-
-### 3. Database Migration & Seed
-```bash
-# Apply Drizzle migrations (creates PostGIS and pgvector tables)
+export DATABASE_URL_UNPOOLED=postgresql://delta:delta_local@localhost:5432/delta
 pnpm db:migrate
 
-# Seed demo organisations, projects, and baseline evidence pool
-pnpm db:seed
+pnpm dev:local                    # seeds, starts a local chain, serves http://localhost:3000
 ```
 
-### 4. Development Server
-```bash
-pnpm dev
+`pnpm dev:local` uses the Docker database, a local chain with the real contract, and evidence
+stored on disk. It reaches no external service. Open `/demo` to sign in as the field officer,
+either verifier, the audit admin or the funder.
+
+| Command | What it does |
+|---|---|
+| `pnpm check` | ESLint, TypeScript, unit tests, the forbidden-dependency guard |
+| `pnpm test:integration` | Services against the database: conflict of interest, tenancy, append-only, queue, forensics, anchoring |
+| `pnpm contracts:test` | Foundry tests on `ImpactAnchorRegistry.sol` |
+| `pnpm test:e2e` | Playwright, the whole demo path on the local stack |
+| `pnpm eval:forensics` | Re-measures duplicate detection and rewrites `docs/FORENSIC_EVAL.md` |
+| `pnpm forensics:replay <submissionId>` | Re-runs forensics over the stored bytes and fails unless the findings are byte-identical |
+| `pnpm bench:queries` | Times the duplicate search and the geofence check on local Docker |
+
+## Routes
+
 ```
-Open [http://localhost:3000](http://localhost:3000) to access the landing page, [http://localhost:3000/atlas](http://localhost:3000/atlas) for the Impact Atlas, or [http://localhost:3000/demo](http://localhost:3000/demo) to switch between NGO, Verifier, and Funder personas.
+Public
+  /                       Landing page
+  /atlas                  Map of projects, area-level positions only
+  /p/[id]                 Public project page
+  /proof/[id]             Proof dossier, verified in the browser
+  /verify                 Look up a proof id, a transaction hash or a dropped photo
+  /trust                  What is proved, every check, measured results, limits
 
----
+Workspace (signed in)
+  /dashboard              Home, by role: owner, verifier or funder
+  /projects/new           Register a site and draw its boundary
+  /projects/[id]          Project workspace with the exact boundary
+  /projects/[id]/submit   Evidence intake and the offline queue
+  /lab                    Review queue for assigned verifiers
+  /admin                  Anchoring, audit chain verification, review assignment
 
-## Verification & Testing Suite
-
-Delta enforces strict quality gates before every commit:
-
-```bash
-# Full test and static analysis suite (Unit tests + TypeScript + ESLint + Forbidden deps)
-pnpm check
-
-# PostGIS, pgvector, multi-tenant tenancy, and forensics integration suite
-pnpm test:integration
-
-# Next.js 16 production build across all 21 routes with Partial Prerendering
-pnpm build
+API
+  /api/v1/submissions/[id]/proof   Public: canonical manifest and Merkle proof
+  /api/v1/proofs/lookup            Public: find a proof by id, transaction or file hash
+  /api/v1/projects, /stats         API key
 ```
 
----
+## Stack
 
-## License & Authorship
+Next.js 16 and React 19. PostgreSQL with PostGIS and pgvector, through Drizzle on postgres.js.
+Better Auth with organisations. `sharp` and `exifr` for forensics. Solidity with Foundry, viem
+and OpenZeppelin's Merkle tree. MapLibre GL. Tailwind 4.
 
-All commits and code authored by **Shoumik Orgho** (`orghodutta@gmail.com`). Licensed under the Apache-2.0 License.
+Runs on free tiers only: no paid service is required.
+
+## Where to read more
+
+- [docs/00-PRODUCT.md](docs/00-PRODUCT.md): the problem, the users, the product boundary
+- [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md): adversaries and mitigations
+- [docs/adr/](docs/adr/): five architecture decisions
+- [docs/02-ARCHITECTURE.md](docs/02-ARCHITECTURE.md): layering and the cross-runtime cryptographic contract
+
+## Authorship
+
+All code and commits are by Shoumik Orgho. Licensed under Apache-2.0.

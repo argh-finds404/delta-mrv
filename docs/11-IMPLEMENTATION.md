@@ -74,10 +74,15 @@ against local Docker on 2026-11-03 as well (the full suite, 74/74). Known gaps: 
 "platform admin" in the schema, so that test proves only that a user with no
 organisation has no path to a vote.
 
-**Status as of 2026-11-12 (Stages 3-7):** Stage 3 done. Stages 4 and 5 have
-code and tests written (jobs, forensics, scoring, audit chain, reviews, AI
-advisory); gates not re-recorded. Stage 6 not started. Stage 7 UI built, with
-nothing anchored to verify against. Stage 8 not started.
+**Status as of 2026-11-13 (Stages 3-8):** Stage 3 done. Stages 4 and 5 done. Stage 6:
+contract, test matrix, anchor service, admin panel and daily route built and tested against a
+local anvil chain; **not deployed to Base Sepolia** (the maintainer deploys by hand), so no real
+batch exists yet. Stage 7: proof dossier with browser-side verification, public proof API,
+API keys, funder view built. Stage 8: `test/e2e/demo-path.spec.ts` passes against the local
+stack (`pnpm dev:local`); forensic eval write-up (`pnpm eval:forensics`), replay
+(`pnpm forensics:replay`), chain verification (`pnpm audit:verify`), query timings
+(`pnpm bench:queries`, in place of k6), tamper demo, contrast assertion and keyboard pass, and
+the README are done; k6 and deployment are not. See `docs/SESSION-HANDOFF.md` section 2.
 
 ### Stage 3 — Atlas and public read path
 

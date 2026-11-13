@@ -64,6 +64,20 @@ interface PhotoSlot {
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB per doc 14 §6
 
+/**
+ * Sends one file to the path the server chose. A development server that keeps evidence on its
+ * own disk hands out its own tokens ("local:") and takes the bytes itself; everywhere else the
+ * browser uploads straight to the private blob store.
+ */
+async function uploadEvidence(pathname: string, file: File, token: string): Promise<void> {
+  if (!token.startsWith("local:")) {
+    await put(pathname, file, { access: "private", token });
+    return;
+  }
+  const res = await fetch("/api/dev/storage", { method: "PUT", headers: { authorization: token, "x-pathname": pathname, "content-type": file.type || "image/jpeg" }, body: file });
+  if (!res.ok) throw new Error("The photo could not be stored. Try again.");
+}
+
 // What happens to a submission, in the words of the person sending it.
 const STEPS: StepItem[] = [
   { id: "hash", label: "Fingerprint on this device", status: "queued" },
@@ -453,7 +467,7 @@ export function SubmitWizard({
 
         // 2. Direct upload to private blob store
         setStep("upload", { value: "Uploading the photo…" });
-        await put(tok.pathname, file, { access: "private", token: tok.clientToken });
+        await uploadEvidence(tok.pathname, file, tok.clientToken);
 
         // 3. Post supplement: a new round, and a forensics pass for it
         const suppRes = await fetch(`/api/submissions/${supplementSubmissionId}/supplement`, {
@@ -513,8 +527,8 @@ export function SubmitWizard({
       // 3. Direct upload to private blob store
       setStep("upload", { value: "Uploading both photos…" });
       await Promise.all([
-        put(beforeTok.pathname, bFile, { access: "private", token: beforeTok.clientToken }),
-        put(afterTok.pathname, aFile, { access: "private", token: afterTok.clientToken }),
+        uploadEvidence(beforeTok.pathname, bFile, beforeTok.clientToken),
+        uploadEvidence(afterTok.pathname, aFile, afterTok.clientToken),
       ]);
 
       // 4. Finalize submission in database transaction
@@ -792,7 +806,7 @@ export function SubmitWizard({
             </button>
             <Link
               href="/dashboard"
-              className="inline-flex h-9 items-center gap-2 rounded-lg bg-signal px-4 text-xs font-medium text-field-abyss hover:bg-[#186747] transition-colors"
+              className="inline-flex h-9 items-center gap-2 rounded-lg bg-signal px-4 text-xs font-medium text-field-abyss hover:bg-[#14543D] transition-colors"
             >
               <span>Back to Dashboard</span>
               <ArrowRight className="size-3.5" />
@@ -925,7 +939,7 @@ export function SubmitWizard({
                   className={cn(
                     "inline-flex h-11 items-center justify-center gap-2 rounded-lg px-5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-signal",
                     canSubmit
-                      ? "bg-signal text-field-abyss hover:bg-[#186747]"
+                      ? "bg-signal text-field-abyss hover:bg-[#14543D]"
                       : "bg-field-raised text-field-inert border border-field-hairline cursor-not-allowed",
                   )}
                 >
@@ -1039,12 +1053,12 @@ function PhotoCaptureCard({
                   <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono text-field-muted">
                     {slot.cameraModel && (
                       <span className="rounded bg-field-raised px-1.5 py-0.5 border border-field-hairline">
-                        📷 {slot.cameraModel}
+                        {slot.cameraModel}
                       </span>
                     )}
                     {slot.dateTimeOriginal && (
                       <span className="rounded bg-field-raised px-1.5 py-0.5 border border-field-hairline">
-                        🗓️ {slot.dateTimeOriginal}
+                        {slot.dateTimeOriginal}
                       </span>
                     )}
                   </div>
@@ -1060,7 +1074,11 @@ function PhotoCaptureCard({
       ) : (
         <div
           onClick={() => inputRef.current?.click()}
-          className="border border-dashed border-field-hairline hover:border-field-inert rounded-lg p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-colors space-y-2 bg-field-raised/40 hover:bg-field-raised"
+          role="button"
+          tabIndex={0}
+          aria-label={`Choose the ${role.toLowerCase()} photo`}
+          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), inputRef.current?.click())}
+          className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal border border-dashed border-field-hairline hover:border-field-inert rounded-lg p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-colors space-y-2 bg-field-raised/40 hover:bg-field-raised"
         >
           <div className="size-10 rounded-full bg-field-raised border border-field-hairline flex items-center justify-center text-field-muted">
             <Camera className="size-5" />

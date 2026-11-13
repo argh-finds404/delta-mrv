@@ -12,4 +12,4 @@ export const authField = (invalid = false) =>
   );
 
 export const authPrimary =
-  "inline-flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-signal px-5 text-[16px] font-medium text-field-abyss transition-colors hover:bg-[#C6EE9E] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal disabled:cursor-wait disabled:opacity-70";
+  "inline-flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-signal px-5 text-[16px] font-medium text-field-abyss transition-colors hover:bg-[#14543D] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal disabled:cursor-wait disabled:opacity-70";

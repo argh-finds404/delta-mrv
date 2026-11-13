@@ -1,0 +1,45 @@
+name: scheduled jobs
+
+# The queue's hourly safety net (docs/01-FEATURE-LOCK.md M6) and the daily anchor (M11).
+# Both routes are idempotent and refuse any caller without CRON_SECRET.
+#
+# Needs two repository secrets, and does nothing until both are set:
+#   APP_URL      the deployed origin, no trailing slash
+#   CRON_SECRET  the same value the deployment holds
+
+on:
+  schedule:
+    - cron: "17 * * * *" # hourly: drain the job queue
+    - cron: "40 18 * * *" # daily, 00:40 in Dhaka: batch what was approved and anchor it
+  workflow_dispatch:
+    inputs:
+      route:
+        description: Which route to call
+        type: choice
+        default: /api/internal/jobs/drain
+        options:
+          - /api/internal/jobs/drain
+          - /api/internal/anchor/daily
+
+permissions: {}
+
+jobs:
+  call:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call the route
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SCHEDULE: ${{ github.event.schedule }}
+          CHOSEN: ${{ inputs.route }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "APP_URL or CRON_SECRET is not set as a repository secret: nothing to call."
+            exit 0
+          fi
+          route="${CHOSEN:-/api/internal/jobs/drain}"
+          if [ "$SCHEDULE" = "40 18 * * *" ]; then route=/api/internal/anchor/daily; fi
+          curl --fail-with-body --silent --show-error --max-time 240 \
+            -H "Authorization: Bearer $CRON_SECRET" "$APP_URL$route"

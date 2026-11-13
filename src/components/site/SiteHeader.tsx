@@ -15,8 +15,10 @@ const focus = "rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4
 
 /** Public (Paper) header. One hairline below, no shadow, no blur: it is a page edge, not a layer. */
 export function SiteHeader() {
+  // the one-click roles exist only on a demo deployment; this header is rendered on the server
+  const demo = process.env.DEMO_MODE === "true";
   return (
-    <header className="sticky top-0 z-40 border-b border-paper-rule bg-paper">
+    <header className="sticky top-0 z-40 border-b border-paper-rule bg-paper print:hidden">
       <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between gap-6 px-6 lg:px-16">
         <Link href="/" className={focus} aria-label="Delta, home">
           <Wordmark />
@@ -29,10 +31,18 @@ export function SiteHeader() {
           ))}
           <Link
             href="/sign-in"
-            className="inline-flex h-10 items-center rounded-lg border border-paper-rule px-4 text-paper-ink transition-colors hover:border-paper-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-paper-ink"
+            className={`${focus} text-paper-muted transition-colors hover:text-paper-ink ${demo ? "hidden sm:inline" : "inline-flex h-10 items-center rounded-lg border border-paper-rule px-4 !text-paper-ink hover:border-paper-muted"}`}
           >
             Sign in
           </Link>
+          {demo && (
+            <Link
+              href="/demo"
+              className="inline-flex h-10 items-center rounded-lg bg-paper-ink px-4 font-medium text-paper transition-colors hover:bg-[#22302C] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-paper-ink"
+            >
+              Try the demo
+            </Link>
+          )}
         </nav>
       </div>
     </header>

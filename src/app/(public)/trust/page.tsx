@@ -4,7 +4,7 @@ import { SiteFooter } from "@/src/components/site/SiteFooter";
 import { REPO_URL, SiteHeader } from "@/src/components/site/SiteHeader";
 import { EVAL } from "@/src/lib/forensics/eval-results";
 import { FUZZ_CELLS_PER_DEGREE } from "@/src/lib/geo/fuzz";
-import { DOES_NOT_PROVE, NOT_BUILT_YET, PROVES } from "@/src/lib/limits";
+import { CHAIN_NOTE, DOES_NOT_PROVE, PROVES } from "@/src/lib/limits";
 
 export const metadata: Metadata = {
   title: "Trust · Delta",
@@ -39,8 +39,8 @@ const STATUS: [part: string, built: boolean][] = [
   ["Independent review: two reviewers from an organisation independent of the claimant", true],
   ["Append-only review decisions, enforced by the database", true],
   ["Public proof pages and photo lookup", true],
-  ["Hash-chained audit log", false],
-  ["Daily anchoring on Base Sepolia, checked in the visitor's browser", false],
+  ["Hash-chained audit log", true],
+  ["Batch anchoring on Base Sepolia, checked in the visitor's browser", true],
 ];
 
 const sev = { INFO: "text-paper-muted", LOW: "text-paper-ink", MEDIUM: "text-[#8A5A12]", HIGH: "text-[#A3301E]" } as const;
@@ -79,7 +79,7 @@ export default function TrustPage() {
               </div>
             ))}
           </div>
-          <p className="text-[15px] text-paper-muted">{NOT_BUILT_YET}</p>
+          <p className="text-[15px] text-paper-muted">{CHAIN_NOTE}</p>
         </section>
 
         <section aria-labelledby="built" className="space-y-5">

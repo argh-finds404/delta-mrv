@@ -81,7 +81,7 @@ async function Atlas({ searchParams }: Props) {
 function AtlasSkeleton() {
   return (
     <div className="fixed inset-0 bg-field-stage text-field-text" aria-busy>
-      <div className="hud absolute inset-x-0 bottom-0 h-[45dvh] rounded-b-none min-[900px]:inset-x-auto min-[900px]:bottom-4 min-[900px]:left-4 min-[900px]:top-4 min-[900px]:h-auto min-[900px]:w-[380px] min-[900px]:rounded-b-xl">
+      <div className="hud absolute inset-x-0 bottom-0 h-[45dvh] rounded-b-none min-[900px]:inset-x-auto min-[900px]:bottom-4 min-[900px]:left-4 min-[900px]:top-4 min-[900px]:h-auto min-[900px]:w-[400px] min-[900px]:rounded-b-xl">
         <div className="border-b border-field-hairline px-5 py-4">
           <Wordmark className="text-field-text" />
         </div>

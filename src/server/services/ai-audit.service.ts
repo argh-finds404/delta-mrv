@@ -7,7 +7,7 @@ import { PROMPT_VERSION, geminiAi } from "../ai/gemini";
 import { AiRateLimited, type AiPort } from "../ai/port";
 import { db } from "../db/client";
 import { evidenceFile, evidenceSubmission, forensicFinding, impactProject } from "../db/schema";
-import { blobStorage } from "../storage/blob";
+import { evidenceStorage } from "../storage";
 import type { StoragePort } from "../storage/port";
 import type { Executor } from "./access";
 import { AI_JOB, refreshRiskCache } from "./forensics.service";
@@ -57,7 +57,7 @@ export async function runAiAudit(
   submissionId: string,
   round: number,
   x: Executor = db,
-  storage: StoragePort = blobStorage,
+  storage: StoragePort = evidenceStorage,
   ai: () => AiPort = geminiAi,
 ): Promise<AiOutcome> {
   const [s] = await x

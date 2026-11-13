@@ -3,17 +3,21 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { ArrowRight, Camera, ShieldCheck } from "lucide-react";
-import { AppShell } from "@/src/components/app/AppShell";
+import { AppShell, AppShellLoading } from "@/src/components/app/AppShell";
 import { SitesMap } from "@/src/components/app/SitesMap";
 import { StatusBadge } from "@/src/components/status-badge/status-badge";
 import { activityColor } from "@/src/lib/activity";
 import { ACTIVITY_LABEL, formatClaim, formatCount } from "@/src/lib/format";
+import { canRunAnchoring } from "@/src/lib/org-type";
 import { STATUS_META, STATUS_ORDER } from "@/src/lib/status";
 import { requireSession } from "@/src/server/auth/session";
+import { listApiKeys } from "@/src/server/services/api-key.service";
+import { myFunderPortfolio } from "@/src/server/services/funder.service";
 import { listProjects, myOrganisations } from "@/src/server/services/projects.service";
 import { reviewQueueOverview } from "@/src/server/services/reviews.service";
 import { countSubmissionsByStatus, listSubmissionsForProject } from "@/src/server/services/submissions.service";
 import { workspaceSites } from "../sites";
+import { FunderSection } from "./FunderSection";
 
 export const metadata: Metadata = {
   title: "Overview · Delta",
@@ -22,12 +26,12 @@ export const metadata: Metadata = {
 
 const rise = (i: number) => ({ "--i": i }) as React.CSSProperties;
 const primary =
-  "inline-flex h-11 items-center gap-2 rounded-xl bg-signal px-4 text-[15px] font-medium text-white transition-colors hover:bg-[#186747] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal";
+  "inline-flex h-11 items-center gap-2 rounded-xl bg-signal px-4 text-[15px] font-medium text-white transition-colors hover:bg-[#14543D] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal";
 
 // Read at request time (cacheComponents): the body streams inside Suspense.
 export default function DashboardPage() {
   return (
-    <React.Suspense fallback={<div className="min-h-dvh bg-field-abyss" aria-busy />}>
+    <React.Suspense fallback={<AppShellLoading />}>
       <Dashboard />
     </React.Suspense>
   );
@@ -39,7 +43,8 @@ async function Dashboard() {
   const actor = { userId: session.user.id };
 
   // no .catch: a failed read must reach the error boundary, not render as an all-clear dashboard
-  const [queue, projects, counts, orgs] = await Promise.all([reviewQueueOverview(actor), listProjects(actor), countSubmissionsByStatus(actor), myOrganisations(actor)]);
+  const [queue, projects, counts, orgs, funded] = await Promise.all([reviewQueueOverview(actor), listProjects(actor), countSubmissionsByStatus(actor), myOrganisations(actor), myFunderPortfolio(actor)]);
+  const keys = funded ? (await listApiKeys(actor)).filter((k) => k.orgId === funded.orgId) : [];
   const mine = projects.filter((p) => p.access !== "public");
   const owned = mine.filter((p) => p.access === "owner");
   const sites = await workspaceSites(session.user.id, mine);
@@ -57,7 +62,7 @@ async function Dashboard() {
   const highCount = queue.items.filter((i) => i.findingCounts.high > 0).length;
 
   return (
-    <AppShell active="overview" userName={session.user.name || session.user.email} context={org?.orgName} review={isVerifier ? { count: queue.total } : null}>
+    <AppShell active="overview" userName={session.user.name || session.user.email} context={org?.orgName} review={isVerifier ? { count: queue.total } : null} anchoring={canRunAnchoring(orgs)}>
       <main className="mx-auto max-w-[1200px] space-y-12 px-4 py-10 sm:px-6 lg:py-14">
         {/* Greeting and the one next action */}
         <header className="rise-in flex flex-wrap items-end justify-between gap-6" style={rise(0)}>
@@ -71,12 +76,44 @@ async function Dashboard() {
               Review {formatCount(queue.total)} waiting
             </Link>
           ) : isOwner ? (
-            <Link href={`/projects/${owned[0]!.id}/submit`} className={primary}>
-              <Camera className="size-[18px]" aria-hidden />
-              Submit evidence
+            <div className="flex flex-wrap items-center gap-3">
+              <Link href="/projects/new" className="inline-flex h-11 items-center rounded-xl border border-field-hairline bg-field-canopy px-4 text-[15px] transition-colors hover:border-field-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal">
+                New project
+              </Link>
+              <Link href={`/projects/${owned[0]!.id}/submit`} className={primary}>
+                <Camera className="size-[18px]" aria-hidden />
+                Submit evidence
+              </Link>
+            </div>
+          ) : orgs.some((o) => o.orgType === "OWNER") ? (
+            <Link href="/projects/new" className={primary}>
+              Register your first project
             </Link>
           ) : null}
         </header>
+
+        {/* A new organisation: what this page will hold, and the one step that fills it (docs/15 §2) */}
+        {org && mine.length === 0 && !funded && (
+          <section className="rise-in max-w-[640px] space-y-3 rounded-2xl border border-field-hairline bg-field-canopy p-8" style={rise(1)}>
+            <h2 className="font-serif text-[28px] leading-tight">{isVerifier ? "Nothing to review yet" : "No projects yet"}</h2>
+            <p className="text-[15px] leading-[1.6] text-field-muted">
+              {isVerifier
+                ? "Your organisation reviews the projects it takes on, and it has not taken one on yet. Once it has, their submissions arrive in Review."
+                : "Your sites, and where each submission stands, appear here. Register a site and draw its boundary, then submit a before and an after photo of it."}
+            </p>
+            {isVerifier &&
+              (canRunAnchoring(orgs) ? (
+                <Link href="/admin" className="inline-flex items-center gap-1.5 rounded-sm text-[15px] font-medium text-signal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal">
+                  See the projects with no reviewer
+                  <ArrowRight className="size-4" aria-hidden />
+                </Link>
+              ) : (
+                <p className="text-[14px] text-field-muted">An administrator of your organisation takes projects on.</p>
+              ))}
+          </section>
+        )}
+
+        {funded && <FunderSection portfolio={funded} keys={keys} />}
 
         {sites.length > 0 && (
           <section aria-label="Your sites on the map" className="rise-in" style={rise(1)}>
@@ -110,7 +147,7 @@ async function Dashboard() {
               ))}
             </dl>
             {counts.ANCHORED === 0 && counts.APPROVED > 0 && (
-              <p className="text-[14px] text-field-muted">Approved records are not anchored on chain yet: anchoring is not built in this version.</p>
+              <p className="text-[14px] text-field-muted">Approved records are anchored on chain together, in the next daily batch.</p>
             )}
           </section>
         )}

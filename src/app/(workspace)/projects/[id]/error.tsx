@@ -59,7 +59,7 @@ export default function WorkspaceProjectError({
           <button
             type="button"
             onClick={reset}
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-signal px-4 text-xs font-medium text-field-abyss hover:bg-[#186747] transition-colors"
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-signal px-4 text-xs font-medium text-field-abyss hover:bg-[#14543D] transition-colors"
           >
             <RotateCcw className="size-3.5" />
             <span>Retry</span>

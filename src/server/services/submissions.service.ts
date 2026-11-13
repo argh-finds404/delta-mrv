@@ -2,6 +2,7 @@ import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
+import type { Manifest } from "../../lib/crypto/manifest";
 import { ACCEPTED_EVIDENCE_TYPES, EXTENSION, HEIC_REFUSAL, MAX_EVIDENCE_BYTES, sniffImageType } from "../../lib/forensics/mime";
 import { assertTransition } from "../../lib/state-machine";
 import { db } from "../db/client";
@@ -18,7 +19,7 @@ import {
   reviewDecision,
   submissionStatus,
 } from "../db/schema";
-import { blobStorage } from "../storage/blob";
+import { evidenceStorage, localStorage } from "../storage";
 import type { StoragePort } from "../storage/port";
 import { actorContext, assignedVerifierOrgs, isUuid, parseInput, type Actor, type ActorContext, type Executor } from "./access";
 import { ConflictError, NotFoundError, ValidationError } from "./errors";
@@ -97,7 +98,7 @@ export async function openEvidenceFile(
   actor: Actor | null,
   fileId: string,
   x: Executor = db,
-  storage: StoragePort = blobStorage,
+  storage: StoragePort = evidenceStorage,
 ): Promise<{ stream: ReadableStream<Uint8Array>; mime: string; size: number }> {
   const notFound = new NotFoundError("evidence file not found");
   if (!isUuid(fileId)) throw notFound;
@@ -169,6 +170,21 @@ export type PublicProof = {
   };
   files: { id: string; role: "BEFORE" | "AFTER" | "SUPPLEMENT"; round: number; sha256: string }[];
   decisions: { decision: (typeof reviewDecision.$inferSelect)["decision"]; reason: string; round: number; createdAt: Date; reviewerOrgName: string }[];
+  /** The canonical document sealed at approval, exactly as stored: a verifier hashes it itself. Null for a record approved without one. */
+  manifest: Manifest | null;
+  /** The batch this record's leaf is in, whatever its state, with the leaf's proof path. Null until it is batched. */
+  anchor: {
+    batchId: number;
+    status: (typeof anchorBatch.$inferSelect)["status"];
+    merkleRoot: string;
+    chainId: number;
+    contractAddress: string;
+    txHash: string | null;
+    blockNumber: number | null;
+    confirmedAt: Date | null;
+    leafIndex: number;
+    proof: string[];
+  } | null;
 };
 
 /**
@@ -187,7 +203,7 @@ export async function getPublicProof(submissionId: string, x: Executor = db): Pr
     .where(and(eq(evidenceSubmission.id, submissionId), inArray(evidenceSubmission.status, ["APPROVED", "ANCHORED"])));
   if (!row) throw new NotFoundError(NOT_FOUND);
 
-  const [files, decisions] = await Promise.all([
+  const [files, decisions, anchors] = await Promise.all([
     x
       .select({ id: evidenceFile.id, role: evidenceFile.role, round: evidenceFile.round, sha256: evidenceFile.sha256 })
       .from(evidenceFile)
@@ -199,8 +215,25 @@ export async function getPublicProof(submissionId: string, x: Executor = db): Pr
       .innerJoin(organization, eq(organization.id, reviewDecision.reviewerOrgId))
       .where(eq(reviewDecision.submissionId, submissionId))
       .orderBy(reviewDecision.createdAt, reviewDecision.id),
+    x
+      .select({
+        batchId: anchorBatch.id,
+        status: anchorBatch.status,
+        merkleRoot: anchorBatch.merkleRoot,
+        chainId: anchorBatch.chainId,
+        contractAddress: anchorBatch.contractAddress,
+        txHash: anchorBatch.txHash,
+        blockNumber: anchorBatch.blockNumber,
+        confirmedAt: anchorBatch.confirmedAt,
+        leafIndex: anchorLeaf.leafIndex,
+        proof: anchorLeaf.proof,
+      })
+      .from(anchorLeaf)
+      .innerJoin(anchorBatch, eq(anchorBatch.id, anchorLeaf.batchId))
+      .where(and(eq(anchorLeaf.submissionId, submissionId), eq(anchorLeaf.manifestVersion, row.s.manifestVersion))),
   ]);
   const { s, p } = row;
+  const anchor = anchors[0];
   return {
     submission: { id: s.id, status: s.status as "APPROVED" | "ANCHORED", round: s.round, submittedAt: s.submittedAt, anchored: s.status === "ANCHORED" },
     project: {
@@ -215,6 +248,8 @@ export async function getPublicProof(submissionId: string, x: Executor = db): Pr
     },
     files,
     decisions,
+    manifest: (s.manifest as Manifest | null) ?? null,
+    anchor: anchor ? { ...anchor, proof: anchor.proof as string[] } : null,
   };
 }
 
@@ -370,7 +405,7 @@ export async function issueUploadToken(
   submissionId: string,
   input: { role: "BEFORE" | "AFTER" | "SUPPLEMENT"; contentType: string },
   x: Executor = db,
-  storage: StoragePort = blobStorage,
+  storage: StoragePort = evidenceStorage,
 ): Promise<{ pathname: string; clientToken: string }> {
   const data = parseInput(tokenSchema, input);
   if (/hei[cf]/i.test(data.contentType)) throw new ValidationError(HEIC_REFUSAL);
@@ -380,6 +415,16 @@ export async function issueUploadToken(
   const pathname = `${uploadPrefix(s)}${data.role.toLowerCase()}-${randomUUID()}.${EXTENSION[type]}`;
   const clientToken = await storage.uploadToken(pathname, { maxBytes: MAX_EVIDENCE_BYTES, contentTypes: ACCEPTED_EVIDENCE_TYPES });
   return { pathname, clientToken };
+}
+
+/**
+ * Development only (PUT /api/dev/storage): one browser upload into the local-disk store, if the
+ * token grants exactly it. Null when this server does not keep evidence on its own disk, which
+ * is every production server. Finalize still reads the bytes back and judges them.
+ */
+export async function acceptLocalUpload(token: string, pathname: string, contentType: string, bytes: Uint8Array): Promise<boolean | null> {
+  if (!localStorage) return null;
+  return localStorage.accept(token, pathname, contentType, bytes);
 }
 
 /** Reads one upload back from storage and judges the bytes themselves: size, type, hash. */
@@ -441,7 +486,7 @@ export async function finalizeSubmission(
   submissionId: string,
   input: { files: { role: "BEFORE" | "AFTER"; pathname: string; clientSha256?: string }[] },
   x: Executor = db,
-  storage: StoragePort = blobStorage,
+  storage: StoragePort = evidenceStorage,
 ): Promise<SubmissionSummary> {
   const data = parseInput(pairSchema, input);
   return x.transaction(async (tx) => {
@@ -474,7 +519,7 @@ export async function addSupplement(
   submissionId: string,
   input: { pathname: string; clientSha256?: string },
   x: Executor = db,
-  storage: StoragePort = blobStorage,
+  storage: StoragePort = evidenceStorage,
 ): Promise<SubmissionSummary> {
   const data = parseInput(fileSchema, input);
   return x.transaction(async (tx) => {

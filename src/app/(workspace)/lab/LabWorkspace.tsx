@@ -131,7 +131,9 @@ export function LabWorkspace() {
         return;
       }
       try {
-        const res = await fetch("/api/lab/queue", { cache: "no-store" });
+        // /lab?s=<id> opens one submission, wherever it sits in the queue
+        const focus = new URLSearchParams(window.location.search).get("s");
+        const res = await fetch(`/api/lab/queue${focus ? `?s=${encodeURIComponent(focus)}` : ""}`, { cache: "no-store" });
         if (ignore) return;
         if (res.status === 401) {
           setSource({ kind: "error", message: "Your session has expired.", signedOut: true });
@@ -162,7 +164,7 @@ export function LabWorkspace() {
         setItems(mapped);
         setTotal(data.total);
         setQueueState(!data.isVerifier ? "not-a-verifier" : !data.hasAssignments ? "no-assignments" : mapped.length === 0 ? "queue-clear" : "ok");
-        setSelectedId((cur) => (mapped.some((i) => i.id === cur) ? cur : (mapped[0]?.id ?? "")));
+        setSelectedId((cur) => (mapped.some((i) => i.id === cur) ? cur : focus && mapped.some((i) => i.id === focus) ? focus : (mapped[0]?.id ?? "")));
         setSource({ kind: "real" });
       } catch {
         if (!ignore) setSource({ kind: "error", message: "The review queue could not be loaded. Nothing was changed.", signedOut: false });
@@ -291,7 +293,7 @@ export function LabWorkspace() {
   const centreMessage = (() => {
     if (source.kind === "loading") return { title: "Loading the review queue", reason: "Fetching the submissions assigned to your organisation." };
     if (source.kind === "error") return { title: source.signedOut ? "Sign in again" : "The queue did not load", reason: source.message };
-    if (emptyMode === "no-assignments") return { title: "Your review queue", reason: "Your organisation is not assigned to any projects yet. A platform administrator assigns verifier organisations to the projects they audit." };
+    if (emptyMode === "no-assignments") return { title: "Your review queue", reason: "Your organisation has not taken on a project yet, so nothing can reach this queue. An administrator of your organisation takes on projects that have no reviewer, on the Anchoring tab." };
     if (emptyMode === "not-a-verifier") return { title: "No review queue", reason: "The Evidence Lab is for verifier organisations. Your organisation does not review submissions, so there is nothing to show here." };
     return { title: "Queue clear", reason: "Nothing is awaiting your review. New submissions appear here automatically once forensic processing completes." };
   })();
@@ -593,13 +595,7 @@ export function LabWorkspace() {
             <EmptyState
               title={centreMessage.title}
               reason={centreMessage.reason}
-              honestNote={
-                emptyMode === "no-assignments"
-                  ? "Independent verifiers only audit assigned workloads. Platform administrators assign audit lanes."
-                  : emptyMode === "not-a-verifier"
-                  ? "Project owners submit evidence and funders read verified outcomes. Neither reviews."
-                  : undefined
-              }
+              honestNote={emptyMode === "not-a-verifier" ? "Project owners submit evidence and funders read verified outcomes. Neither reviews." : undefined}
               action={
                 source.kind === "error"
                   ? source.signedOut

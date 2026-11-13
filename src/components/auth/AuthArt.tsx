@@ -66,7 +66,7 @@ export function AuthArt() {
             </li>
           ))}
         </ul>
-        <p className="text-[13px] text-field-inert">Illustration of a restoration site.</p>
+        <p className="text-[13px] text-field-muted">Illustration of a restoration site.</p>
       </div>
     </aside>
   );

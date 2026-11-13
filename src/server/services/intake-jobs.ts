@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, lt, notExists, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { evidenceFile, evidenceSubmission } from "../db/schema";
-import { blobStorage } from "../storage/blob";
+import { evidenceStorage } from "../storage";
 import type { StoragePort } from "../storage/port";
 import type { Executor } from "./access";
 import { registerJobHandler } from "./jobs.service";
@@ -16,7 +16,7 @@ const BATCH = 200;
  * has no evidence_file rows by definition, so nothing on record is ever lost here; a draft
  * that finalized has left DRAFT and is never touched. Returns how many drafts went.
  */
-export async function sweepAbandonedDrafts(x: Executor = db, storage: StoragePort = blobStorage): Promise<number> {
+export async function sweepAbandonedDrafts(x: Executor = db, storage: StoragePort = evidenceStorage): Promise<number> {
   const abandoned = (e: Executor) =>
     and(
       eq(evidenceSubmission.status, "DRAFT"),

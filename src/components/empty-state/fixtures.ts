@@ -3,11 +3,8 @@ import type { EmptyStateProps } from "./empty-state";
 export const emptyStateFixtures: Record<string, EmptyStateProps> = {
   labNoAssignments: {
     title: "Your review queue",
-    reason:
-      "Your organisation is not assigned to any projects yet. A platform administrator assigns verifier organisations to the projects they audit.",
-    action: {
-      label: "Contact support",
-    },
+    reason: "Your organisation has not taken on a project yet, so nothing can reach this queue.",
+    honestNote: "An administrator of your organisation takes on projects that have no reviewer, on the Anchoring tab.",
     theme: "field",
   },
   labQueueClear: {

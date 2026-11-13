@@ -11,7 +11,7 @@ import { assertTransition } from "../../lib/state-machine";
 import { db } from "../db/client";
 import { evidenceFile, evidenceSubmission, forensicFinding, impactProject } from "../db/schema";
 import type { GeoPoint } from "../db/schema/types";
-import { blobStorage } from "../storage/blob";
+import { evidenceStorage } from "../storage";
 import type { StoragePort } from "../storage/port";
 import type { Executor } from "./access";
 import { appendAuditEvent } from "./audit-chain.service";
@@ -273,7 +273,7 @@ const GPS_KINDS: Kind[] = ["GPS_MISSING", "GPS_INSIDE_BOUNDARY", "GPS_WITHIN_TOL
  * findings, PENDING_FORENSICS → IN_REVIEW, and the score cache. Safe to run twice: every file
  * gets exactly one GPS_* finding per run, so a round that has them is already done.
  */
-export async function runForensics(submissionId: string, round: number, x: Executor = db, storage: StoragePort = blobStorage): Promise<"done" | "already-done"> {
+export async function runForensics(submissionId: string, round: number, x: Executor = db, storage: StoragePort = evidenceStorage): Promise<"done" | "already-done"> {
   const files = await roundFiles(x, submissionId, round);
   if (!files.length) throw new Error(`submission ${submissionId} has no files in round ${round}`);
   const inspected = await Promise.all(files.map((f) => inspect(storage, f)));
@@ -337,7 +337,7 @@ const lineOf = (f: Omit<PipelineFinding, "ruleVersion"> & { ruleVersion: string 
  * every round, and compares with what is stored, finding by finding and file by file.
  * Excludes AI_OBSERVATION (not reproducible) and CLIENT_HASH_MISMATCH (written at intake).
  */
-export async function replayForensics(submissionId: string, x: Executor = db, storage: StoragePort = blobStorage) {
+export async function replayForensics(submissionId: string, x: Executor = db, storage: StoragePort = evidenceStorage) {
   const { s, project } = await load(x, submissionId);
   const rounds = await x.selectDistinct({ round: evidenceFile.round }).from(evidenceFile).where(eq(evidenceFile.submissionId, submissionId)).orderBy(asc(evidenceFile.round));
   const expected: string[] = [];

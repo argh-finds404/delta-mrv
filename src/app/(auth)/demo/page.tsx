@@ -49,7 +49,7 @@ const PATH: { step: string; built: boolean }[] = [
   { step: "The checks run: a reused photo is flagged HIGH, with its reason.", built: true },
   { step: "As verifier one, review the findings and approve in writing.", built: true },
   { step: "As verifier two, approve. The submission becomes APPROVED.", built: true },
-  { step: "Approved records are anchored on chain and checked on a public proof page.", built: false },
+  { step: "Approved records are anchored on chain and checked on a public proof page.", built: true },
 ];
 
 /** One-click roles for the seeded demo database (docs/04-AUTH.md §8). Exists only with DEMO_MODE. */
