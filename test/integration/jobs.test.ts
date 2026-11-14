@@ -1,4 +1,4 @@
-// The job queue (docs/AGENT_PROMPTS.md Stage 4a). Each test uses its own job kind, so the queue's
+// The job queue (docs/11-IMPLEMENTATION.md Stage 4). Each test uses its own job kind, so the queue's
 // other contents never interfere, and claims only that kind.
 import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/postgres-js";

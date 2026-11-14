@@ -1,4 +1,4 @@
-// Merkle batching and anchoring (docs/09-WEB3.md §4 to §6, docs/AGENT_PROMPTS.md 6d), against
+// Merkle batching and anchoring (docs/09-WEB3.md §4 to §6), against
 // a local anvil chain with the real contract: never Base Sepolia, never a real key.
 //   - the manifest is sealed at approval and hashes to what is stored
 //   - the batch and its proofs are in the database before the transaction is sent

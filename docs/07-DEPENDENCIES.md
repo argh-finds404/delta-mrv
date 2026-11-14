@@ -48,17 +48,17 @@ silently switch package managers, and never generate a `package-lock.json`.
 | Domain | Packages | Rule |
 |---|---|---|
 | Framework | `next` 16.x, `react` 19.x, `react-dom` 19.x | App Router. `proxy.ts`, never `middleware.ts`. Async `params`/`searchParams`/`cookies()`/`headers()`. `after()` for post-response work. |
-| Styling & UI | `tailwindcss` v4, `@tailwindcss/postcss`, `shadcn/ui` CLI, `lucide-react`, `clsx`, `tailwind-merge` | Tokens from `docs/06-DESIGN-SYSTEM.md`. Fonts via `next/font/google`. `clsx` and `tailwind-merge` back the `cn()` helper in `src/lib/utils.ts`. `class-variance-authority` is added only when a component uses `cva`. |
+| Styling & UI | `tailwindcss` v4, `@tailwindcss/postcss`, `lucide-react`, `clsx`, `tailwind-merge` | Tokens from `docs/06-DESIGN-SYSTEM.md`. Fonts via `next/font/google`. `clsx` and `tailwind-merge` back the `cn()` helper in `src/lib/utils.ts`. `class-variance-authority` is added only when a component uses `cva`. |
 | ORM | `drizzle-orm` stable `0.x`, `drizzle-kit` `0.x` | `relations()`, never `defineRelations()` (1.x API). |
 | Driver | **`postgres` (postgres.js)** | TCP. Pooled URL at runtime with `prepare: false`; unpooled for migrations. |
 | Auth | `better-auth` stable `1.x` | `organization` plugin, Drizzle adapter, `nextCookies()` last. CLI `generate` only. |
-| Validation | `zod`, `date-fns`, `server-only` | Hand-written Zod DTOs, kept separate from the DB schema. |
+| Validation | `zod`, `server-only` | Hand-written Zod DTOs, kept separate from the DB schema. |
 | Cartography | `maplibre-gl` `^5` | Client component only. Import its CSS. Keyless vector tiles. |
 | Forensics | `exifr`, `sharp`, `@contentauth/c2pa-wasm` | Node runtime only (`serverExternalPackages`). |
 | AI | `@google/genai` | Model name from `GEMINI_MODEL`, never hardcoded. |
 | Storage | `@vercel/blob` | Private store behind `StoragePort`. |
 | Crypto / chain | `viem`, `@openzeppelin/merkle-tree`, `canonicalize` | |
-| Testing | `vitest`, `@vitest/coverage-v8`, `@playwright/test`, `tsx` | |
+| Testing | `vitest`, `@playwright/test`, `tsx` | |
 | Build-time | `typescript`, `eslint`, `eslint-config-next`, `@types/node`, `@types/react`, `@types/react-dom` | Required by `pnpm check` (`eslint .`, `tsc --noEmit`). Dev dependencies. |
 
 ## 4. Forbidden packages

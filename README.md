@@ -188,7 +188,8 @@ Schema in `src/server/db/schema/`, migrations in `drizzle/` (generated, reviewed
 
 Append-only is enforced by revoked grants **and** a trigger, not by convention. Migrations:
 `0000` extensions · `0001` schema · `0002` geography typmods · `0003` append-only · `0004`
-indexes · `0005` satellite and device signature · `0006` survival check-ups and claim findings.
+indexes · `0005` satellite and device signature · `0006` survival check-ups and claim findings ·
+`0007` Content Credentials (C2PA).
 
 ## Authentication and tenancy
 
@@ -204,7 +205,7 @@ indexes · `0005` satellite and device signature · `0006` survival check-ups an
 - **Email (optional).** With `RESEND_API_KEY` and `EMAIL_FROM`, sign-up requires a confirmed
   address (the organisation is created once the link is opened), passwords are reset by email
   (every other session signed out), and an operator's address counts only once confirmed.
-  Without them, verification is off and the README says so here.
+  Without them, verification is off.
 - **Invitations** are links shown once to an organisation's admin, valid for one address for 48
   hours.
 - **API keys** (`dmrv_…`) are hashed at rest and scoped to the funder organisation.
@@ -299,7 +300,7 @@ fingerprinted files, PostgreSQL 18 in local Docker on a laptop, 400 runs each, m
 The duplicate search is an exact scan on purpose: an approximate index would let a replay
 disagree with the first run.
 
-**Tests.** 296 unit tests in 22 files; 171 integration tests in 23 files against a real PostGIS
+**Tests.** 299 unit tests in 23 files; 172 integration tests in 23 files against a real PostGIS
 and pgvector database; 16 Foundry tests on the contract; 5 Playwright browser specs over the
 full local stack: field photo to public proof, a new site and its reviewer, invitations, email
 confirmation and password reset, and a survival check-up.
@@ -368,8 +369,6 @@ endpoint to aim at for these queries). Before public use:
   register each operator account before listing it in `OPERATOR_EMAILS` if email stays off);
   repository secrets `APP_URL` and `CRON_SECRET` for
   [.github/workflows/scheduled.yml](.github/workflows/scheduled.yml).
-
-Current state and carry-overs: [docs/SESSION-HANDOFF.md](docs/SESSION-HANDOFF.md).
 
 ## Where to read more
 

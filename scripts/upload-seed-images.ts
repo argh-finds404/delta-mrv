@@ -1,4 +1,4 @@
-// Gives the seeded evidence_file rows real bytes (docs/AGENT_PROMPTS.md Stage 3a). The seed
+// Gives the seeded evidence_file rows real bytes (docs/11-IMPLEMENTATION.md Stage 3). The seed
 // cannot be re-run (append-only tables), so the pool is regenerated with the seed's own
 // generator, and every image must hash to what the database already holds. A mismatch means
 // the pool is not reproducible: nothing is uploaded, and the script stops.

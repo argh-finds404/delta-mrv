@@ -21,13 +21,11 @@ Then add the row below. A package in `package.json` without a row here is a
 | 2026-11-02 | `react-dom` | 19.3.1 | No | registry check 2026-11-02 | UI runtime |
 | 2026-11-02 | `tailwindcss` | 4.3.3 | No | registry check 2026-11-02 | Styling, v4 |
 | 2026-11-02 | `@tailwindcss/postcss` | 4.3.3 | No | registry check 2026-11-02 | Tailwind v4 PostCSS plugin |
-| 2026-11-02 | `shadcn` | 4.22.1 | No | registry check 2026-11-02 | shadcn/ui CLI. 4.23.0 deferred, 6 days old |
 | 2026-11-02 | `lucide-react` | 1.61.0 | No | registry check 2026-11-02 | Icons. 1.66.0 deferred, 2 days old |
 | 2026-11-02 | `drizzle-orm` | 0.45.4 | No | registry check 2026-11-02 | ORM, stable 0.x. 1.x is on beta/rc tags only |
 | 2026-11-02 | `postgres` | 3.4.9 | No | registry check 2026-11-02 | postgres.js TCP driver. 4.0.0 not adopted, see Deviations |
 | 2026-11-02 | `better-auth` | 1.7.13 | No | registry check 2026-11-02 | Auth, 1.x. 1.7.15 deferred, 1 day old |
 | 2026-11-02 | `zod` | 4.6.7 | No | registry check 2026-11-02 | Validation |
-| 2026-11-02 | `date-fns` | 4.4.0 | No | registry check 2026-11-02 | Dates |
 | 2026-11-02 | `server-only` | 0.0.1 | No | registry check 2026-11-02 | Marks server modules |
 | 2026-11-02 | `maplibre-gl` | 5.24.0 | No | registry check 2026-11-02 | Atlas map. Held on v5, see Deviations |
 | 2026-11-02 | `exifr` | 7.1.3 | No | registry check 2026-11-02 | EXIF extraction |
@@ -41,7 +39,6 @@ Then add the row below. A package in `package.json` without a row here is a
 | 2026-11-02 | `tailwind-merge` | 3.7.0 | No | registry check 2026-11-02 | `cn()` helper in src/lib/utils.ts (Lane B). Same approval |
 | 2026-11-02 | `drizzle-kit` | 0.31.11 | No | registry check 2026-11-02 | Migration generator, stable 0.x. In the §3 table but missed in the first install; added with the schema (dev) |
 | 2026-11-02 | `vitest` | 5.0.5 | No | registry check 2026-11-02 | Unit and integration tests (dev) |
-| 2026-11-02 | `@vitest/coverage-v8` | 5.0.5 | No | registry check 2026-11-02 | Coverage, must match vitest (dev) |
 | 2026-11-02 | `@playwright/test` | 1.64.1 | No | registry check 2026-11-02 | End-to-end tests (dev) |
 | 2026-11-02 | `tsx` | 4.23.15 | No | registry check 2026-11-02 | Run TypeScript scripts (dev) |
 | 2026-11-02 | `typescript` | 5.9.3 | No | registry check 2026-11-02 | Implied by `tsc --noEmit` in pnpm check (dev). Approved retroactively. 7.0.2 not adopted |

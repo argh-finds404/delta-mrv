@@ -30,7 +30,7 @@ preserve the hash chain. Record this in `ADR-0003`.
 delta-mrv/
 ├── contracts/                      Foundry project: ImpactAnchorRegistry.sol, its tests, Deploy.s.sol
 ├── docker/db.Dockerfile            PostGIS + pgvector in one image
-├── docs/                           This document set, ADRs, eval results, handoff
+├── docs/                           This document set, ADRs, eval results
 ├── drizzle/                        Reviewed SQL migrations 0000–0007 and their snapshots
 ├── scripts/                        seed, dev-local, eval-forensics, replay, verify-audit-chain,
 │   └── lib/                        bench-queries, render-hero-*; scripts/lib: local chain, seed pools

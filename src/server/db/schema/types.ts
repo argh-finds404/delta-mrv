@@ -15,10 +15,9 @@ function assertLonLat([lon, lat]: [number, number]) {
 }
 
 /**
- * EWKB hex, as postgres.js returns a geography column, to GeoJSON.
- * Ported from docs/salvage/geometry-point-type.ts.txt (endianness and SRID-flag
- * handling), extended to Polygon. The salvage returned [0, 0] on anything it
- * could not parse; this throws, because a coordinate must never be invented.
+ * EWKB hex, as postgres.js returns a geography column, to GeoJSON (Point or Polygon).
+ * Handles both little- and big-endian byte order and optional SRID flags; throws on
+ * unrecognised input because a coordinate must never be invented.
  */
 export function parseEwkb(hex: string): GeoPoint | GeoPolygon {
   const buf = Buffer.from(hex, "hex");

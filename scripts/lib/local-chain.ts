@@ -1,5 +1,5 @@
 // A local anvil chain with ImpactAnchorRegistry deployed, for the anchor tests, the end-to-end
-// test and local development. Never Base Sepolia, never a real key (docs/AGENT_PROMPTS.md 6d):
+// test and local development. Never Base Sepolia, never a real key (docs/09-WEB3.md §6):
 // the accounts come from anvil's published test mnemonic and hold nothing anywhere else.
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";

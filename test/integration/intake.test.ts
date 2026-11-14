@@ -1,4 +1,4 @@
-// Evidence intake (docs/AGENT_PROMPTS.md Stage 4b): draft, scoped upload token, finalize in one
+// Evidence intake (docs/11-IMPLEMENTATION.md Stage 4): draft, scoped upload token, finalize in one
 // transaction from the bytes actually stored, supplements, and the abandoned-draft sweep.
 import { createHash } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";

@@ -1,4 +1,4 @@
-// API keys and the funder's read path (docs/04-AUTH.md §5 and §7, docs/AGENT_PROMPTS.md 7a):
+// API keys and the funder's read path (docs/04-AUTH.md §5 and §7):
 //   - only the prefix and a SHA-256 are stored; the key is shown once
 //   - a wrong, unknown or malformed key is nobody; a revoked key stops working at once
 //   - a key belongs to one organisation, and only its members can make, list or revoke it
