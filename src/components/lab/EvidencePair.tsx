@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { HashDisplay } from "@/src/components/hash-display/hash-display";
 import { cn } from "@/src/lib/utils";
+import { useEla } from "./useEla";
 
 export interface EvidenceImage {
   url: string;
@@ -39,6 +40,11 @@ export interface EvidencePairProps {
   afterLabel?: string;
   /** Extra rows for the collapsed detail strip (camera, boundary, activity…) */
   details?: React.ReactNode;
+  /**
+   * More than one comparison, for a record sent back for more proof: the first round's pair,
+   * then each supplementary photo against the before photo. A switch picks which one is shown.
+   */
+  views?: { label: string; before: EvidenceImage; after: EvidenceImage; afterLabel: string }[];
   /** Optional theme */
   theme?: "field" | "paper";
   /** Additional CSS class names */
@@ -78,15 +84,28 @@ function formatCoordinate(gps: { lat: number; lng: number }): string {
  * captions directly beneath the picture and never inside it, and a 32px detail strip.
  */
 export function EvidencePair({
-  before,
-  after,
+  before: firstBefore,
+  after: firstAfter,
   beforeLabel = "Before",
-  afterLabel = "After",
+  afterLabel: firstAfterLabel = "After",
   details,
+  views,
   theme = "field",
   className,
 }: EvidencePairProps) {
   const isPaper = theme === "paper";
+  const [viewIndex, setViewIndex] = React.useState(0);
+  const view = views?.[viewIndex];
+  const before = view?.before ?? firstBefore;
+  const after = view?.after ?? firstAfter;
+  const afterLabel = view?.afterLabel ?? firstAfterLabel;
+
+  // Error level analysis: each photo re-saved in this browser and differenced (src/lib/forensics/ela.ts)
+  const [lens, setLens] = React.useState<"photo" | "ela">("photo");
+  const elaBefore = useEla(before.url, lens === "ela");
+  const elaAfter = useEla(after.url, lens === "ela");
+  const srcOf = (img: EvidenceImage) => (lens === "ela" ? ((img === before ? elaBefore.src : elaAfter.src) ?? img.url) : img.url);
+  const elaState = lens !== "ela" ? null : elaBefore.failed || elaAfter.failed ? "failed" : elaBefore.src && elaAfter.src ? "ready" : "working";
 
   const [position, setPosition] = React.useState<number>(50); // divider, % of image width
   const [broken, setBroken] = React.useState<Record<string, boolean>>({});
@@ -223,8 +242,8 @@ export function EvidencePair({
         </span>
       ) : (
         <Image
-          src={img.url}
-          alt={img.capturedAt ? `${label} photo, captured ${formatDate(img.capturedAt)}` : `${label} photo`}
+          src={srcOf(img)}
+          alt={`${img.capturedAt ? `${label} photo, captured ${formatDate(img.capturedAt)}` : `${label} photo`}${lens === "ela" ? ", as an error-level heatmap" : ""}`}
           width={img.width ?? 800}
           height={img.height ?? 600}
           unoptimized
@@ -267,15 +286,34 @@ export function EvidencePair({
 
   return (
     <div className={cn("flex min-h-0 flex-col gap-2", className)}>
-      {/* Controls: one 40px row */}
+      {/* Controls: one 40px row, wrapping on a narrow screen */}
       <div className="flex min-h-10 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 select-none">
-        <div role="group" aria-label="View mode" className="flex items-center rounded-lg border border-field-hairline bg-field-canopy p-1">
-          <button type="button" aria-pressed={sliderMode} onClick={() => setViewMode("slider")} className={segment(sliderMode)}>
-            <SlidersHorizontal className="size-3.5" aria-hidden="true" /> Slider
-          </button>
-          <button type="button" aria-pressed={!sliderMode} onClick={() => setViewMode("side-by-side")} className={segment(!sliderMode)}>
-            <Columns2 className="size-3.5" aria-hidden="true" /> Side by side
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div role="group" aria-label="View mode" className="flex items-center rounded-lg border border-field-hairline bg-field-canopy p-1">
+            <button type="button" aria-pressed={sliderMode} onClick={() => setViewMode("slider")} className={segment(sliderMode)}>
+              <SlidersHorizontal className="size-3.5" aria-hidden="true" /> Slider
+            </button>
+            <button type="button" aria-pressed={!sliderMode} onClick={() => setViewMode("side-by-side")} className={segment(!sliderMode)}>
+              <Columns2 className="size-3.5" aria-hidden="true" /> Side by side
+            </button>
+          </div>
+          <div role="group" aria-label="What to show" className="flex items-center rounded-lg border border-field-hairline bg-field-canopy p-1">
+            <button type="button" aria-pressed={lens === "photo"} onClick={() => setLens("photo")} className={segment(lens === "photo")}>
+              Photo
+            </button>
+            <button type="button" aria-pressed={lens === "ela"} onClick={() => setLens("ela")} className={segment(lens === "ela")} title="Error level analysis: where the photo recompresses unevenly">
+              Error levels
+            </button>
+          </div>
+          {views && views.length > 1 && (
+            <div role="group" aria-label="Which round" className="flex items-center rounded-lg border border-field-hairline bg-field-canopy p-1" data-testid="round-switch">
+              {views.map((v, i) => (
+                <button key={v.label} type="button" aria-pressed={i === viewIndex} onClick={() => setViewIndex(i)} className={segment(i === viewIndex)}>
+                  {v.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div role="group" aria-label="Zoom" className="flex items-center rounded-lg border border-field-hairline bg-field-canopy p-1">
@@ -380,6 +418,16 @@ export function EvidencePair({
           </div>
         )}
       </div>
+
+      {elaState && (
+        <p role="status" className="shrink-0 text-[13px] leading-5 text-field-muted">
+          {elaState === "working"
+            ? "Re-saving both photos in this browser to compare them…"
+            : elaState === "failed"
+              ? "This browser could not compute the error levels for these photos."
+              : "Error levels: each photo re-saved at a known quality and compared with itself; brighter means it changed more. Edited patches can stand out, but so do edges, text and any photo saved more than once. A reading aid, not a finding."}
+        </p>
+      )}
 
       {/* Detail strip: 32px when closed */}
       <div className="shrink-0 rounded-lg border border-field-hairline bg-field-canopy">

@@ -13,7 +13,7 @@ import { SEVERITY_ORDER, toLabFinding } from "@/src/components/lab/to-lab-findin
 import { StatusBadge } from "@/src/components/status-badge/status-badge";
 import { explorerTx } from "@/src/lib/chain/registry";
 import { ACTIVITY_LABEL, formatCount, formatLatLon } from "@/src/lib/format";
-import { canRunAnchoring } from "@/src/lib/org-type";
+import { isOperator } from "@/src/server/services/operators";
 import type { SubmissionStatus } from "@/src/lib/status";
 import { requireSession } from "@/src/server/auth/session";
 import { NotFoundError } from "@/src/server/services/errors";
@@ -165,7 +165,7 @@ async function SubmissionBody({ params }: Props) {
     if (e instanceof NotFoundError) notFound();
     throw e;
   });
-  const { submission: s, project, files, events, access } = detail;
+  const { submission: s, project, files, events, access, capture } = detail;
   const isPublic = s.status === "APPROVED" || s.status === "ANCHORED";
   const [{ findings }, round, orgs, fullProject, proof] = await Promise.all([
     listFindings(actor, id),
@@ -189,7 +189,7 @@ async function SubmissionBody({ params }: Props) {
       userName={session.user.name || session.user.email}
       context={orgs[0]?.orgName}
       review={orgs.some((o) => o.orgType === "VERIFIER") ? { count: 0 } : null}
-      anchoring={canRunAnchoring(orgs)}
+      operator={await isOperator({ userId: session.user.id })}
     >
       <main className="mx-auto max-w-[1200px] space-y-12 px-4 py-8 sm:px-6 lg:py-12">
         <Link href={`/projects/${project.id}`} className="inline-flex items-center gap-1.5 rounded-sm text-[14px] text-field-muted transition-colors hover:text-field-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal">
@@ -272,6 +272,25 @@ async function SubmissionBody({ params }: Props) {
             <>
               <p className="max-w-[70ch] text-[15px] leading-[1.6] text-field-muted">
                 The stored originals, each with the fingerprint the server computed from the stored bytes. A changed file has a different fingerprint.
+              </p>
+              <p className="max-w-[70ch] rounded-xl border border-field-hairline bg-field-canopy px-4 py-3 text-[15px] leading-[1.6]" data-testid="capture-badge" data-state={capture ? (capture.verified ? "valid" : "invalid") : "standard"}>
+                {!capture ? (
+                  <>
+                    <span className="font-medium">Standard SHA-256 fingerprints.</span> <span className="text-field-muted">The photos were sent without a device signature.</span>
+                  </>
+                ) : capture.verified ? (
+                  <>
+                    <span className="font-medium text-verified">Device-signed capture.</span>{" "}
+                    <span className="text-field-muted">
+                      The sending browser signed exactly these fingerprints with its key <span className="font-mono">{capture.keyId}</span>, by its own clock at {when(new Date(capture.signedAt))}. The key
+                      is held by a browser, not a hardware chip.
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-medium text-fraud">A device signature was sent but did not verify.</span> <span className="text-field-muted">{capture.reason}.</span>
+                  </>
+                )}
               </p>
               <div className="grid gap-4 md:grid-cols-2">
                 {files.map((f) => (

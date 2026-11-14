@@ -29,10 +29,10 @@ The one line that matters:
 
 ## 2. Current state
 
-**Date of this update:** 2026-11-13, third update of the day. Run for it, all passing:
-`pnpm check` (235 unit tests), `pnpm test:integration` on local Docker (160 tests),
-`pnpm build`, and `pnpm test:e2e` (3 specs) against the local stack. `pnpm contracts:test` was
-not re-run: nothing under `contracts/` changed since its last pass (16 tests).
+**Date of this update:** 2026-11-14, fifth update (wrap-up). Run for it, all passing:
+`pnpm check` (ESLint with no warning, 264 unit tests in 17 files), `pnpm test:integration` on
+local Docker (166 tests in 22 files), `pnpm build`, `pnpm test:e2e` (3 specs) against the local
+stack with migration `0005` applied, and `pnpm contracts:test` (16 tests).
 
 | Stage | Status |
 |---|---|
@@ -99,14 +99,48 @@ the maintainer's watercolour illustrations.
 - `LICENSE` (Apache-2.0, as the README already said), a not-found page, a workspace error page.
 - `docs/05-ROUTES.md` now lists the routes that exist, and marks the ones that do not.
 
+**Built in the fourth update (2026-11-14):**
+
+- **Operators** (`OPERATOR_EMAILS`, `src/server/services/operators.ts`): `/admin`, anchoring,
+  the job queue, the tamper demo and reviewer assignment are theirs alone. A verifier
+  organisation's admin can no longer assign itself a project, which closes the two-accounts
+  self-approval route in §7. With `DEMO_MODE` the seeded demo admin is an operator.
+- Owners ask for a reviewer on `/projects/[id]/manage`; operators see requests first and assign.
+- matchRef resolution on `/admin`, recorded on the flagged side's chain; reviewers see the
+  conclusion on the finding, with a "Copy ref" button beside each reference.
+- S10 webhooks cut. A stale session cookie now keeps `?next=` (regression test).
+- `/p/[id]` uses the site header and footer and the verbatim limits; its "proof" link pointed a
+  project id at the proof page and 404'd, it now lists the real proofs. The proof page has a
+  four-step custody strip and a BaseScan button. The Lab has filter pills, a round switch,
+  an error-level lens (X3) and a live reason hint. The submit form shows per-file upload
+  progress. Lint finishes with no warning.
+- **X1** satellite cross-check (migration `0005`): run live on 2026-11-14 against two demo
+  sites, about 7 s and 2 MB each. **X2** device-signed capture (same migration).
+- Thirteen unreachable files deleted: the component barrel, the design-review fixture files,
+  and the unused `QuorumMeter` and `skeletons` components.
+
+**Fifth update, the wrap-up review (2026-11-14):**
+
+- The satellite check fetched whatever band-file URL the catalogue's answer named, and accepted a
+  whole-file answer. It now reads only from the Sentinel-2 archive's host, refuses redirects, and
+  takes only a partial (206) answer (`test/satellite.test.ts`).
+- A device signature whose base64 had a length of 4n + 1 threw inside finalize and failed the
+  whole submission; it is now recorded as unverified, as designed (`test/capture-signature.test.ts`).
+- `pnpm dev` or `pnpm dev:local` started from a lower-case drive (`d:\`, as VS Code's terminal
+  does) reloaded every page about every 300 ms: Next's dev MCP file logger wrote browser console
+  lines into `.next/dev/logs`, and the watcher took that for a source change.
+  `experimental.mcpServer` is now off in `next.config.ts`.
+- Driven in a browser on the local stack for the first time: a device-signed submission (valid on
+  `/submissions/[id]` and re-checked on `/proof/[id]`), a real round 2 (sent back for more proof,
+  a supplement, the round switch, two approvals), and an offline draft through the dashboard
+  banner and the sign-out warning (cancel keeps it, accept clears it).
+
 **Not built or not done:**
 
 - The Base Sepolia deployment and a real batch; the hosted deployment. Both by hand.
-- **A platform-admin account** (docs/00 §4, docs/05 legend). See §7: this is the one decision
-  to make before sign-up is open to the public.
-- `matchRef` resolution and a way for an owner to request a reviewer: both wait on that decision.
-- Webhooks (S10): its tables are still undefined in `docs/03-DATABASE.md`, and
-  `/api/webhooks/test` does not exist.
+- Migration `0005` is applied to local Docker only. Apply it to the Neon dev branch with
+  `pnpm db:migrate` (direct URL in the environment) before deploying.
+- X2 is a browser-held key, not WebAuthn or a hardware attestation, and reads no C2PA.
 - k6: `pnpm bench:queries` stands in for it.
 
 ## 3. The documents are the contract
@@ -231,16 +265,14 @@ These are in the docs but worth knowing so they are not re-litigated:
 
 - The **pooled connection path is only exercised on Neon.** Local Docker has
   no pgbouncer, so `prepare: false` is untested locally.
-- **No platform admin, and it matters once sign-up is public.** `/admin` (anchor now, retry
-  jobs, audit chain names and counts) is open to an owner or admin of any `VERIFIER`
-  organisation, and such an organisation assigns itself to a project. Anyone can register one.
-  So an owner could register a second, verifier organisation, take on their own project and
-  approve it with two accounts: the conflict-of-interest rule only refuses a person who belongs
-  to both organisations. `docs/THREAT_MODEL.md` T3 says assignment is "controlled by an admin",
-  which the build does not do. The COI test still proves only that a user with no organisation
-  has no path to a vote.
-- A stale or invalid session cookie sends every workspace page to `/sign-in` (checked by hand).
-  It does not bring the person back to the page they were on.
+- **Operators and email verification.** Email verification is off, so whoever registers an
+  address first owns it. Create each operator account before listing its address in
+  `OPERATOR_EMAILS` on a deployment others can sign up to. On a `DEMO_MODE` deployment the
+  seeded `audit-admin@delta-demo.example` is an operator: seed before opening sign-up.
+- An operator who is also a member of a verifier organisation can assign that organisation.
+  Operators are trusted staff; the conflict-of-interest rule still governs every vote.
+- The satellite cross-check compares two dates whatever the season: the reviewer note says so,
+  and the numbers swing (a flooded haor reads below zero in October).
 - `docs/18-VISUAL-CORRECTION.md` labels `PERCEPTUAL_MATCH_SAME_ORG` "Matches your
   organisation's other project". A reviewer reads that as their own organisation. Left as the
   doc says.
@@ -264,8 +296,9 @@ These are in the docs but worth knowing so they are not re-litigated:
    `NEXT_PUBLIC_CONTRACT_ADDRESS`. Press "Anchor now" as the audit admin.
 2. After deploying, set the repository secrets `APP_URL` and `CRON_SECRET` so
    `.github/workflows/scheduled.yml` starts calling the two internal routes.
-3. Decide who may assign reviewers and open `/admin` (§7), before sign-up is public.
-4. Decide webhooks: specify the two tables, or strike S10.
+3. Register your operator account, then set `OPERATOR_EMAILS` on the deployment (§7).
+4. Apply migration `0005` to the hosted database, and set `NDVI_ENABLED=true` if the
+   satellite cross-check should call the public archive.
 5. Look at the workspace with the darker status colours and say if a hue is wrong.
 
 Local development: `docker compose up -d`, then `pnpm dev:local`.

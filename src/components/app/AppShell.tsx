@@ -5,7 +5,7 @@ import { SignOutButton } from "./SignOutButton";
 
 // The workspace frame: one top bar, no sidebars. Every signed-in page sits inside it.
 
-export type AppTab = "overview" | "review" | "atlas" | "anchoring";
+export type AppTab = "overview" | "review" | "atlas" | "operations";
 
 export interface AppShellProps {
   active?: AppTab;
@@ -14,8 +14,8 @@ export interface AppShellProps {
   context?: string;
   /** Verifiers get the Review tab, with how many submissions wait for them. */
   review?: { count: number } | null;
-  /** Verifier-organisation admins get the Anchoring tab (the service checks again). */
-  anchoring?: boolean;
+  /** Operators get the Operations tab (the service checks again). */
+  operator?: boolean;
   children: React.ReactNode;
   /** A full-height page (the Lab) manages its own scrolling below the bar. */
   fill?: boolean;
@@ -25,30 +25,39 @@ const HUES = ["#13896F", "#2F78C4", "#7A57D1", "#D9772B", "#C8402B", "#4E9A2F"];
 const hueFor = (s: string) => HUES[[...s].reduce((n, c) => n + c.charCodeAt(0), 0) % HUES.length]!;
 
 /**
- * What a workspace page shows while its data is read: the bar at its real size, so a click is
- * answered at once instead of with a blank screen. Nothing below it is drawn, because the layout
- * is not known yet, and nothing at all for the first 200 ms (docs/15-UI-STATES.md §3).
+ * What a workspace page shows while its data is read: the bar at its real size, and below it the
+ * shape every workspace page starts with (a heading, a line of text, two blocks), so a slow first
+ * read is answered at once instead of with an empty canvas. Plain blocks in --field-raised, no
+ * shimmer, and nothing at all for the first 200 ms (docs/15-UI-STATES.md §3).
  */
 export function AppShellLoading() {
   return (
-    <div className="min-h-dvh bg-field-abyss" aria-busy>
-      <div className="border-b border-field-hairline bg-field-canopy motion-safe:animate-[auth-fade_120ms_200ms_both] motion-safe:opacity-0">
+    <div className="min-h-dvh bg-field-abyss motion-safe:animate-[auth-fade_120ms_200ms_both] motion-safe:opacity-0" aria-busy aria-label="Loading">
+      <div className="border-b border-field-hairline bg-field-canopy">
         <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-4 sm:px-6">
           <Wordmark />
           <span className="ml-2 h-9 w-24 rounded-lg bg-field-raised" />
           <span className="h-9 w-16 rounded-lg bg-field-raised" />
         </div>
       </div>
+      <div aria-hidden className="mx-auto max-w-[1200px] space-y-6 px-4 py-10 sm:px-6 lg:py-14">
+        <span className="block h-11 w-[min(420px,80%)] rounded-xl bg-field-raised" />
+        <span className="block h-4 w-[min(560px,95%)] rounded-md bg-field-raised" />
+        <div className="grid gap-4 pt-4 sm:grid-cols-2">
+          <span className="block h-40 rounded-2xl bg-field-raised/80" />
+          <span className="block h-40 rounded-2xl bg-field-raised/80" />
+        </div>
+      </div>
     </div>
   );
 }
 
-export function AppShell({ active, userName, context, review, anchoring = false, children, fill = false }: AppShellProps) {
+export function AppShell({ active, userName, context, review, operator = false, children, fill = false }: AppShellProps) {
   const tabs: { id: AppTab; href: string; label: string; badge?: number }[] = [
     { id: "overview", href: "/dashboard", label: "Overview" },
     ...(review ? [{ id: "review" as const, href: "/lab", label: "Review", badge: review.count }] : []),
     { id: "atlas", href: "/atlas", label: "Atlas" },
-    ...(anchoring ? [{ id: "anchoring" as const, href: "/admin", label: "Anchoring" }] : []),
+    ...(operator ? [{ id: "operations" as const, href: "/admin", label: "Operations" }] : []),
   ];
   const initial = (userName.trim()[0] ?? "?").toUpperCase();
 

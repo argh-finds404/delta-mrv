@@ -3,6 +3,12 @@
 // password to a browser. Demo databases only; the seed refuses to run against production.
 export const DEMO_PASSWORD = "delta-demo-2026";
 
+/**
+ * The seeded verifier-organisation admin. With DEMO_MODE on it is also an operator, so the demo
+ * runs anchoring and assigns reviewers without OPERATOR_EMAILS (src/server/services/operators.ts).
+ */
+export const DEMO_OPERATOR_EMAIL = "audit-admin@delta-demo.example";
+
 /** Persona id (the demo page) -> seeded account email. The client sends the id, never the email. */
 export const DEMO_PERSONA_EMAILS: Readonly<Record<string, string>> = {
   "persona-owner": "submitter@delta-demo.example",

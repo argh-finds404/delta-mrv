@@ -31,6 +31,7 @@ const FINDINGS: [kind: string, severity: "INFO" | "LOW" | "MEDIUM" | "HIGH", con
   ["EXIF_FULLY_STRIPPED", "LOW", "No EXIF metadata at all"],
   ["NO_VISIBLE_CHANGE", "MEDIUM", "Before and after are within Hamming distance 4: the pair may show the same scene"],
   ["CLIENT_HASH_MISMATCH", "MEDIUM", "The fingerprint the device computed differs from the stored file's"],
+  ["SATELLITE_NDVI", "INFO", "Sentinel-2 vegetation index over the site around each photo's date, or inconclusive and why; advisory, weighs nothing"],
 ];
 
 const STATUS: [part: string, built: boolean][] = [
@@ -41,6 +42,8 @@ const STATUS: [part: string, built: boolean][] = [
   ["Public proof pages and photo lookup", true],
   ["Hash-chained audit log", true],
   ["Batch anchoring on Base Sepolia, checked in the visitor's browser", true],
+  ["Satellite vegetation cross-check (advisory, off unless the server enables it)", true],
+  ["Device signature over the photos' fingerprints (a browser-held key, optional)", true],
 ];
 
 const sev = { INFO: "text-paper-muted", LOW: "text-paper-ink", MEDIUM: "text-[#8A5A12]", HIGH: "text-[#A3301E]" } as const;
@@ -212,7 +215,9 @@ export default function TrustPage() {
               <span className="text-paper-muted">: look up a file among approved records</span>
             </li>
           </ul>
-          <p className="pt-2 text-[15px] text-paper-muted">Planned, not built: a satellite cross-check of the site, and photos signed by the capturing device.</p>
+          <p className="pt-2 text-[15px] text-paper-muted">
+            Not built: a signature from a hardware security chip, and reading C2PA provenance. The device signature above comes from a key held by the browser.
+          </p>
         </section>
       </main>
       <SiteFooter />

@@ -43,6 +43,8 @@ export const findingKind = pgEnum("finding_kind", [
   "NO_VISIBLE_CHANGE",
   "CLIENT_HASH_MISMATCH",
   "AI_OBSERVATION",
+  // X1: Sentinel-2 vegetation index before and after; advisory, always INFO, weighs nothing
+  "SATELLITE_NDVI",
 ]);
 
 export const evidenceSubmission = pgTable("evidence_submission", {
@@ -66,6 +68,9 @@ export const evidenceSubmission = pgTable("evidence_submission", {
   manifest: jsonb("manifest"),
   manifestHash: char("manifest_hash", { length: 64 }),
   manifestVersion: integer("manifest_version").notNull().default(1),
+  // X2: the device's signature over the capture's fingerprints, checked at finalize. Additive
+  // metadata, never part of the anchored manifest; null when none was sent.
+  captureAttestation: jsonb("capture_attestation"),
   // set when the draft is created; the 24h draft sweep ages from it
   submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
 });

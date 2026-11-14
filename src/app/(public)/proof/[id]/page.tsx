@@ -5,6 +5,8 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { HashDisplay } from "@/src/components/hash-display/hash-display";
 import { ComplianceExport, DropPhotoVerifier, ProofVerifier } from "@/src/components/proof";
+import { CaptureCheck } from "@/src/components/proof/CaptureCheck";
+import { CustodyTimeline } from "@/src/components/proof/CustodyTimeline";
 import { SiteFooter } from "@/src/components/site/SiteFooter";
 import { SiteHeader } from "@/src/components/site/SiteHeader";
 import { ACTIVITY_LABEL, formatClaim, formatLatLon } from "@/src/lib/format";
@@ -48,7 +50,7 @@ async function Dossier({ params }: ProofPageProps) {
     if (e instanceof NotFoundError) notFound();
     throw e;
   });
-  const { submission, project, files, decisions, manifest, anchor } = proof;
+  const { submission, project, files, decisions, manifest, anchor, capture } = proof;
   const claim = formatClaim(project.claimedQuantity, project.claimedUnit);
 
   return (
@@ -78,6 +80,8 @@ async function Dossier({ params }: ProofPageProps) {
         </p>
       </header>
 
+      <CustodyTimeline files={files} decisions={decisions} anchor={anchor} capture={capture ? "Signed by the capturing device's key" : undefined} />
+
       {/* 2. Verification state: computed in the visitor's browser, never asserted by the server */}
       <section aria-labelledby="state" className="space-y-4">
         <h2 id="state" className="type-section">
@@ -103,6 +107,7 @@ async function Dossier({ params }: ProofPageProps) {
         <p className="max-w-[62ch] text-[15px] leading-[1.6] text-paper-muted">
           Originals stay in private storage. Each file&apos;s SHA-256 was computed by the server from the stored bytes, not taken from the uploader.
         </p>
+        <CaptureCheck projectId={project.id} files={files} capture={capture} />
         <ul className="divide-y divide-paper-rule border-y border-paper-rule">
           {files.map((f) => (
             <li key={f.id} className="grid gap-2 py-4 sm:grid-cols-[140px_minmax(0,1fr)] sm:items-center">

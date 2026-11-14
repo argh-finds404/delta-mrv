@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { AppShell, AppShellLoading } from "@/src/components/app/AppShell";
 import { NewProjectForm } from "@/src/components/projects/NewProjectForm";
 import { ACTIVITY_LABEL } from "@/src/lib/format";
-import { canRunAnchoring } from "@/src/lib/org-type";
+import { isOperator } from "@/src/server/services/operators";
 import { requireSession } from "@/src/server/auth/session";
 import { myOrganisations } from "@/src/server/services/projects.service";
 import { createProjectAction } from "./actions";
@@ -31,7 +31,7 @@ async function NewProject() {
   const owning = orgs.filter((o) => o.orgType === "OWNER");
 
   return (
-    <AppShell userName={session.user.name || session.user.email} context={orgs[0]?.orgName} review={orgs.some((o) => o.orgType === "VERIFIER") ? { count: 0 } : null} anchoring={canRunAnchoring(orgs)}>
+    <AppShell userName={session.user.name || session.user.email} context={orgs[0]?.orgName} review={orgs.some((o) => o.orgType === "VERIFIER") ? { count: 0 } : null} operator={await isOperator({ userId: session.user.id })}>
       <main className="mx-auto max-w-[1200px] space-y-8 px-4 py-10 sm:px-6 lg:py-14">
         <header className="rise-in space-y-3">
           <h1 className="font-serif text-[40px] leading-[1.05] tracking-[-0.02em] sm:text-[48px]">New project</h1>

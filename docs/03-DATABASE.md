@@ -147,6 +147,7 @@ public proof dossiers are unaffected — this scopes the portal, not the proofs.
 | `manifest` | jsonb | nullable until approved |
 | `manifest_hash` | char(64) | nullable until approved |
 | `manifest_version` | integer | default 1 |
+| `capture_attestation` | jsonb | nullable. X2: the device signature sent with the pair, as checked at finalize (`verified`, `keyId`, public key, signature, the device's clock). Never part of the manifest |
 | `submitted_at` | timestamptz | |
 
 The files of a submission are rows in `evidence_file`, not columns here.
@@ -247,8 +248,8 @@ Unique `(submission_id, manifest_version)` — prevents double-anchoring a versi
 `api_key` (`key_prefix`, `key_hash` SHA-256, `org_id`, `scopes`, `last_used_at`,
 `revoked_at`, `created_at`).
 
-`webhook_endpoint`, `webhook_delivery` — **deferred — S10, columns undefined,
-specify before building.** Not in the schema, not in any migration.
+`webhook_endpoint`, `webhook_delivery` — **cut with S10 (2026-11-14).** Not in the
+schema, not in any migration.
 
 ## 5. Append-only enforcement
 

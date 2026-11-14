@@ -1,7 +1,7 @@
 "use server";
 
 import { requireSession } from "../../../server/auth/session";
-import { retryHaltedJobs, takeOnReview, tamperDemo, type TamperDemo } from "../../../server/services/admin.service";
+import { assignReviewer, lookupMatchRef, resolveMatchRef, retryHaltedJobs, tamperDemo, type MatchLookup, type TamperDemo } from "../../../server/services/admin.service";
 import "../../../server/services/job-handlers";
 import { drainAfterResponse } from "../../../server/services/jobs.service";
 import { anchorNow } from "../../../server/services/anchor.service";
@@ -30,7 +30,7 @@ export async function anchorNowAction(): Promise<AnchorNowResult> {
     return { ok: failed.length === 0 && run.refused.length === 0, message: parts.join(" ") };
   } catch (e) {
     if (e instanceof ChainUnavailable) return { ok: false, message: "Anchoring is not configured on this server: the chain endpoint, the contract address and the anchor key are set in its environment." };
-    if (e instanceof ForbiddenError) return { ok: false, message: "Only an admin of a verifier organisation may run anchoring." };
+    if (e instanceof ForbiddenError) return { ok: false, message: "Only a Delta operator may run anchoring." };
     throw e;
   }
 }
@@ -46,12 +46,35 @@ export async function tamperDemoAction(): Promise<{ ok: true; demo: TamperDemo }
   }
 }
 
-/** A verifier-organisation admin takes a project on for review. The service refuses a conflict of interest. */
-export async function takeOnReviewAction(projectId: string): Promise<{ ok: boolean; message: string }> {
+/** An operator assigns a verifier organisation to a project. The service refuses a conflict of interest. */
+export async function assignReviewerAction(projectId: string, verifierOrgId: string): Promise<{ ok: boolean; message: string }> {
   const session = await requireSession();
   try {
-    await takeOnReview({ userId: session.user.id }, projectId);
-    return { ok: true, message: "Your organisation now reviews this project." };
+    await assignReviewer({ userId: session.user.id }, projectId, verifierOrgId);
+    return { ok: true, message: "Assigned. That organisation's reviewers can now decide on this project." };
+  } catch (e) {
+    if (e instanceof DomainError) return { ok: false, message: e.message };
+    throw e;
+  }
+}
+
+/** Traces a matchRef for an operator. */
+export async function lookupMatchAction(ref: string): Promise<{ ok: true; lookup: MatchLookup } | { ok: false; message: string }> {
+  const session = await requireSession();
+  try {
+    return { ok: true, lookup: await lookupMatchRef({ userId: session.user.id }, ref) };
+  } catch (e) {
+    if (e instanceof DomainError) return { ok: false, message: e.message };
+    throw e;
+  }
+}
+
+/** Records an operator's conclusion about a match, with its reason, on the flagged submissions' audit chains. */
+export async function resolveMatchAction(ref: string, outcome: "CONFIRMED" | "CLEARED", reason: string): Promise<{ ok: boolean; message: string }> {
+  const session = await requireSession();
+  try {
+    const n = await resolveMatchRef({ userId: session.user.id }, ref, { outcome, reason });
+    return { ok: true, message: `Recorded on ${n} ${n === 1 ? "submission" : "submissions"}. Their reviewers see it beside the finding.` };
   } catch (e) {
     if (e instanceof DomainError) return { ok: false, message: e.message };
     throw e;

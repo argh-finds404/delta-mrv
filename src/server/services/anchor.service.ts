@@ -7,14 +7,13 @@ import { requireEnv } from "../../env";
 import { BASE_SEPOLIA_CHAIN_ID, REGISTRY_ABI } from "../../lib/chain/registry";
 import { manifestHash, type Manifest } from "../../lib/crypto/manifest";
 import { buildMerkleTree, merkleLeaf } from "../../lib/crypto/merkle";
-import { canRunAnchoring } from "../../lib/org-type";
 import { assertTransition } from "../../lib/state-machine";
 import { ChainUnavailable, type ChainPort } from "../chain/port";
 import { db } from "../db/client";
 import { anchorBatch, anchorLeaf, evidenceSubmission } from "../db/schema";
-import { actorContext, type Actor, type Executor } from "./access";
+import type { Actor, Executor } from "./access";
 import { appendAuditEvent } from "./audit-chain.service";
-import { ForbiddenError } from "./errors";
+import { assertOperator } from "./operators";
 
 // Merkle batching and anchoring (docs/09-WEB3.md §4 to §6, docs/13-FEATURE-SPEC.md D3).
 //
@@ -266,11 +265,8 @@ export async function anchorPending(opts: { actorUserId?: string | null; only?: 
   return { created: batch ? { batchId: batch.id, leafCount: batch.leafCount } : null, refused, batches };
 }
 
-/** Who may press "Anchor now" and read the batch table: see canRunAnchoring. Memberships are read fresh. */
-async function assertAnchorAdmin(x: Executor, actor: Actor): Promise<void> {
-  const { memberships } = await actorContext(x, actor);
-  if (!canRunAnchoring(memberships)) throw new ForbiddenError("only an admin of a verifier organisation may run anchoring");
-}
+/** Who may press "Anchor now" and read the batch table: an operator (operators.ts). Anchoring decides nothing. */
+const assertAnchorAdmin = assertOperator;
 
 export async function anchorNow(actor: Actor, x: Executor = db, chain?: ChainPort): Promise<AnchorRun> {
   await assertAnchorAdmin(x, actor);

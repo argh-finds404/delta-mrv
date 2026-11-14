@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { parseOperatorEmails } from "./lib/operators";
 
 // "" is how .env.example ships an unset variable, so it counts as unset.
 const unsetIfEmpty = (v: unknown) => (v === "" ? undefined : v);
@@ -14,6 +15,16 @@ const bootSchema = z.object({
   NEXT_PUBLIC_CHAIN_ID: z.coerce.number().pipe(z.literal(84532)),
   GEMINI_API_KEY: z.preprocess(unsetIfEmpty, z.string().min(1).optional()),
   DEMO_MODE: z.preprocess(unsetIfEmpty, z.literal("true").optional()),
+  // comma-separated addresses; a typo would silently lock every operator out, so it fails boot
+  OPERATOR_EMAILS: z.preprocess(
+    unsetIfEmpty,
+    z
+      .string()
+      .refine((v) => v.split(",").every((e) => !e.trim() || /^[^\s@,]+@[^\s@,]+$/.test(e.trim())), "must be email addresses separated by commas")
+      .optional(),
+  ),
+  // the satellite cross-check (X1) calls a public archive only when this is "true"
+  NDVI_ENABLED: z.preprocess(unsetIfEmpty, z.literal("true").optional()),
 });
 
 // Belong to later stages. Absent at boot is fine; requireEnv asserts them where
@@ -42,6 +53,8 @@ const parsed = bootSchema.safeParse({
   NEXT_PUBLIC_CHAIN_ID: process.env.NEXT_PUBLIC_CHAIN_ID,
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   DEMO_MODE: process.env.DEMO_MODE,
+  OPERATOR_EMAILS: process.env.OPERATOR_EMAILS,
+  NDVI_ENABLED: process.env.NDVI_ENABLED,
 });
 
 if (!parsed.success) {
@@ -51,6 +64,15 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+
+/**
+ * The operators' addresses (src/lib/operators.ts), lowercase. Read on every call rather than
+ * taken from `env`, which is fixed at boot, so a test can list an operator for one case only;
+ * the boot check above has already refused a malformed list.
+ */
+export function operatorEmails(): Set<string> {
+  return parseOperatorEmails(process.env.OPERATOR_EMAILS);
+}
 
 /** A deferred variable, checked where it is used. Never put a value in the error. */
 export function requireEnv(name: DeferredEnvName): string {

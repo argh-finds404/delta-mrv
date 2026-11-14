@@ -3,11 +3,15 @@
 
 import type { SubmissionStatus } from "@/src/components/status-badge/status-badge";
 
+export type NdviScene = { sceneId: string; datetime: string; cloudCover: number; ndvi: number; pixels: number; clear: number };
+
 export interface LabFinding {
   id: string;
   kind: string;
   /** Which photo the finding is about ("Before photo"), when it concerns one file. */
   subject?: string;
+  /** An operator's conclusion about this finding's match reference (admin.service resolveMatchRef). */
+  resolution?: { outcome: "CONFIRMED" | "CLEARED"; reason: string; at: string };
   severity: "INFO" | "LOW" | "MEDIUM" | "HIGH";
   humanReason: string;
   evidence: {
@@ -27,6 +31,16 @@ export interface LabFinding {
     boundaryCenter?: { lat: number; lng: number };
     ruleTitle?: string;
     notes?: string;
+    /** X1: the satellite cross-check's result (src/server/services/ndvi.service.ts). */
+    ndvi?: {
+      outcome: "measured" | "inconclusive";
+      baseline?: NdviScene;
+      current?: NdviScene;
+      delta?: number;
+      reason?: string;
+    };
+    /** Whatever the check recorded about how it ran, shown as is in the raw tier. */
+    telemetry?: unknown;
   };
 }
 

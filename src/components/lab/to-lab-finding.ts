@@ -1,7 +1,17 @@
-import type { LabFinding } from "./fixtures";
+import type { LabFinding, NdviScene } from "./fixtures";
 
 /** A finding as stored (forensics.service); cross-organisation matches carry only a matchRef. */
-export type ApiFinding = { id: string; evidenceFileId?: string | null; kind: string; severity: LabFinding["severity"]; reason: string; ruleVersion: string; evidence: Record<string, unknown> };
+export type ApiFinding = {
+  id: string;
+  evidenceFileId?: string | null;
+  kind: string;
+  severity: LabFinding["severity"];
+  reason: string;
+  ruleVersion: string;
+  evidence: Record<string, unknown>;
+  /** A Date on the server, a string once it has crossed JSON. */
+  resolution?: { outcome: "CONFIRMED" | "CLEARED"; reason: string; at: Date | string };
+};
 
 const SUBJECT = { BEFORE: "Before photo", AFTER: "After photo", SUPPLEMENT: "Supplementary photo" } as const;
 
@@ -14,6 +24,7 @@ export const toLabFinding = (f: ApiFinding, files: { id: string; role: keyof typ
   subject: files.filter((file) => file.id === f.evidenceFileId).map((file) => SUBJECT[file.role])[0],
   severity: f.severity,
   humanReason: f.reason,
+  ...(f.resolution ? { resolution: { ...f.resolution, at: new Date(f.resolution.at).toISOString() } } : {}),
   evidence: {
     ruleVersion: f.ruleVersion,
     threshold: num(f.evidence.threshold) ?? 0,
@@ -21,6 +32,18 @@ export const toLabFinding = (f: ApiFinding, files: { id: string; role: keyof typ
     distanceMeters: num(f.evidence.distanceMeters),
     toleranceMeters: num(f.evidence.toleranceMeters),
     matchRef: typeof f.evidence.matchRef === "string" ? f.evidence.matchRef : undefined,
+    ...(f.kind === "SATELLITE_NDVI"
+      ? {
+          ndvi: {
+            outcome: f.evidence.outcome === "measured" ? ("measured" as const) : ("inconclusive" as const),
+            baseline: f.evidence.baseline as NdviScene | undefined,
+            current: f.evidence.current as NdviScene | undefined,
+            delta: num(f.evidence.delta),
+            reason: typeof f.evidence.reason === "string" ? f.evidence.reason : undefined,
+          },
+          telemetry: f.evidence.telemetry,
+        }
+      : {}),
   },
 });
 

@@ -62,6 +62,11 @@ unchanged. Inspection on the ground is still needed.
    browser and verifies the Merkle proof against the contract. Drop the original photo on the
    page and it is hashed locally and compared. The file never leaves the browser.
 
+Optional, and advisory only: a Sentinel-2 vegetation cross-check of the site from the free
+Earth Search archive (`NDVI_ENABLED`), a device signature over the photos' fingerprints made by
+a key held in the capturing browser, and an error-level lens in the review workspace. None of
+them changes a status or a score.
+
 ## The rules the code enforces
 
 - **No one reviews their own organisation's work.** Enforced in the service layer, with no
@@ -138,7 +143,7 @@ Not done yet:
 - The registry contract is **not deployed to Base Sepolia**. Anchoring has only run against a
   local chain, so no proof on a public network exists yet.
 - There is no hosted deployment.
-- Webhooks are not built.
+- Webhooks were cut from scope.
 - No email is sent: no address verification and no password reset.
 
 ## Run it locally
@@ -189,7 +194,7 @@ Workspace (signed in)
   /projects/[id]/manage   Description, closing the project, who reviews it
   /submissions/[id]       One submission in full: decisions, evidence, findings, audit trail
   /lab                    Review queue for assigned verifiers
-  /admin                  Anchoring, audit chain verification, review assignment
+  /admin                  Operators: anchoring, reviewer assignment, jobs, matches, audit chains
 
 API
   /api/v1/submissions/[id]/proof   Public: canonical manifest and Merkle proof

@@ -4,10 +4,13 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
-  // Dev only. Forwarding the browser console writes .next/dev/logs/next-development.log,
-  // the watcher sees that write as a change, Fast Refresh logs in the browser, and that is
-  // forwarded and written again: the page reloaded about every 300 ms. Errors still forward.
+  // Dev only: less browser noise in the terminal.
   logging: { browserToTerminal: "error" },
+  // Dev only. The dev MCP endpoint's file logger writes every browser console line, whatever the
+  // setting above, to .next/dev/logs/next-development.log. Started from a lower-case drive
+  // (d:\, as VS Code's terminal does) the watcher takes that write for a source change, Fast
+  // Refresh reloads the page, the page logs again: a reload about every 300 ms.
+  experimental: { mcpServer: false },
 };
 
 export default nextConfig;

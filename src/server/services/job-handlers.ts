@@ -6,3 +6,4 @@ import "server-only";
 import "./ai-audit.service";
 import "./forensics.service";
 import "./intake-jobs";
+import "./ndvi.service";

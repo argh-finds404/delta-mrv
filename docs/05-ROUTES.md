@@ -21,11 +21,14 @@ maintainer decision and an entry in this file.
 Theme: **Field** = dark workspace. **Paper** = warm public certificate.
 See `docs/06-DESIGN-SYSTEM.md`.
 
-> **As built (2026-11-13): there is no platform-admin account.** Every `admin` route and
-> action below is open to an owner or admin of any `VERIFIER` organisation
-> (`canRunAnchoring`, `src/lib/org-type.ts`), and a verifier organisation assigns itself to a
-> project ("take on for review"). Whether an operator account should hold this instead is an
-> open maintainer decision: `docs/SESSION-HANDOFF.md` §7.
+> **As built (2026-11-14): `admin` means an operator.** An account whose address is listed
+> in `OPERATOR_EMAILS` (or, with `DEMO_MODE`, the seeded demo admin):
+> `src/server/services/operators.ts`. An operator has no vote. A verifier organisation's own
+> admin is not an operator and cannot open `/admin` or assign itself a project.
+>
+> A workspace page reached with an expired or invalid session cookie redirects to
+> `/sign-in?next=<the page>`, as a missing cookie does: the proxy passes the path on
+> (`x-delta-next`) and `requireSession` reads it.
 
 ---
 
@@ -60,12 +63,12 @@ which geometry it receives. There is no client-side "if logged in, show exact".
 | `/dashboard` | session | Role-aware home. Owner: project and submission status. Verifier: review queue depth. Funder: verified outcomes. |
 | `/projects/new` | owner | Create project. Boundary drawn on a MapLibre canvas, not typed as coordinates. |
 | `/projects/[id]` | owner \| verifier | The project in the workspace: exact boundary, every submission and its state (A6). |
-| `/projects/[id]/manage` | owner | Edit the description; the name, the claim and the tolerance until evidence has been sent, after which they are fixed. Close the project. Shows which organisations review it. Requesting a reviewer is not built: it depends on the open decision above. |
+| `/projects/[id]/manage` | owner | Edit the description; the name, the claim and the tolerance until evidence has been sent, after which they are fixed. Close the project. Shows which organisations review it, and lets an owner or admin ask once for a reviewer (an audit event; an operator then assigns one). |
 | `/projects/[id]/submit` | owner | Evidence intake. Before/after pair, previews, client-side hashing, offline queue. See §5. |
 | `/submissions/[id]` | owner \| verifier | Full submission detail: decisions and reasons, evidence and hashes, findings, EXIF, map, audit trail, anchor. A linked funder gets a 404 here and reads `/proof/[id]`. |
 | `/lab` | verifier | **The reviewer workspace.** See §3.1. `/lab?s=<submission id>` opens one record. |
 | `/lab/[submissionId]` | verifier | **Not a separate address.** `/lab?s=<submission id>` and `/submissions/[id]` cover it. |
-| `/admin` | admin | Queue health, retry stopped jobs, anchor now, verifier assignment ("take on for review"), audit chain verification, the tamper demo. Organisation management is the "People" panel on `/dashboard`. `matchRef` resolution is not built. |
+| `/admin` | admin (operator) | "Operations": anchor now, assigning a verifier organisation to each project with no reviewer (requests first), the job queue with "Retry stopped jobs", matchRef resolution (trace a reference, record "confirmed" or "cleared" with a reason, an audit event on the flagged side's chain), audit chain verification, the tamper demo. Organisation membership is the "People" panel on `/dashboard`. |
 | `/admin/tamper-demo` | admin, `DEMO_MODE` only | **Not a separate address.** The demo is a panel on `/admin`; it changes one event in a copy of a real chain and shows verification failing there. |
 
 `/dashboard?invite=<invitation id>` is the far end of an invitation link (A14): the page shows
@@ -149,7 +152,7 @@ An unreachable RPC showing red would be a lie. `UNAVAILABLE` is neutral grey.
 | `/api/v1/proofs/lookup` | public | `/verify`'s lookup (A7): a proof id, a file's SHA-256 or a transaction hash, matched against public proofs only |
 | `/api/submissions` | session, owner | `POST`: start a draft submission |
 | `/api/submissions/[id]/upload-token` | session, owner | `POST`: a token for one direct upload to private storage |
-| `/api/submissions/[id]/finalize` | session, owner | `POST`: draft to pending forensics, in one transaction |
+| `/api/submissions/[id]/finalize` | session, owner | `POST`: draft to pending forensics, in one transaction. Takes an optional device signature (X2), checked against the stored bytes, never required |
 | `/api/submissions/[id]/supplement` | session, owner | `POST`: one more photo after a request for more proof |
 | `/api/submissions/[id]/findings` | session | `GET`: the findings, visible exactly when the submission is |
 | `/api/submissions/[id]/decisions` | session | `GET`: review decisions, an open round's hidden until the caller has voted (A4) |
@@ -159,7 +162,6 @@ An unreachable RPC showing red would be a lie. `UNAVAILABLE` is neutral grey.
 | `/api/internal/jobs/drain` | `CRON_SECRET` | Hourly queue drain |
 | `/api/internal/anchor/daily` | `CRON_SECRET` | Daily batch + anchor. `?before=<ISO time>` closes the batch at that moment |
 | `/api/dev/storage` | upload token; development only | Takes a browser upload when the server keeps evidence on its own disk (`LOCAL_STORAGE_DIR`). 404 in a production build and wherever that is unset |
-| `/api/webhooks/test` | api key | Signed delivery test. **Not built**: webhooks (S10) have no schema yet, `docs/03-DATABASE.md` §4 |
 
 All `/api/v1` handlers are thin adapters: Zod parse → one service call →
 response shape. No database access, no business rules.

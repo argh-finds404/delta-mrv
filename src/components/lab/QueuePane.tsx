@@ -44,6 +44,14 @@ export function compareSeverity(a: QueueItem, b: QueueItem): number {
   return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
 }
 
+type QueueFilter = "ALL" | "HIGH" | "ESCALATED" | "MINE";
+const QUEUE_FILTERS: Record<QueueFilter, { label: string; tone?: "fraud" | "review"; test: (s: QueueItem) => boolean }> = {
+  ALL: { label: "All", test: () => true },
+  HIGH: { label: "High severity", tone: "fraud", test: (s) => s.findingCounts.high > 0 },
+  ESCALATED: { label: "Escalated", tone: "review", test: (s) => s.status === "ESCALATED" || Boolean(s.isEscalated) },
+  MINE: { label: "Awaiting my vote", test: (s) => !s.userHasDecided },
+};
+
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** "18 Oct 09:42", in UTC so the server render and the browser agree. */
@@ -66,25 +74,17 @@ export function QueuePane({
 }: QueuePaneProps) {
   const isPaper = theme === "paper";
   const [filterQuery, setFilterQuery] = React.useState("");
-  const [severityFilter, setSeverityFilter] = React.useState<"ALL" | "HIGH" | "MEDIUM">("ALL");
+  const [severityFilter, setSeverityFilter] = React.useState<QueueFilter>("ALL");
   const listRef = React.useRef<HTMLDivElement>(null);
 
-  // Client-side quick filter
-  const filtered = React.useMemo(() => {
+  // Client-side quick filter: the text narrows the list, and each pill counts what the text left
+  const matching = React.useMemo(() => {
     const q = filterQuery.trim().toLowerCase();
-    return submissions.filter((sub) => {
-      const matchesText =
-        q === "" ||
-        sub.projectTitle.toLowerCase().includes(q) ||
-        sub.ownerOrgName.toLowerCase().includes(q) ||
-        sub.activityType.toLowerCase().includes(q);
-      const matchesSeverity =
-        severityFilter === "ALL" ||
-        (severityFilter === "HIGH" && sub.findingCounts.high > 0) ||
-        (severityFilter === "MEDIUM" && sub.findingCounts.medium > 0);
-      return matchesText && matchesSeverity;
-    });
-  }, [submissions, filterQuery, severityFilter]);
+    return submissions.filter(
+      (sub) => q === "" || sub.projectTitle.toLowerCase().includes(q) || sub.ownerOrgName.toLowerCase().includes(q) || sub.activityType.toLowerCase().includes(q),
+    );
+  }, [submissions, filterQuery]);
+  const filtered = React.useMemo(() => matching.filter(QUEUE_FILTERS[severityFilter].test), [matching, severityFilter]);
 
   // Partition escalated items if verifier admin
   const { pinnedItems, regularItems } = React.useMemo(() => {
@@ -131,7 +131,7 @@ export function QueuePane({
         <EmptyState
           title="Your review queue"
           reason="Your organisation has not taken on a project yet, so nothing can reach this queue."
-          honestNote="An administrator of your organisation takes on projects that have no reviewer, on the Anchoring tab."
+          honestNote="A Delta operator assigns each new project to an independent verifier organisation. Organisations never choose their own."
           theme={theme}
         />
       </aside>
@@ -211,16 +211,16 @@ export function QueuePane({
           />
         </div>
 
-        <div className="mt-2 flex items-center gap-2">
-          <button type="button" aria-pressed={severityFilter === "ALL"} onClick={() => setSeverityFilter("ALL")} className={chip(severityFilter === "ALL")}>
-            All <span className="font-mono tabular-nums">{submissions.length}</span>
-          </button>
-          <button type="button" aria-pressed={severityFilter === "HIGH"} onClick={() => setSeverityFilter("HIGH")} className={chip(severityFilter === "HIGH", "fraud")}>
-            <span className="size-1 rounded-full bg-fraud" aria-hidden="true" /> High risk
-          </button>
-          <button type="button" aria-pressed={severityFilter === "MEDIUM"} onClick={() => setSeverityFilter("MEDIUM")} className={chip(severityFilter === "MEDIUM", "review")}>
-            <span className="size-1 rounded-full bg-review" aria-hidden="true" /> Medium
-          </button>
+        <div role="group" aria-label="Show" className="mt-2 flex flex-wrap items-center gap-2">
+          {(Object.keys(QUEUE_FILTERS) as QueueFilter[]).map((f) => {
+            const { label, tone, test } = QUEUE_FILTERS[f];
+            return (
+              <button key={f} type="button" aria-pressed={severityFilter === f} onClick={() => setSeverityFilter(f)} className={chip(severityFilter === f, tone)}>
+                {tone && <span className={cn("size-1 rounded-full", tone === "fraud" ? "bg-fraud" : "bg-review")} aria-hidden="true" />}
+                {label} <span className="font-mono tabular-nums">{matching.filter(test).length}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -236,7 +236,7 @@ export function QueuePane({
           <div className="p-5">
             <EmptyState
               title="No submissions match these filters"
-              reason={`${submissions.length} submissions are in your queue. None match "${filterQuery}".`}
+              reason={`${submissions.length} submissions are in your queue. ${filterQuery ? `None match "${filterQuery}"` : "None of them"}${severityFilter === "ALL" ? "" : ` under "${QUEUE_FILTERS[severityFilter].label}"`}.`}
               action={{
                 label: "Clear filter",
                 onClick: () => {

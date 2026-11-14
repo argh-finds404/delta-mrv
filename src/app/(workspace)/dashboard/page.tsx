@@ -2,15 +2,17 @@ import * as React from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ArrowRight, Camera, ShieldCheck } from "lucide-react";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 import { AppShell, AppShellLoading } from "@/src/components/app/AppShell";
 import { JoinInvitation } from "@/src/components/app/JoinInvitation";
 import { OrgPeople } from "@/src/components/app/OrgPeople";
+import { PendingSyncBanner } from "@/src/components/app/PendingSyncBanner";
+import { SubmitEvidenceMenu } from "@/src/components/app/SubmitEvidenceMenu";
 import { SitesMap } from "@/src/components/app/SitesMap";
 import { StatusBadge } from "@/src/components/status-badge/status-badge";
 import { activityColor } from "@/src/lib/activity";
 import { ACTIVITY_LABEL, formatClaim, formatCount } from "@/src/lib/format";
-import { canRunAnchoring } from "@/src/lib/org-type";
+import { isOperator } from "@/src/server/services/operators";
 import { STATUS_META, STATUS_ORDER } from "@/src/lib/status";
 import { requireSession } from "@/src/server/auth/session";
 import { listApiKeys } from "@/src/server/services/api-key.service";
@@ -64,10 +66,14 @@ async function Dashboard({ searchParams }: { searchParams?: Promise<{ invite?: s
   const firstName = (session.user.name || session.user.email).split(/[\s@]/)[0];
   const total = STATUS_ORDER.reduce((n, s) => n + counts[s], 0);
   const highCount = queue.items.filter((i) => i.findingCounts.high > 0).length;
+  const operator = await isOperator(actor);
+  const openForEvidence = owned.filter((p) => p.status === "ACTIVE").map((p) => ({ id: p.id, title: p.title }));
 
   return (
-    <AppShell active="overview" userName={session.user.name || session.user.email} context={org?.orgName} review={isVerifier ? { count: queue.total } : null} anchoring={canRunAnchoring(orgs)}>
+    <AppShell active="overview" userName={session.user.name || session.user.email} context={org?.orgName} review={isVerifier ? { count: queue.total } : null} operator={operator}>
       <main className="mx-auto max-w-[1200px] space-y-12 px-4 py-10 sm:px-6 lg:py-14">
+        {isOwner && <PendingSyncBanner projects={owned.map((p) => ({ id: p.id, title: p.title }))} />}
+
         {/* Greeting and the one next action */}
         <header className="rise-in flex flex-wrap items-end justify-between gap-6" style={rise(0)}>
           <div className="space-y-2">
@@ -84,10 +90,7 @@ async function Dashboard({ searchParams }: { searchParams?: Promise<{ invite?: s
               <Link href="/projects/new" className="inline-flex h-11 items-center rounded-xl border border-field-hairline bg-field-canopy px-4 text-[15px] transition-colors hover:border-field-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal">
                 New project
               </Link>
-              <Link href={`/projects/${owned[0]!.id}/submit`} className={primary}>
-                <Camera className="size-[18px]" aria-hidden />
-                Submit evidence
-              </Link>
+              {openForEvidence.length > 0 && <SubmitEvidenceMenu projects={openForEvidence} />}
             </div>
           ) : orgs.some((o) => o.orgType === "OWNER") ? (
             <Link href="/projects/new" className={primary}>
@@ -104,18 +107,15 @@ async function Dashboard({ searchParams }: { searchParams?: Promise<{ invite?: s
             <h2 className="font-serif text-[28px] leading-tight">{isVerifier ? "Nothing to review yet" : "No projects yet"}</h2>
             <p className="text-[15px] leading-[1.6] text-field-muted">
               {isVerifier
-                ? "Your organisation reviews the projects it takes on, and it has not taken one on yet. Once it has, their submissions arrive in Review."
+                ? "Your organisation reviews the projects a Delta operator assigns to it, and none has been assigned yet. Once one is, its submissions arrive in Review."
                 : "Your sites, and where each submission stands, appear here. Register a site and draw its boundary, then submit a before and an after photo of it."}
             </p>
-            {isVerifier &&
-              (canRunAnchoring(orgs) ? (
-                <Link href="/admin" className="inline-flex items-center gap-1.5 rounded-sm text-[15px] font-medium text-signal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal">
-                  See the projects with no reviewer
-                  <ArrowRight className="size-4" aria-hidden />
-                </Link>
-              ) : (
-                <p className="text-[14px] text-field-muted">An administrator of your organisation takes projects on.</p>
-              ))}
+            {isVerifier && operator && (
+              <Link href="/admin" className="inline-flex items-center gap-1.5 rounded-sm text-[15px] font-medium text-signal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal">
+                Assign projects to reviewers
+                <ArrowRight className="size-4" aria-hidden />
+              </Link>
+            )}
           </section>
         )}
 

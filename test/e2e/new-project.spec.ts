@@ -1,8 +1,9 @@
 // A new site, from nothing to reviewable, and the admin's audit-chain panel:
 //
 //   1. an owner registers a project, drawing its boundary on the map
-//   2. it appears on /admin as a project with no reviewer; an owner cannot take it on
-//   3. a verifier-organisation admin takes it on, and it leaves the list
+//   2. the owner asks for a reviewer; nobody in the owner organisation can open /admin
+//   3. an operator (on a demo deployment, the seeded audit admin) assigns an independent
+//      verifier organisation, and the project leaves the list
 //   4. every audit chain verifies, and the tamper demo names the event it edited
 import { expect, test, type Browser, type Page } from "@playwright/test";
 
@@ -18,7 +19,7 @@ async function signedIn(browser: Browser, email: string): Promise<Page> {
   return page;
 }
 
-test("an owner registers a site and an independent organisation takes it on", async ({ browser }) => {
+test("an owner registers a site, asks for a reviewer, and an operator assigns one", async ({ browser }) => {
   const title = `Test wetland ${Date.now()}`;
 
   // 1. the owner draws the boundary: four corners, placed by clicking the map
@@ -40,12 +41,21 @@ test("an owner registers a site and an independent organisation takes it on", as
   await owner.waitForURL(/\/projects\/[0-9a-f-]{36}$/, { timeout: 30_000 });
   await expect(owner.getByRole("heading", { name: title })).toBeVisible();
 
-  // 2 and 3. nobody reviews it yet; the verifier organisation's admin takes it on
+  // 2. nobody reviews it yet: the owner asks, once
+  await owner.getByRole("link", { name: "Manage" }).click();
+  await owner.getByRole("button", { name: "Ask for an independent reviewer" }).click();
+  await expect(owner.getByTestId("reviewer-requested")).toBeVisible();
+  await owner.goto("/admin");
+  await expect(owner.getByText(/could not be found/i).first()).toBeVisible();
+
+  // 3. an operator assigns an independent verifier organisation
   const admin = await signedIn(browser, "audit-admin@delta-demo.example");
   await admin.goto("/admin");
   const row = admin.locator("li", { hasText: title });
   await expect(row).toBeVisible();
-  await row.getByRole("button", { name: "Take on for review" }).click();
+  await expect(row).toContainText("reviewer asked for");
+  await row.getByLabel("Verifier organisation").selectOption({ label: "Delta Independent Audit" });
+  await row.getByRole("button", { name: "Assign" }).click();
   await expect(row).toHaveCount(0);
 
   // 4. the audit chains, verified on the page, and what an edit would look like

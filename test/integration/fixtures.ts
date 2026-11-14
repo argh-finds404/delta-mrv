@@ -102,3 +102,18 @@ export async function addSubmission(
 }
 
 export const actor = (u: { id: string }) => ({ userId: u.id });
+
+/**
+ * Runs fn with these users listed in OPERATOR_EMAILS, as a deployment lists its operators
+ * (src/server/services/operators.ts reads the variable on every call).
+ */
+export async function asOperators<T>(users: { email: string }[], fn: () => Promise<T>): Promise<T> {
+  const before = process.env.OPERATOR_EMAILS;
+  process.env.OPERATOR_EMAILS = users.map((u) => u.email).join(", ");
+  try {
+    return await fn();
+  } finally {
+    if (before === undefined) delete process.env.OPERATOR_EMAILS;
+    else process.env.OPERATOR_EMAILS = before;
+  }
+}

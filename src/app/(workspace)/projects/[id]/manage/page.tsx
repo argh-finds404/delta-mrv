@@ -6,12 +6,13 @@ import { connection } from "next/server";
 import { ArrowLeft } from "lucide-react";
 import { AppShell, AppShellLoading } from "@/src/components/app/AppShell";
 import { ManageProjectForm } from "@/src/components/projects/ManageProjectForm";
-import { canRunAnchoring } from "@/src/lib/org-type";
+import { RequestReviewer } from "@/src/components/projects/RequestReviewer";
+import { isOperator } from "@/src/server/services/operators";
 import { requireSession } from "@/src/server/auth/session";
 import { NotFoundError } from "@/src/server/services/errors";
-import { getProject, listProjectReviewers, myOrganisations } from "@/src/server/services/projects.service";
+import { getProject, listProjectReviewers, myOrganisations, reviewerRequestedAt } from "@/src/server/services/projects.service";
 import { listSubmissionsForProject } from "@/src/server/services/submissions.service";
-import { updateProjectAction } from "./actions";
+import { requestReviewerAction, updateProjectAction } from "./actions";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -42,13 +43,13 @@ async function ManageBody({ params }: Props) {
   });
   // the owning organisation only (docs/05-ROUTES.md §3); to anyone else this page does not exist
   if (project.access !== "owner") notFound();
-  const [orgs, submissions, reviewers] = await Promise.all([myOrganisations(actor), listSubmissionsForProject(actor, id), listProjectReviewers(actor, id)]);
+  const [orgs, submissions, reviewers, requestedAt] = await Promise.all([myOrganisations(actor), listSubmissionsForProject(actor, id), listProjectReviewers(actor, id), reviewerRequestedAt(actor, id)]);
   const role = orgs.find((o) => o.orgId === project.ownerOrgId)?.role;
   const mayChange = role === "owner" || role === "admin"; // the service checks again on every save
   const locked = submissions.some((s) => s.status !== "DRAFT");
 
   return (
-    <AppShell userName={session.user.name || session.user.email} context={orgs[0]?.orgName} review={orgs.some((o) => o.orgType === "VERIFIER") ? { count: 0 } : null} anchoring={canRunAnchoring(orgs)}>
+    <AppShell userName={session.user.name || session.user.email} context={orgs[0]?.orgName} review={orgs.some((o) => o.orgType === "VERIFIER") ? { count: 0 } : null} operator={await isOperator({ userId: session.user.id })}>
       <main className="mx-auto max-w-[1200px] space-y-10 px-4 py-8 sm:px-6 lg:py-12">
         <Link href={`/projects/${project.id}`} className="inline-flex items-center gap-1.5 rounded-sm text-[14px] text-field-muted transition-colors hover:text-field-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal">
           <ArrowLeft className="size-4" aria-hidden />
@@ -78,13 +79,16 @@ async function ManageBody({ params }: Props) {
               <p className="text-[14px] leading-[1.6] text-field-muted">An independent organisation: nobody in yours can vote on this project. Its name is shown on the public project page.</p>
             </>
           ) : (
-            <p className="rounded-2xl border border-field-hairline bg-field-canopy p-5 text-[15px] leading-[1.6]">
-              No organisation reviews this project yet.{" "}
-              <span className="text-field-muted">
-                Evidence can be sent and is checked automatically, but nothing can be approved until an independent verifier organisation takes the project on. Your organisation cannot choose or
-                appoint its own reviewer.
-              </span>
-            </p>
+            <div className="space-y-4 rounded-2xl border border-field-hairline bg-field-canopy p-5">
+              <p className="text-[15px] leading-[1.6]">
+                No organisation reviews this project yet.{" "}
+                <span className="text-field-muted">
+                  Evidence can be sent and is checked automatically, but nothing can be approved until a Delta operator assigns an independent verifier organisation. Your organisation cannot choose its
+                  own reviewer.
+                </span>
+              </p>
+              {project.status === "ACTIVE" && <RequestReviewer requestedAt={requestedAt} canAsk={mayChange} action={requestReviewerAction.bind(null, project.id)} />}
+            </div>
           )}
         </section>
 

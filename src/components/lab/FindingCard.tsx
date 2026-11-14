@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Copy } from "lucide-react";
 import { BitGrid } from "@/src/components/bit-grid/bit-grid";
 import type { LabFinding } from "./fixtures";
 import { cn } from "@/src/lib/utils";
@@ -36,6 +36,7 @@ export const findingKindDisplayMap: Record<string, string> = {
   NO_VISIBLE_CHANGE: "Before and after look nearly identical",
   CLIENT_HASH_MISMATCH: "File changed between the device and the server",
   AI_OBSERVATION: "Advisory observation",
+  SATELLITE_NDVI: "Satellite vegetation cross-check",
 };
 
 /**
@@ -63,10 +64,44 @@ export function findingSummary(finding: LabFinding): string {
   if (kind === "EXIF_FULLY_STRIPPED") return "Camera, time and location data are absent.";
   if (kind === "CLIENT_HASH_MISMATCH") return "The server's copy differs from the device's.";
   if (kind === "AI_OBSERVATION") return "A note from the advisory AI review.";
+  if (kind === "SATELLITE_NDVI" && evidence.ndvi) {
+    const { baseline, current, delta } = evidence.ndvi;
+    if (baseline && current && delta !== undefined) return `NDVI ${baseline.ndvi.toFixed(2)} to ${current.ndvi.toFixed(2)} (${delta >= 0 ? "+" : ""}${delta.toFixed(2)}).`;
+    return "Inconclusive: no clean satellite comparison.";
+  }
   return "See the numbers for the measured values.";
 }
 
 const SEVERITY_LABEL = { HIGH: "High", MEDIUM: "Medium", LOW: "Low", INFO: "Information" } as const;
+const RESOLUTION = { CONFIRMED: "An operator confirmed it is a reuse", CLEARED: "An operator cleared it: not a reuse" } as const;
+const day = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+
+/** A match reference, with a one-click copy so it reaches /admin without a typo. */
+function MatchRef({ value }: { value: string }) {
+  const [copied, setCopied] = React.useState(false);
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="break-all font-mono tabular-nums text-field-text">{value}</span>
+      <button
+        type="button"
+        onClick={() =>
+          void navigator.clipboard.writeText(value).then(
+            () => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            },
+            () => setCopied(false),
+          )
+        }
+        aria-label={copied ? "Match reference copied" : "Copy the match reference"}
+        className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-field-hairline px-2 text-[12px] text-field-muted transition-colors hover:text-field-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+      >
+        {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
+        {copied ? "Copied" : "Copy ref"}
+      </button>
+    </span>
+  );
+}
 
 /**
  * FindingCard — three-tier forensic finding disclosure.
@@ -101,7 +136,25 @@ export function FindingCard({ finding, theme = "field", className }: FindingCard
   const muted = isPaper ? "text-paper-muted" : "text-field-muted";
   const line = isPaper ? "border-paper-rule" : "border-field-hairline";
 
-  const rows: { label: string; value: string; mono: boolean }[] = [
+  const scene = (s: { ndvi: number; datetime: string; cloudCover: number; clear: number; pixels: number }) =>
+    `${s.ndvi.toFixed(3)} · ${new Date(s.datetime).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })} · ${s.cloudCover.toFixed(1)}% cloud · ${s.clear} of ${s.pixels} pixels clear`;
+  const ndviRows = evidence.ndvi
+    ? evidence.ndvi.baseline && evidence.ndvi.current && evidence.ndvi.delta !== undefined
+      ? [
+          { label: "Before", value: scene(evidence.ndvi.baseline), mono: true },
+          { label: "After", value: scene(evidence.ndvi.current), mono: true },
+          { label: "Change", value: `${evidence.ndvi.delta >= 0 ? "+" : ""}${evidence.ndvi.delta.toFixed(3)} NDVI`, mono: true },
+          { label: "Scenes", value: `${evidence.ndvi.baseline.sceneId}, ${evidence.ndvi.current.sceneId}`, mono: true },
+          { label: "Rule version", value: evidence.ruleVersion || "ndvi.v1", mono: true },
+        ]
+      : [
+          { label: "Result", value: "Inconclusive", mono: false },
+          { label: "Why", value: evidence.ndvi.reason ?? "No clean comparison", mono: false },
+          { label: "Rule version", value: evidence.ruleVersion || "ndvi.v1", mono: true },
+        ]
+    : null;
+
+  const rows: { label: string; value: string; mono: boolean }[] = ndviRows ?? [
     {
       label:
         evidence.hammingDistance !== undefined
@@ -166,6 +219,11 @@ export function FindingCard({ finding, theme = "field", className }: FindingCard
             {finding.subject && <span className={ink}>{finding.subject}. </span>}
             {findingSummary(finding)}
           </span>
+          {finding.resolution && (
+            <span className={cn("mt-1.5 block pr-6 text-[13px] font-medium leading-5", finding.resolution.outcome === "CONFIRMED" ? "text-fraud" : "text-verified")} data-testid="finding-resolution">
+              {RESOLUTION[finding.resolution.outcome]}, {day(finding.resolution.at)}
+            </span>
+          )}
         </span>
         {showNumbers ? (
           <ChevronUp aria-hidden="true" className={cn("absolute bottom-4 right-4 size-5", muted)} />
@@ -187,6 +245,21 @@ export function FindingCard({ finding, theme = "field", className }: FindingCard
             ))}
           </dl>
 
+          {finding.resolution && (
+            <div className="space-y-1 rounded-sm border border-field-hairline bg-field-raised p-3">
+              <p className={ink}>
+                {RESOLUTION[finding.resolution.outcome]} on {day(finding.resolution.at)} UTC
+              </p>
+              <p className={cn("prose-column", muted)}>{finding.resolution.reason}</p>
+            </div>
+          )}
+          {evidence.matchRef && (
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+              <span className={muted}>Match reference</span>
+              <MatchRef value={evidence.matchRef} />
+            </div>
+          )}
+
           <button
             type="button"
             aria-expanded={showRaw}
@@ -206,6 +279,13 @@ export function FindingCard({ finding, theme = "field", className }: FindingCard
             <h5 className={ink}>Why it was flagged</h5>
             <p className={cn("prose-column", muted)}>{finding.humanReason}</p>
           </section>
+
+          {evidence.telemetry !== undefined && (
+            <section className="space-y-1">
+              <h5 className={ink}>What the satellite archive returned</h5>
+              <pre className="max-h-64 overflow-auto rounded-sm border border-field-hairline bg-field-raised p-3 font-mono text-[12px] leading-[1.5] text-field-text">{JSON.stringify(evidence.telemetry, null, 2).slice(0, 4000)}</pre>
+            </section>
+          )}
 
           <div className="flex items-center justify-between gap-4">
             <span className={muted}>Finding code</span>
@@ -247,13 +327,9 @@ export function FindingCard({ finding, theme = "field", className }: FindingCard
           )}
 
           {evidence.matchRef && (
-            <section className="space-y-1 rounded-sm border border-field-hairline bg-field-raised p-3">
-              <div className="flex items-center justify-between gap-4">
-                <span className={muted}>Match reference</span>
-                <span className="font-mono tabular-nums text-field-text">{evidence.matchRef}</span>
-              </div>
-              <p className={cn("prose-column", muted)}>Source organisation identifier is redacted under cross-tenant privacy controls.</p>
-            </section>
+            <p className={cn("prose-column", muted)}>
+              Whose photo it matches is not shown here. A Delta operator can trace the match reference and record whether it is a reuse; that conclusion then appears on this card.
+            </p>
           )}
 
           {evidence.exifGps && (

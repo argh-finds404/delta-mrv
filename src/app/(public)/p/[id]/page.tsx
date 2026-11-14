@@ -14,8 +14,10 @@ import {
 } from "lucide-react";
 import { HashDisplay } from "@/src/components/hash-display/hash-display";
 import { VerificationBadge } from "@/src/components/verification-badge/verification-badge";
-import { Wordmark } from "@/src/components/site/Wordmark";
+import { SiteFooter } from "@/src/components/site/SiteFooter";
+import { SiteHeader } from "@/src/components/site/SiteHeader";
 import { ACTIVITY_LABEL, formatClaim, formatCount, formatLatLon } from "@/src/lib/format";
+import { DOES_NOT_PROVE, PROVES } from "@/src/lib/limits";
 import { NotFoundError } from "@/src/server/services/errors";
 import { getPublicProject, type PublicProjectDetail } from "@/src/server/services/projects.service";
 
@@ -44,9 +46,13 @@ export async function generateMetadata({ params }: ProjectPageProps): Promise<Me
 // Read at request time (cacheComponents): the body streams inside Suspense, so the build never prerenders data.
 export default function PublicProjectPage({ params }: ProjectPageProps) {
   return (
-    <React.Suspense fallback={<div data-theme="paper" className="min-h-dvh bg-paper" aria-busy />}>
-      <ProjectBody params={params} />
-    </React.Suspense>
+    <div data-theme="paper" className="min-h-dvh bg-paper font-sans text-paper-ink">
+      <SiteHeader />
+      <React.Suspense fallback={<main className="mx-auto min-h-[60vh] max-w-4xl px-4 py-8" aria-busy />}>
+        <ProjectBody params={params} />
+      </React.Suspense>
+      <SiteFooter />
+    </div>
   );
 }
 
@@ -71,32 +77,11 @@ async function ProjectBody({ params }: ProjectPageProps) {
   const totalEvidence = project.record.approved + project.record.anchored;
 
   return (
-    <div
-      data-theme="paper"
-      className="min-h-screen bg-paper text-paper-ink font-sans transition-colors"
-    >
-      {/* Top Paper Header Bar */}
-      <nav className="border-b border-paper-rule bg-paper-card px-4 py-3 sm:px-8">
-        <div className="mx-auto flex max-w-5xl items-center justify-between">
-          <Link href="/atlas" className="flex items-center gap-2 group">
-            <Wordmark className="text-paper-ink" />
-            <span className="text-paper-muted text-xs">/</span>
-            <span className="text-xs text-paper-muted">Projects</span>
-          </Link>
-
-          <div className="flex items-center gap-3 text-xs">
-            <Link
-              href="/atlas"
-              className="text-xs text-paper-muted hover:text-paper-ink transition-colors"
-            >
-              ← Back to impact atlas
-            </Link>
-          </div>
-        </div>
-      </nav>
-
-      {/* Main Single-Column Paper Measure */}
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
+        <Link href="/atlas" className="inline-flex text-[14px] text-paper-muted transition-colors hover:text-paper-ink">
+          ← The atlas of sites
+        </Link>
+
         {/* 1. Header (docs/14-PAGE-SPEC.md §3) */}
         <header className="space-y-4 border-b border-paper-rule pb-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -150,9 +135,6 @@ async function ProjectBody({ params }: ProjectPageProps) {
             >
               Ecological Claim vs. Independently Verified Record
             </h2>
-            <span className="font-mono text-[11px] text-paper-muted">
-              docs/14 §3
-            </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -187,15 +169,20 @@ async function ProjectBody({ params }: ProjectPageProps) {
                 </p>
               </div>
 
-              <div className="pt-3 border-t border-paper-rule/60">
-                <Link
-                  href={`/proof/${project.id}`}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-paper-seal hover:underline"
-                >
-                  <span>Open Public Proof Dossier</span>
-                  <ArrowRight className="size-3" />
-                </Link>
-              </div>
+              {project.proofs.length > 0 && (
+                <ul className="space-y-1 border-t border-paper-rule/60 pt-3">
+                  {project.proofs.map((p) => (
+                    <li key={p.id}>
+                      <Link href={`/proof/${p.id}`} className="inline-flex items-center gap-1 text-xs font-medium text-paper-seal hover:underline">
+                        <span>
+                          Proof of the {p.status === "ANCHORED" ? "anchored" : "approved"} record of {p.submittedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}
+                        </span>
+                        <ArrowRight className="size-3" />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
 
@@ -308,19 +295,27 @@ async function ProjectBody({ params }: ProjectPageProps) {
           </div>
         </section>
 
-        {/* 5. Limits Footer (docs/14-PAGE-SPEC.md §3) */}
-        <footer className="border-t border-paper-rule pt-8 text-xs text-paper-muted space-y-2">
-          <div className="font-serif font-medium text-paper-ink text-sm">
-            What this public record proves and does not prove
+        {/* 5. Limits, verbatim from docs/00-PRODUCT.md §3 (src/lib/limits.ts) */}
+        <section aria-labelledby="limits-heading" className="space-y-4 border-t border-paper-rule pt-8">
+          <h2 id="limits-heading" className="font-serif text-lg font-medium text-paper-ink">
+            What this record proves, and what it does not
+          </h2>
+          <div className="grid gap-6 text-[14px] leading-[1.55] md:grid-cols-2">
+            {[
+              ["It proves", PROVES],
+              ["It does not prove", DOES_NOT_PROVE],
+            ].map(([title, items]) => (
+              <div key={title as string} className="space-y-2">
+                <h3 className="font-medium">{title as string}</h3>
+                <ul className="list-disc space-y-1.5 pl-5 text-paper-muted">
+                  {(items as readonly string[]).map((t) => (
+                    <li key={t}>{t}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
-          <p className="leading-relaxed">
-            Delta proves that photographic evidence existed at a recorded point in time within the stated geofence, that perceptual difference hashes matched expected growth deltas, and that two independent verifiers approved the claim under hash-chained audit trails.
-          </p>
-          <p className="leading-relaxed italic">
-            Delta does not prove that trees survive indefinitely, nor does it replace ground botanical surveys. A matching hash confirms record integrity; human verifier consensus confirms evidentiary standards.
-          </p>
-        </footer>
+        </section>
       </main>
-    </div>
   );
 }

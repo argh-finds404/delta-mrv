@@ -21,6 +21,8 @@ export type AuditEventType =
   | "REVIEW_DECISION"
   | "ANCHOR_CONFIRMED"
   | "VERIFIER_ASSIGNED"
+  | "REVIEWER_REQUESTED"
+  | "MATCH_RESOLVED"
   | "PROJECT_STATUS_CHANGED";
 
 /** What is hashed: the whole event except its own hash, so type, actor, time and order are covered too. */

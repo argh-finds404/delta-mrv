@@ -26,6 +26,8 @@ export const RULE_VERSION = "forensics.v1";
 export const FORENSICS_JOB = "forensics.run";
 /** The advisory AI pass, queued once every deterministic finding of a round exists (docs/08 §3). */
 export const AI_JOB = "ai.audit";
+/** The advisory satellite cross-check (X1), queued once per submission, after the first round's checks. */
+export const NDVI_JOB = "satellite.ndvi";
 /** Hamming distance below which two photos are "the same picture" (docs/10 §5). */
 export const PERCEPTUAL_THRESHOLD = 8;
 /** Before/after distance below which the pair may show the same scene (docs/10 §3). */
@@ -124,7 +126,7 @@ const PERCEPTUAL: Record<Scope, [Kind, Severity, string]> = {
  * not even a verifier who can see files on both sides. A platform admin resolves it by
  * recomputing it over the candidates (Stage 5, with an audit event).
  */
-const matchRef = (fileId: string) =>
+export const matchRef = (fileId: string) =>
   `mr_${createHmac("sha256", requireEnv("FORENSICS_MATCH_KEY")).update(`delta/forensics/matchRef/v1/${fileId}`).digest("hex").slice(0, 32)}`;
 
 /**
@@ -305,6 +307,7 @@ export async function runForensics(submissionId: string, round: number, x: Execu
       payload: { submissionId, round, ruleVersion: RULE_VERSION, findings: bySeverity, from, status: from === "PENDING_FORENSICS" ? "IN_REVIEW" : from },
     });
     await enqueueJob({ kind: AI_JOB, payload: { submissionId, round }, idempotencyKey: `ai:${submissionId}:${round}` }, tx);
+    if (round === 1) await enqueueJob({ kind: NDVI_JOB, payload: { submissionId }, idempotencyKey: `ndvi:${submissionId}` }, tx);
     return "done";
   });
 }
@@ -335,7 +338,8 @@ const lineOf = (f: Omit<PipelineFinding, "ruleVersion"> & { ruleVersion: string 
 /**
  * Deterministic replay (docs/10 §7, #12): re-reads the stored bytes, re-runs stages 1–7 for
  * every round, and compares with what is stored, finding by finding and file by file.
- * Excludes AI_OBSERVATION (not reproducible) and CLIENT_HASH_MISMATCH (written at intake).
+ * Excludes AI_OBSERVATION and SATELLITE_NDVI (not reproducible: a model, a live archive) and
+ * CLIENT_HASH_MISMATCH (written at intake).
  */
 export async function replayForensics(submissionId: string, x: Executor = db, storage: StoragePort = evidenceStorage) {
   const { s, project } = await load(x, submissionId);
@@ -355,7 +359,7 @@ export async function replayForensics(submissionId: string, x: Executor = db, st
     await x
       .select()
       .from(forensicFinding)
-      .where(and(eq(forensicFinding.submissionId, submissionId), notInArray(forensicFinding.kind, ["AI_OBSERVATION", "CLIENT_HASH_MISMATCH"])))
+      .where(and(eq(forensicFinding.submissionId, submissionId), notInArray(forensicFinding.kind, ["AI_OBSERVATION", "SATELLITE_NDVI", "CLIENT_HASH_MISMATCH"])))
   ).map((f) => lineOf({ ...f, evidence: f.evidence as Record<string, unknown> }));
   const sorted = (a: string[]) => [...a].sort();
   const findingsMatch = canonical(sorted(expected)) === canonical(sorted(stored));

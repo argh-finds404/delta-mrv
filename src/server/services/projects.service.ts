@@ -6,6 +6,7 @@ import { locationCommitment } from "../../lib/crypto/location";
 import { db } from "../db/client";
 import {
   activityType,
+  auditEvent,
   evidenceSubmission,
   impactProject,
   organization,
@@ -123,6 +124,14 @@ async function readPrivateLocation(x: Executor, projectId: string) {
 }
 
 /**
+ * The exact boundary's outer ring, [lon, lat], for a server-side check (the X1 satellite
+ * cross-check picks the site's pixels out of downloaded tiles with it). Never for a response.
+ */
+export async function siteRingForChecks(x: Executor, projectId: string): Promise<[number, number][]> {
+  return (await readPrivateLocation(x, projectId)).boundary.coordinates[0]!;
+}
+
+/**
  * Where a photo's GPS fix sits against a project's exact boundary (docs/10-FORENSICS.md §5):
  * covered, within the project's tolerance, and how far outside, in whole metres. Only the
  * answers leave this module, never the geometry.
@@ -219,6 +228,8 @@ export type PublicProjectDetail = PublicProject & {
   verifierOrgNames: string[];
   /** The record beside the claim: submission counts, never the submissions' contents. */
   record: { approved: number; anchored: number };
+  /** The latest public proofs (approved or anchored), newest first, at most ten: ids and dates only. */
+  proofs: { id: string; status: "APPROVED" | "ANCHORED"; submittedAt: Date }[];
 };
 
 export type PublicProjectPage = { items: PublicProject[]; nextCursor: string | null };
@@ -273,7 +284,13 @@ export async function getPublicProject(id: string, x: Executor = db): Promise<Pu
     .from(evidenceSubmission)
     .where(eq(evidenceSubmission.projectId, id));
 
-  return { ...row, verifierOrgNames, record: record! };
+  const proofs = await x
+    .select({ id: evidenceSubmission.id, status: evidenceSubmission.status, submittedAt: evidenceSubmission.submittedAt })
+    .from(evidenceSubmission)
+    .where(and(eq(evidenceSubmission.projectId, id), inArray(evidenceSubmission.status, ["APPROVED", "ANCHORED"])))
+    .orderBy(desc(evidenceSubmission.submittedAt))
+    .limit(10);
+  return { ...row, verifierOrgNames, record: record!, proofs: proofs as PublicProjectDetail["proofs"] };
 }
 
 async function reviewerNames(x: Executor, projectId: string): Promise<string[]> {
@@ -290,6 +307,45 @@ async function reviewerNames(x: Executor, projectId: string): Promise<string[]> 
 export async function listProjectReviewers(actor: Actor | null, id: string, x: Executor = db): Promise<string[]> {
   const { row } = await loadVisible(x, actor, id);
   return reviewerNames(x, row.id);
+}
+
+/** When the owning organisation asked for a reviewer for this project, or null. Its own members only. */
+export async function reviewerRequestedAt(actor: Actor, id: string, x: Executor = db): Promise<Date | null> {
+  const { row, access } = await loadVisible(x, actor, id);
+  if (access !== "owner") throw new NotFoundError(NOT_FOUND);
+  const [event] = await x
+    .select({ at: auditEvent.createdAt })
+    .from(auditEvent)
+    .where(and(eq(auditEvent.orgId, row.ownerOrgId), eq(auditEvent.eventType, "REVIEWER_REQUESTED"), sql`${auditEvent.payload}->>'projectId' = ${row.id}`))
+    .orderBy(asc(auditEvent.seq))
+    .limit(1);
+  return event?.at ?? null;
+}
+
+/**
+ * The owner asks for an independent reviewer: a project nobody reviews can take evidence but
+ * never reach approval. It assigns nothing (an operator chooses the reviewer, admin.service), so
+ * an owner can never pick their own auditor. Once per project, on the owner's audit chain.
+ */
+export async function requestReviewer(actor: Actor, id: string, x: Executor = db): Promise<{ requestedAt: Date }> {
+  return x.transaction(async (tx) => {
+    const row = await loadForOwnerWrite(tx, actor, id);
+    if (row.status !== "ACTIVE") throw new ConflictError("Only a project that is open for evidence can be reviewed.");
+    if ((await reviewerNames(tx, row.id)).length) throw new ConflictError("An independent organisation already reviews this project.");
+    const [earlier] = await tx
+      .select({ at: auditEvent.createdAt })
+      .from(auditEvent)
+      .where(and(eq(auditEvent.orgId, row.ownerOrgId), eq(auditEvent.eventType, "REVIEWER_REQUESTED"), sql`${auditEvent.payload}->>'projectId' = ${row.id}`))
+      .limit(1);
+    if (earlier) throw new ConflictError("A reviewer has already been asked for. An operator assigns one.");
+    await appendAuditEvent(tx, { orgId: row.ownerOrgId, eventType: "REVIEWER_REQUESTED", actorUserId: actor.userId, payload: { projectId: row.id } });
+    const [event] = await tx
+      .select({ at: auditEvent.createdAt })
+      .from(auditEvent)
+      .where(and(eq(auditEvent.orgId, row.ownerOrgId), eq(auditEvent.eventType, "REVIEWER_REQUESTED"), sql`${auditEvent.payload}->>'projectId' = ${row.id}`))
+      .limit(1);
+    return { requestedAt: event!.at };
+  });
 }
 
 /**

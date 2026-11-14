@@ -52,6 +52,7 @@ not stop the others.
 | `NO_VISIBLE_CHANGE` | `MEDIUM` | Before/after Hamming < 4 — the pair may be the same scene |
 | `CLIENT_HASH_MISMATCH` | `MEDIUM` | PWA-reported hash differs from the server hash |
 | `AI_OBSERVATION` | `INFO`/`LOW` | See `docs/08-AI.md` |
+| `SATELLITE_NDVI` | `INFO` | X1: Sentinel-2 NDVI over the site around each photo's date, or `inconclusive` and why. Weighs nothing; a 20 m pixel shows no plant, and seasons move it. Band files are read only from `https://sentinel-cogs.s3.us-west-2.amazonaws.com`, by range request, whatever URL the catalogue names |
 
 ### The severity rule that matters
 
@@ -192,7 +193,8 @@ not that.
 
 `scripts/replay-forensics.ts <submissionId>` re-reads the stored bytes,
 re-runs stages 1–7, and asserts byte-identical output against the stored
-findings. Excludes `AI_OBSERVATION`, which is not reproducible.
+findings. Excludes `AI_OBSERVATION` and `SATELLITE_NDVI`, which are not reproducible (a
+model, a live archive).
 
 A replay mismatch means the pipeline drifted and is a critical defect.
 

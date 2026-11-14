@@ -11,6 +11,9 @@ export function safeNext(raw: string | null | undefined): string | null {
   return raw;
 }
 
+/** Set by src/proxy.ts on workspace requests: the path and query that was asked for. */
+export const NEXT_HEADER = "x-delta-next";
+
 /** The sign-in URL that remembers where the visitor was going. */
 export function signInRedirect(pathname: string, search = ""): string {
   return `/sign-in?next=${encodeURIComponent(pathname + search)}`;

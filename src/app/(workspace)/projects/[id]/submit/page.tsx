@@ -11,7 +11,7 @@ import { getProject, myOrganisations } from "@/src/server/services/projects.serv
 
 interface SubmitPageProps {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ supplement?: string }>;
+  searchParams?: Promise<{ supplement?: string; drafts?: string }>;
 }
 
 export const metadata: Metadata = {
@@ -46,11 +46,13 @@ async function SubmitPageBody({ params, searchParams }: SubmitPageProps) {
     <AppShell userName={session.user.name || session.user.email} context={orgs[0]?.orgName}>
       <main className="mx-auto max-w-[760px] px-4 py-8 sm:px-6 lg:py-12">
         <SubmitWizard
+          userId={session.user.id}
           projectId={project.id}
           projectTitle={project.title}
           activityType={project.activityType}
           supplementSubmissionId={supplementSubmissionId}
           isDemoMode={Boolean(env.DEMO_MODE)}
+          openVault={sp.drafts === "1"}
         />
       </main>
     </AppShell>

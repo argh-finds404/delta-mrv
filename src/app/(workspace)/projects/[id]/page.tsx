@@ -10,7 +10,7 @@ import { HashDisplay } from "@/src/components/hash-display/hash-display";
 import { StatusBadge } from "@/src/components/status-badge/status-badge";
 import { activityColor } from "@/src/lib/activity";
 import { ACTIVITY_LABEL, formatClaim, formatCount, formatLatLon } from "@/src/lib/format";
-import { canRunAnchoring } from "@/src/lib/org-type";
+import { isOperator } from "@/src/server/services/operators";
 import { STATUS_META, STATUS_ORDER } from "@/src/lib/status";
 import { requireSession } from "@/src/server/auth/session";
 import { NotFoundError } from "@/src/server/services/errors";
@@ -60,7 +60,7 @@ async function ProjectBody({ params }: Props) {
   const isVerifierOrg = orgs.some((o) => o.orgType === "VERIFIER");
 
   return (
-    <AppShell userName={session.user.name || session.user.email} context={orgs[0]?.orgName} review={isVerifierOrg ? { count: 0 } : null} anchoring={canRunAnchoring(orgs)}>
+    <AppShell userName={session.user.name || session.user.email} context={orgs[0]?.orgName} review={isVerifierOrg ? { count: 0 } : null} operator={await isOperator({ userId: session.user.id })}>
       <main className="mx-auto max-w-[1200px] space-y-10 px-4 py-8 sm:px-6 lg:py-12">
         <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-[14px] text-field-muted transition-colors hover:text-field-text">
           <ArrowLeft className="size-4" aria-hidden />

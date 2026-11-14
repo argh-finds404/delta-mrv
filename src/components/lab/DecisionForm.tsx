@@ -265,6 +265,7 @@ export function DecisionForm({
             onChange={(e) => setReason(e.target.value)}
             disabled={Boolean(pendingDecision)}
             placeholder="Required, 20 characters or more. What you checked and why (or click dispute tags above)."
+            aria-describedby={`${submissionId}-reason-hint`}
             className={cn(
               "block w-full resize-none rounded-lg border px-3 py-2 text-[13px] leading-5 outline-none transition-colors duration-[120ms]",
               isPaper
@@ -272,6 +273,12 @@ export function DecisionForm({
                 : "border-field-hairline bg-field-raised text-field-text placeholder:text-field-inert focus:border-field-muted"
             )}
           />
+          {/* why the buttons are off, said where the reviewer is typing */}
+          <p id={`${submissionId}-reason-hint`} aria-live="polite" className={cn("text-xs leading-5", isReasonValid ? "text-verified" : "text-field-muted")} data-testid="reason-hint">
+            {isReasonValid
+              ? "Enough to decide. Your reason is shown with your decision and cannot be edited later."
+              : `${20 - reasonLength} more ${20 - reasonLength === 1 ? "character" : "characters"} before you can decide. Every decision needs a written reason of at least 20.`}
+          </p>
         </div>
 
         {/* The one --signal fill on the screen: Approve */}

@@ -24,7 +24,7 @@ import { ForbiddenError } from "../../src/server/services/errors";
 import { castDecision } from "../../src/server/services/reviews.service";
 import { getPublicProof } from "../../src/server/services/submissions.service";
 import { client, inRollback, pgError, type Tx } from "./db";
-import { actor, addSubmission, REASON, world, type World } from "./fixtures";
+import { actor, addSubmission, asOperators, REASON, world, type World } from "./fixtures";
 
 type Hex = `0x${string}`;
 
@@ -244,25 +244,28 @@ describe("anchorPending", () => {
 });
 
 describe("who may run anchoring", () => {
-  it("an admin of a verifier organisation, and nobody else", () =>
+  it("an operator, and nobody else: not a verifier organisation's admin either", () =>
     inRollback(async (tx) => {
       const w = await world(tx);
-      for (const who of [w.u.ownerAdmin, w.u.ownerMember, w.u.v1, w.u.funder, w.u.platformAdmin, w.u.outsider]) {
+      for (const who of [w.u.ownerAdmin, w.u.ownerMember, w.u.v1, w.u.vAdmin, w.u.funder, w.u.platformAdmin, w.u.outsider]) {
         await expect(anchorNow(actor(who), tx, chain)).rejects.toBeInstanceOf(ForbiddenError);
         await expect(anchorOverview(actor(who), tx)).rejects.toBeInstanceOf(ForbiddenError);
       }
       const id = await approved(tx, w, ["a", "b"]);
-      const before = await anchorOverview(actor(w.u.vAdmin), tx);
-      expect(before.waiting).toBeGreaterThanOrEqual(1);
-      // a narrowed run is the service's own; "Anchor now" batches everything waiting
-      const run = await anchorNow(actor(w.u.vAdmin), tx, chain);
-      expect(run.created!.leafCount).toBe(before.waiting);
-      expect(await statusOf(tx, [id])).toEqual(["ANCHORED"]);
-      const after = await anchorOverview(actor(w.u.vAdmin), tx);
-      expect(after.waiting).toBe(0);
-      expect(after.batches[0]).toMatchObject({ id: run.created!.batchId, status: "CONFIRMED" });
+      const op = actor(w.u.platformAdmin);
+      await asOperators([w.u.platformAdmin], async () => {
+        const before = await anchorOverview(op, tx);
+        expect(before.waiting).toBeGreaterThanOrEqual(1);
+        // a narrowed run is the service's own; "Anchor now" batches everything waiting
+        const run = await anchorNow(op, tx, chain);
+        expect(run.created!.leafCount).toBe(before.waiting);
+        expect(await statusOf(tx, [id])).toEqual(["ANCHORED"]);
+        const after = await anchorOverview(op, tx);
+        expect(after.waiting).toBe(0);
+        expect(after.batches[0]).toMatchObject({ id: run.created!.batchId, status: "CONFIRMED" });
+      });
       const events = await tx.select().from(auditEvent).where(eq(auditEvent.orgId, w.org.owner.id)).orderBy(asc(auditEvent.seq));
-      expect(events.at(-1)).toMatchObject({ eventType: "ANCHOR_CONFIRMED", actorUserId: w.u.vAdmin.id });
+      expect(events.at(-1)).toMatchObject({ eventType: "ANCHOR_CONFIRMED", actorUserId: w.u.platformAdmin.id });
     }));
 });
 

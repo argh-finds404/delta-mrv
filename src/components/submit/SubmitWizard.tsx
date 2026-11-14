@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { put } from "@vercel/blob/client";
 import exifr from "exifr";
@@ -24,6 +25,7 @@ import { HashDisplay } from "@/src/components/hash-display/hash-display";
 import { OfflineBanner } from "@/src/components/offline-banner/offline-banner";
 import { StepperProgress, type StepItem } from "@/src/components/stepper-progress/stepper-progress";
 import { activityColor } from "@/src/lib/activity";
+import { captureStatement, type CaptureSignature } from "@/src/lib/capture-statement";
 import { ACTIVITY_LABEL } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import {
@@ -31,6 +33,7 @@ import {
   generateAdversarialPair,
   type AdversarialScenario,
 } from "./adversarial-generator";
+import { signWithDeviceKey } from "./device-key";
 import {
   deleteOfflineDraft,
   fileToStored,
@@ -41,11 +44,15 @@ import {
 } from "./offline-vault";
 
 export interface SubmitWizardProps {
+  /** The signed-in account: this device keeps one signing key per account (X2). */
+  userId: string;
   projectId: string;
   projectTitle: string;
   activityType: string;
   supplementSubmissionId?: string;
   isDemoMode?: boolean;
+  /** Open the list of drafts saved on this device (the overview links here with ?drafts=1). */
+  openVault?: boolean;
 }
 
 type EvidenceRole = "BEFORE" | "AFTER" | "SUPPLEMENT";
@@ -65,18 +72,32 @@ interface PhotoSlot {
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB per doc 14 §6
 
 /**
- * Sends one file to the path the server chose. A development server that keeps evidence on its
- * own disk hands out its own tokens ("local:") and takes the bytes itself; everywhere else the
- * browser uploads straight to the private blob store.
+ * Sends one file to the path the server chose, reporting bytes sent as it goes. A development
+ * server that keeps evidence on its own disk hands out its own tokens ("local:") and takes the
+ * bytes itself (XHR, because fetch reports no upload progress); everywhere else the browser
+ * uploads straight to the private blob store.
  */
-async function uploadEvidence(pathname: string, file: File, token: string): Promise<void> {
+async function uploadEvidence(pathname: string, file: File, token: string, onProgress: (sent: number) => void): Promise<void> {
   if (!token.startsWith("local:")) {
-    await put(pathname, file, { access: "private", token });
+    await put(pathname, file, { access: "private", token, onUploadProgress: ({ loaded }) => onProgress(loaded) });
+    onProgress(file.size);
     return;
   }
-  const res = await fetch("/api/dev/storage", { method: "PUT", headers: { authorization: token, "x-pathname": pathname, "content-type": file.type || "image/jpeg" }, body: file });
-  if (!res.ok) throw new Error("The photo could not be stored. Try again.");
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", "/api/dev/storage");
+    xhr.setRequestHeader("authorization", token);
+    xhr.setRequestHeader("x-pathname", pathname);
+    xhr.setRequestHeader("content-type", file.type || "image/jpeg");
+    xhr.upload.onprogress = (e) => onProgress(e.loaded);
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? (onProgress(file.size), resolve()) : reject(new Error("The photo could not be stored. Try again.")));
+    xhr.onerror = () => reject(new Error("The photo could not be sent. Check your connection and try again."));
+    xhr.send(file);
+  });
 }
+
+type Upload = { role: EvidenceRole; name: string; sent: number; total: number };
+const mb = (bytes: number) => `${(bytes / 1_048_576).toFixed(1)} MB`;
 
 // What happens to a submission, in the words of the person sending it.
 const STEPS: StepItem[] = [
@@ -95,13 +116,21 @@ async function computeSha256(file: File): Promise<string> {
 }
 
 export function SubmitWizard({
+  userId,
   projectId,
   projectTitle,
   activityType,
   supplementSubmissionId,
   isDemoMode = true,
+  openVault = false,
 }: SubmitWizardProps) {
   const isSupplement = Boolean(supplementSubmissionId);
+  // per file, while it is sent: what the progress bars show
+  const [uploads, setUploads] = React.useState<Upload[]>([]);
+  const track = (role: EvidenceRole, file: File) => {
+    setUploads((u) => [...u.filter((x) => x.role !== role), { role, name: file.name, sent: 0, total: file.size }]);
+    return (sent: number) => setUploads((u) => u.map((x) => (x.role === role ? { ...x, sent: Math.min(sent, x.total) } : x)));
+  };
 
   const [before, setBefore] = React.useState<PhotoSlot>({
     file: null,
@@ -140,6 +169,8 @@ export function SubmitWizard({
   });
 
   const [note, setNote] = React.useState("");
+  // X2, opt-in: the signature publishes this browser's public key beside the record
+  const [signCapture, setSignCapture] = React.useState(false);
   const [deviceGps, setDeviceGps] = React.useState<{ lat: number; lon: number } | null>(null);
   const [isGettingGps, setIsGettingGps] = React.useState(false);
   const [gpsError, setGpsError] = React.useState<string | null>(null);
@@ -147,7 +178,7 @@ export function SubmitWizard({
   // Offline Draft Vault (IndexedDB)
   const [offlineCount, setOfflineCount] = React.useState(0);
   const [savedDrafts, setSavedDrafts] = React.useState<OfflineDraft[]>([]);
-  const [showVaultDrawer, setShowVaultDrawer] = React.useState(false);
+  const [showVaultDrawer, setShowVaultDrawer] = React.useState(openVault);
   const [vaultFeedback, setVaultFeedback] = React.useState<string | null>(null);
 
   // Adversarial Simulation State
@@ -167,21 +198,23 @@ export function SubmitWizard({
     () => true,
   );
 
+  // only this project's drafts: one restored here is sent to this project
   const refreshVault = React.useCallback(async () => {
     try {
-      const drafts = await listOfflineDrafts();
+      const drafts = (await listOfflineDrafts()).filter((d) => d.projectId === projectId);
       setSavedDrafts(drafts);
       setOfflineCount(drafts.length);
     } catch {
       // IndexedDB unready
     }
-  }, []);
+  }, [projectId]);
 
   React.useEffect(() => {
     let active = true;
     void listOfflineDrafts()
-      .then((drafts) => {
+      .then((all) => {
         if (!active) return;
+        const drafts = all.filter((d) => d.projectId === projectId);
         setSavedDrafts(drafts);
         setOfflineCount(drafts.length);
       })
@@ -189,7 +222,7 @@ export function SubmitWizard({
     return () => {
       active = false;
     };
-  }, []);
+  }, [projectId]);
 
   // Submission pipeline state
   const [submissionState, setSubmissionState] = React.useState<"idle" | "pipeline">("idle");
@@ -467,7 +500,7 @@ export function SubmitWizard({
 
         // 2. Direct upload to private blob store
         setStep("upload", { value: "Uploading the photo…" });
-        await uploadEvidence(tok.pathname, file, tok.clientToken);
+        await uploadEvidence(tok.pathname, file, tok.clientToken, track("SUPPLEMENT", file));
 
         // 3. Post supplement: a new round, and a forensics pass for it
         const suppRes = await fetch(`/api/submissions/${supplementSubmissionId}/supplement`, {
@@ -527,11 +560,23 @@ export function SubmitWizard({
       // 3. Direct upload to private blob store
       setStep("upload", { value: "Uploading both photos…" });
       await Promise.all([
-        uploadEvidence(beforeTok.pathname, bFile, beforeTok.clientToken),
-        uploadEvidence(afterTok.pathname, aFile, afterTok.clientToken),
+        uploadEvidence(beforeTok.pathname, bFile, beforeTok.clientToken, track("BEFORE", bFile)),
+        uploadEvidence(afterTok.pathname, aFile, afterTok.clientToken, track("AFTER", aFile)),
       ]);
 
-      // 4. Finalize submission in database transaction
+      // 4. Sign the pair with this device's key, if asked to; a browser that cannot sends it unsigned
+      let attestation: CaptureSignature | undefined;
+      if (signCapture) {
+        const signedAt = new Date().toISOString();
+        attestation = await signWithDeviceKey(
+          userId,
+          captureStatement(projectId, [{ role: "BEFORE", sha256: before.clientSha256! }, { role: "AFTER", sha256: after.clientSha256! }], signedAt),
+          signedAt,
+        ).catch(() => undefined);
+        setStep("hash", { value: attestation ? "Computed here and signed with this device's key. The server recomputes the fingerprints and checks the signature." : "Computed here. This browser could not sign them, so they were sent unsigned." });
+      }
+
+      // 5. Finalize submission in database transaction
       setStep("upload", { value: "Recording the files…" });
       const finRes = await fetch(`/api/submissions/${draft.id}/finalize`, {
         method: "POST",
@@ -541,6 +586,7 @@ export function SubmitWizard({
             { role: "BEFORE", pathname: beforeTok.pathname, clientSha256: before.clientSha256 },
             { role: "AFTER", pathname: afterTok.pathname, clientSha256: after.clientSha256 },
           ],
+          ...(attestation ? { attestation } : {}),
         }),
       });
       if (!finRes.ok) {
@@ -548,7 +594,7 @@ export function SubmitWizard({
         throw new Error(err?.error || `Intake finalization failed (${finRes.status})`);
       }
 
-      // 5. Follow the checks the server queued
+      // 6. Follow the checks the server queued
       await followChecks(draft.id);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Evidence transmission failed";
@@ -602,6 +648,7 @@ export function SubmitWizard({
     setDeviceGps(null);
     setSubmissionState("idle");
     setSteps(STEPS);
+    setUploads([]);
   };
 
   return (
@@ -795,6 +842,29 @@ export function SubmitWizard({
 
           <StepperProgress title="Submission progress" steps={steps} theme="field" />
 
+          {uploads.length > 0 && (
+            <ul aria-label="Upload progress" className="space-y-3">
+              {uploads.map((u) => {
+                const pct = u.total ? Math.round((u.sent / u.total) * 100) : 100;
+                return (
+                  <li key={u.role} className="space-y-1.5" data-testid={`upload-${u.role.toLowerCase()}`}>
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 text-[13px]">
+                      <span className="min-w-0 truncate text-field-text">
+                        {u.role === "BEFORE" ? "Before" : u.role === "AFTER" ? "After" : "Supplementary photo"} <span className="text-field-muted">{u.name}</span>
+                      </span>
+                      <span className="tabular-nums text-field-muted">
+                        {mb(u.sent)} of {mb(u.total)} · {pct}%
+                      </span>
+                    </div>
+                    <div role="progressbar" aria-label={`${u.role.toLowerCase()} photo upload`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} className="h-1.5 overflow-hidden rounded-full bg-field-raised">
+                      <div className="h-full rounded-full bg-signal transition-[width] duration-150" style={{ width: `${pct}%` }} />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
           <div className="flex flex-wrap items-center gap-3 border-t border-field-hairline pt-4">
             <button
               type="button"
@@ -903,6 +973,20 @@ export function SubmitWizard({
             )}
           </div>
 
+          {/* X2: an optional device signature over the pair's fingerprints */}
+          {!isSupplement && (
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-field-hairline bg-field-canopy p-4">
+              <input type="checkbox" checked={signCapture} onChange={(e) => setSignCapture(e.target.checked)} className="mt-0.5 size-4 accent-[var(--signal)]" />
+              <span className="space-y-1">
+                <span className="block text-xs font-medium text-field-text">Sign the photos with this device&apos;s key <span className="font-normal text-field-muted">(optional)</span></span>
+                <span className="block text-[11px] leading-relaxed text-field-muted">
+                  Anyone can then check that the fingerprints recorded are the ones this browser signed. The key is kept by this browser, not a hardware chip, and its public half is shown on the
+                  public proof page. It does not show where or when the photos were taken.
+                </span>
+              </span>
+            </label>
+          )}
+
           {/* Submission Gate & Actions */}
           <div className="space-y-3 border-t border-field-hairline pt-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -996,12 +1080,8 @@ function PhotoCaptureCard({
       {slot.previewUrl ? (
         <div className="space-y-3">
           <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-field-hairline bg-field-abyss">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={slot.previewUrl}
-              alt={`${role} preview`}
-              className="h-full w-full object-cover"
-            />
+            {/* a local blob: URL, so nothing to optimise */}
+            <Image src={slot.previewUrl} alt={`${role} preview`} fill unoptimized sizes="(min-width: 768px) 50vw, 100vw" className="object-cover" />
             <button
               type="button"
               onClick={() => inputRef.current?.click()}

@@ -4,21 +4,22 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { AnchorNow } from "@/src/components/admin/AnchorNow";
 import { RetryJobs } from "@/src/components/admin/RetryJobs";
-import { TakeOnReview } from "@/src/components/admin/TakeOnReview";
+import { AssignReviewer } from "@/src/components/admin/AssignReviewer";
+import { MatchResolver } from "@/src/components/admin/MatchResolver";
 import { TamperDemo } from "@/src/components/admin/TamperDemo";
 import { AppShell, AppShellLoading } from "@/src/components/app/AppShell";
 import { explorerAddress, explorerTx } from "@/src/lib/chain/registry";
 import { ACTIVITY_LABEL, formatCount } from "@/src/lib/format";
 import { requireSession } from "@/src/server/auth/session";
-import { auditChainHealth, jobQueueHealth, unassignedProjects } from "@/src/server/services/admin.service";
+import { auditChainHealth, jobQueueHealth, unassignedProjects, verifierOrganisations } from "@/src/server/services/admin.service";
 import { anchorOverview } from "@/src/server/services/anchor.service";
 import { ForbiddenError } from "@/src/server/services/errors";
 import { myOrganisations } from "@/src/server/services/projects.service";
-import { anchorNowAction, retryJobsAction, takeOnReviewAction, tamperDemoAction } from "./actions";
+import { anchorNowAction, assignReviewerAction, lookupMatchAction, resolveMatchAction, retryJobsAction, tamperDemoAction } from "./actions";
 
 export const metadata: Metadata = {
-  title: "Anchoring · Delta",
-  description: "Approved records waiting for the next batch, and every batch sent to the chain.",
+  title: "Operations · Delta",
+  description: "Anchoring, reviewer assignment, the job queue, duplicate matches and the audit chains.",
 };
 
 const STATUS = {
@@ -33,6 +34,7 @@ const JOB_LABEL: Record<string, string> = {
   "forensics.run": "Forensic checks on a submission",
   "ai.audit": "Advisory AI review of a submission",
   "drafts.sweep": "Daily sweep of abandoned drafts",
+  "satellite.ndvi": "Satellite vegetation cross-check",
 };
 
 const when = (d: Date | null) => (d ? `${d.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" })} UTC` : "");
@@ -41,13 +43,13 @@ const short = (h: string) => `${h.slice(0, 10)}…${h.slice(-8)}`;
 export default function AdminPage() {
   return (
     <React.Suspense fallback={<AppShellLoading />}>
-      <Anchoring />
+      <Operations />
     </React.Suspense>
   );
 }
 
-/** The anchor panel of /admin (docs/05-ROUTES.md §3). Anyone the service refuses gets a 404. */
-async function Anchoring() {
+/** /admin (docs/05-ROUTES.md §3), for operators. Anyone the service refuses gets a 404. */
+async function Operations() {
   await connection();
   const session = await requireSession();
   const actor = { userId: session.user.id };
@@ -58,21 +60,31 @@ async function Anchoring() {
     }),
     myOrganisations(actor),
   ]);
-  const [chains, waitingProjects, queue] = await Promise.all([auditChainHealth(actor), unassignedProjects(actor), jobQueueHealth(actor)]);
+  const [chains, waitingProjects, queue, verifiers] = await Promise.all([auditChainHealth(actor), unassignedProjects(actor), jobQueueHealth(actor), verifierOrganisations(actor)]);
   const demoMode = process.env.DEMO_MODE === "true";
   const { waiting, unsealed, configured, batches } = overview;
   const unfinished = batches.filter((b) => b.status !== "CONFIRMED").length;
   const contract = batches[0]?.contractAddress;
 
   return (
-    <AppShell active="anchoring" userName={session.user.name || session.user.email} context={orgs[0]?.orgName} review={{ count: 0 }} anchoring>
+    <AppShell active="operations" userName={session.user.name || session.user.email} context={orgs[0]?.orgName} review={{ count: 0 }} operator>
       <main className="mx-auto max-w-[1200px] space-y-12 px-4 py-10 sm:px-6 lg:py-14">
         <header className="rise-in space-y-3">
-          <h1 className="font-serif text-[40px] leading-[1.05] tracking-[-0.02em] sm:text-[48px]">Anchoring</h1>
+          <h1 className="font-serif text-[40px] leading-[1.05] tracking-[-0.02em] sm:text-[48px]">Operations</h1>
           <p className="max-w-[68ch] text-[16px] leading-[1.6] text-field-muted">
-            Once a day, every newly approved record is batched into one fingerprint and that fingerprint is written to Base Sepolia. A record becomes Anchored only when the chain confirms its batch. Anchoring changes no decision.
+            Running the platform: anchoring, who reviews which project, background jobs, duplicate matches and the audit chains. Nothing here approves, rejects or changes a decision.
           </p>
         </header>
+
+        <section aria-labelledby="anchoring" className="space-y-6">
+        <div className="space-y-2">
+          <h2 id="anchoring" className="font-serif text-[28px] leading-tight tracking-[-0.01em]">
+            Anchoring
+          </h2>
+          <p className="max-w-[68ch] text-[15px] leading-[1.6] text-field-muted">
+            Once a day, every newly approved record is batched into one fingerprint and that fingerprint is written to Base Sepolia. A record becomes Anchored only when the chain confirms its batch.
+          </p>
+        </div>
 
         <section aria-labelledby="waiting" className="rise-in lift grid gap-6 rounded-2xl border border-field-hairline bg-field-canopy p-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
           <div className="space-y-1">
@@ -101,9 +113,9 @@ async function Anchoring() {
 
         <section aria-labelledby="batches" className="rise-in space-y-4">
           <div className="flex flex-wrap items-baseline justify-between gap-4">
-            <h2 id="batches" className="font-serif text-[28px] leading-tight tracking-[-0.01em]">
+            <h3 id="batches" className="font-serif text-[22px] leading-tight tracking-[-0.01em]">
               Batches
-            </h2>
+            </h3>
             {contract && (
               <a href={explorerAddress(contract)} target="_blank" rel="noreferrer" className="font-mono text-[13px] text-field-muted underline decoration-field-hairline underline-offset-4 hover:text-field-text">
                 Contract {short(contract)}
@@ -156,20 +168,21 @@ async function Anchoring() {
             </div>
           )}
         </section>
+        </section>
 
-        {/* always shown: a new verifier organisation is sent here to find its first project */}
+        {/* always shown: assigning reviewers is the step a new project waits on */}
         <section aria-labelledby="unassigned" className="rise-in space-y-4">
           <h2 id="unassigned" className="font-serif text-[28px] leading-tight tracking-[-0.01em]">
             Projects with no reviewer
           </h2>
           {waitingProjects.length === 0 ? (
             <p className="max-w-[68ch] text-[15px] leading-[1.6] text-field-muted">
-              Every project has a reviewer at the moment. A newly registered project is listed here until an independent organisation takes it on.
+              Every project has a reviewer at the moment. A newly registered project is listed here until you assign it an independent verifier organisation.
             </p>
           ) : (
             <>
             <p className="max-w-[68ch] text-[15px] leading-[1.6] text-field-muted">
-              Nothing submitted to these projects can be approved until an independent organisation reviews them. Taking one on lets your organisation&apos;s reviewers vote on it, and is recorded on the owner&apos;s audit chain.
+              Nothing submitted to these projects can be approved until an independent organisation reviews them. Assigning one lets that organisation&apos;s reviewers vote on the project, and is recorded on the owner&apos;s audit chain. Projects whose owners asked for a reviewer come first.
             </p>
             <ul className="divide-y divide-field-hairline rounded-2xl border border-field-hairline bg-field-canopy">
               {waitingProjects.map((p) => (
@@ -178,9 +191,10 @@ async function Anchoring() {
                     <p className="font-medium">{p.title}</p>
                     <p className="text-[13px] text-field-muted">
                       {ACTIVITY_LABEL[p.activityType] ?? p.activityType} · {p.ownerOrgName}
+                      {p.requestedAt && <span className="text-review"> · reviewer asked for {when(p.requestedAt)}</span>}
                     </p>
                   </div>
-                  <TakeOnReview projectId={p.id} action={takeOnReviewAction} />
+                  <AssignReviewer projectId={p.id} verifiers={verifiers} action={assignReviewerAction} />
                 </li>
               ))}
             </ul>
@@ -232,6 +246,16 @@ async function Anchoring() {
               <RetryJobs action={retryJobsAction} />
             </>
           )}
+        </section>
+
+        <section aria-labelledby="matches" className="rise-in space-y-4">
+          <h2 id="matches" className="font-serif text-[28px] leading-tight tracking-[-0.01em]">
+            Duplicate matches
+          </h2>
+          <p className="max-w-[68ch] text-[15px] leading-[1.6] text-field-muted">
+            A finding that matches another organisation&apos;s photo names it only by a match reference, so reviewers never learn whose it is. Paste one here to see both sides, then record whether it is a reuse. The record changes no finding, score or decision; the reviewers read it beside the finding.
+          </p>
+          <MatchResolver lookup={lookupMatchAction} resolve={resolveMatchAction} />
         </section>
 
         <section aria-labelledby="chains" className="rise-in space-y-4">

@@ -2,7 +2,7 @@ import * as React from "react";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { AppShell, AppShellLoading } from "@/src/components/app/AppShell";
-import { canRunAnchoring } from "@/src/lib/org-type";
+import { isOperator } from "@/src/server/services/operators";
 import { requireSession } from "@/src/server/auth/session";
 import { myOrganisations } from "@/src/server/services/projects.service";
 import { LabWorkspace } from "./LabWorkspace";
@@ -25,7 +25,7 @@ async function Review() {
   const session = await requireSession();
   const orgs = await myOrganisations({ userId: session.user.id });
   return (
-    <AppShell active="review" userName={session.user.name || session.user.email} context={orgs[0]?.orgName} review={{ count: 0 }} anchoring={canRunAnchoring(orgs)} fill>
+    <AppShell active="review" userName={session.user.name || session.user.email} context={orgs[0]?.orgName} review={{ count: 0 }} operator={await isOperator({ userId: session.user.id })} fill>
       <LabWorkspace />
     </AppShell>
   );

@@ -143,10 +143,14 @@ wrong. Stop and ask.
 
 This suite must pass before any reviewer UI is built.
 
-> **Platform-admin row, as of Stage 2.** The schema has no admin role, so this test
-> uses a user who belongs to no organisation. It proves only that no voting path
-> exists for such a user; it does not prove that a platform admin role is blocked,
-> because that role is not represented. Revisit at Stage 8, when an admin role exists.
+> **Platform-admin row, as of 2026-11-14.** The platform admin is an *operator*: an
+> account whose address is listed in `OPERATOR_EMAILS` (`src/server/services/operators.ts`;
+> on a demo deployment also the seeded `audit-admin@delta-demo.example`). The test lists
+> its user as an operator and proves the role grants no vote and cannot break a tie.
+> Operators run `/admin`: anchoring, the job queue, audit-chain checks, assigning a verifier
+> organisation to a project, and matchRef resolution. Organisations never assign themselves.
+> Email verification is off, so an operator's account must exist before its address is
+> listed on a deployment others can sign up to.
 
 ## 5. Tenant isolation
 

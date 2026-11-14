@@ -11,7 +11,7 @@ import {
 import { assertCanReview, castDecision } from "../../src/server/services/reviews.service";
 import { getSubmission } from "../../src/server/services/submissions.service";
 import { client, inRollback, type Tx } from "./db";
-import { actor, REASON, world, type World } from "./fixtures";
+import { actor, asOperators, REASON, world, type World } from "./fixtures";
 
 afterAll(() => client.end());
 
@@ -126,11 +126,13 @@ describe("escalation: the deciding vote", () => {
   });
 
   scenario("platform admin attempts to approve -> ForbiddenError", async (tx, w) => {
-    // No organisation, hence no assigned verifier org: there is no path to a vote.
-    await expect(decide(tx, w, w.u.platformAdmin, "APPROVE")).rejects.toBeInstanceOf(ForbiddenError);
-    // ...nor can it break a tie
-    await escalate(tx, w);
-    await expect(decide(tx, w, w.u.platformAdmin, "APPROVE")).rejects.toBeInstanceOf(ForbiddenError);
+    // A real operator (OPERATOR_EMAILS) with no organisation: the role grants no vote...
+    await asOperators([w.u.platformAdmin], async () => {
+      await expect(decide(tx, w, w.u.platformAdmin, "APPROVE")).rejects.toBeInstanceOf(ForbiddenError);
+      // ...nor can it break a tie
+      await escalate(tx, w);
+      await expect(decide(tx, w, w.u.platformAdmin, "APPROVE")).rejects.toBeInstanceOf(ForbiddenError);
+    });
   });
 
   scenario("an escalated submission cannot be sent back for more proof -> ConflictError", async (tx, w) => {

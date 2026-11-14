@@ -157,7 +157,7 @@ Zero-cost means no transactional email provider. Therefore:
 
 - Invitations are **copyable links** with a role and an expiry, shown once.
 - No email verification. No password reset by email.
-- Alerts are in-app lists and webhooks.
+- Alerts are in-app lists. (Webhooks, S10, were cut on 2026-11-14.)
 
 State this plainly on `/trust` as a stated limitation of the demonstration
 build rather than letting someone discover a dead "forgot password" link.

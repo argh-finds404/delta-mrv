@@ -286,7 +286,7 @@ export function LabWorkspace() {
   const centreMessage = (() => {
     if (source.kind === "loading") return { title: "Loading the review queue", reason: "Fetching the submissions assigned to your organisation." };
     if (source.kind === "error") return { title: source.signedOut ? "Sign in again" : "The queue did not load", reason: source.message };
-    if (emptyMode === "no-assignments") return { title: "Your review queue", reason: "Your organisation has not taken on a project yet, so nothing can reach this queue. An administrator of your organisation takes on projects that have no reviewer, on the Anchoring tab." };
+    if (emptyMode === "no-assignments") return { title: "Your review queue", reason: "No project has been assigned to your organisation yet, so nothing can reach this queue. A Delta operator assigns each new project to an independent verifier organisation." };
     if (emptyMode === "not-a-verifier") return { title: "No review queue", reason: "The Evidence Lab is for verifier organisations. Your organisation does not review submissions, so there is nothing to show here." };
     return { title: "Queue clear", reason: "Nothing is awaiting your review. New submissions appear here automatically once forensic processing completes." };
   })();
@@ -433,24 +433,24 @@ export function LabWorkspace() {
                   const afterFile = activeReal.files.findLast((f) => f.role === "AFTER")!;
                   const supplements = activeReal.files.filter((f) => f.role === "SUPPLEMENT");
                   return (
-                    <>
-                    {supplements.length > 0 && (
-                      // the new evidence of a later round: in view, not folded into the details
-                      <p className="flex shrink-0 flex-wrap items-baseline gap-x-4 gap-y-1 rounded-lg border border-field-hairline bg-field-raised px-3 py-2 text-[14px]">
-                        <span className="text-field-muted">Sent after more proof was asked for:</span>
-                        {supplements.map((f, i) => (
-                          <a key={f.id} href={`/api/evidence/${f.id}`} target="_blank" rel="noreferrer" className="font-medium text-signal underline underline-offset-4">
-                            Supplementary photo {i + 1}, round {f.round}
-                          </a>
-                        ))}
-                      </p>
-                    )}
                     <EvidencePair
+                      key={activeReal.id}
                       className="flex-1"
                       before={toImage(beforeFile)}
                       after={toImage(afterFile)}
                       beforeLabel="Before"
                       afterLabel="After"
+                      // a record sent back for more proof: each supplement against the before photo, latest first
+                      views={
+                        supplements.length
+                          ? [
+                              ...supplements
+                                .map((f, i) => ({ label: `Round ${f.round}${supplements.length > 1 ? ` (${i + 1})` : ""}`, before: toImage(beforeFile), after: toImage(f), afterLabel: `Supplement, round ${f.round}` }))
+                                .reverse(),
+                              { label: `Round ${beforeFile.round}`, before: toImage(beforeFile), after: toImage(afterFile), afterLabel: "After" },
+                            ]
+                          : undefined
+                      }
                       details={
                         <div className="space-y-3">
                           <dl className="space-y-1">
@@ -472,7 +472,6 @@ export function LabWorkspace() {
                         </div>
                       }
                     />
-                    </>
                   );
                 })()
               ) : (

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import NextImage from "next/image";
 
 // Our watercolour reveal, written for Delta. Three inputs per scene, all made by
 // scripts/render-hero-from-art.ts from the hero illustrations:
@@ -192,8 +193,8 @@ export function DrawnWatercolor({ art, alt, meta, paused = false }: DrawnWaterco
   return (
     <div ref={boxRef} data-phase={phase} className="dw-fig relative aspect-[2/1] w-full overflow-hidden">
       {/* the finished painting: the still frame, the reduced-motion view, and what the canvas ends on.
-          A plain img (not next/image) so the canvas lies on exactly the same pixels. */}
-      <img src={`/images/hero/${art}.webp`} alt={alt} width={1800} height={900} className="absolute inset-0 h-full w-full object-cover" draggable={false} />
+          Unoptimised, so the file is served as it is and the canvas lies on exactly the same pixels. */}
+      <NextImage src={`/images/hero/${art}.webp`} alt={alt} width={1800} height={900} unoptimized className="absolute inset-0 h-full w-full object-cover" draggable={false} />
       {phase !== "done" && <canvas ref={canvasRef} aria-hidden="true" className="dw-canvas pointer-events-none absolute inset-0 h-full w-full" />}
     </div>
   );

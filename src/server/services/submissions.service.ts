@@ -26,6 +26,7 @@ import type { GeoPoint } from "../db/schema/types";
 import { actorContext, assignedVerifierOrgs, isUuid, parseInput, type Actor, type ActorContext, type Executor } from "./access";
 import { ConflictError, NotFoundError, ValidationError } from "./errors";
 import { appendAuditEvent } from "./audit-chain.service";
+import { checkCaptureAttestation, type StoredAttestation } from "./capture-attestation";
 import { dHashOf, FORENSICS_JOB, RULE_VERSION, type ExifFacts } from "./forensics.service";
 import { enqueueJob } from "./jobs.service";
 
@@ -132,7 +133,10 @@ export async function listSubmissionsForProject(actor: Actor | null, projectId: 
 export type FindingView = Pick<
   typeof forensicFinding.$inferSelect,
   "id" | "evidenceFileId" | "kind" | "severity" | "reason" | "evidence" | "ruleVersion" | "createdAt"
->;
+> & {
+  /** An operator's latest conclusion about a matchRef this finding carries (admin.service). Never names the other side. */
+  resolution?: { outcome: "CONFIRMED" | "CLEARED"; reason: string; at: Date };
+};
 
 /**
  * A submission's findings, with the submission (and so its cached score) beside them: the
@@ -155,7 +159,27 @@ export async function listFindings(actor: Actor | null, submissionId: string, x:
     .from(forensicFinding)
     .where(eq(forensicFinding.submissionId, submission.id))
     .orderBy(forensicFinding.createdAt, forensicFinding.kind, forensicFinding.id);
-  return { submission, findings };
+
+  // an operator's conclusion about a match is on this submission's own chain, under its matchRef
+  const refs = findings.map((f) => (f.evidence as { matchRef?: unknown }).matchRef).filter((r): r is string => typeof r === "string");
+  if (!refs.length) return { submission, findings };
+  const resolved = await x
+    .select({ payload: auditEvent.payload, at: auditEvent.createdAt })
+    .from(auditEvent)
+    .where(and(eq(auditEvent.orgId, submission.ownerOrgId), eq(auditEvent.eventType, "MATCH_RESOLVED"), sql`${auditEvent.payload}->>'submissionId' = ${submission.id}`))
+    .orderBy(auditEvent.seq);
+  const latest = new Map<string, NonNullable<FindingView["resolution"]>>();
+  for (const e of resolved) {
+    const p = e.payload as { matchRef: string; outcome: "CONFIRMED" | "CLEARED"; reason: string };
+    latest.set(p.matchRef, { outcome: p.outcome, reason: p.reason, at: e.at });
+  }
+  return {
+    submission,
+    findings: findings.map((f) => {
+      const resolution = latest.get(String((f.evidence as { matchRef?: unknown }).matchRef));
+      return resolution ? { ...f, resolution } : f;
+    }),
+  };
 }
 
 export type EvidenceFileView = {
@@ -184,6 +208,8 @@ export type SubmissionDetail = {
   files: EvidenceFileView[];
   /** This submission's events on its owner's audit chain, oldest first. */
   events: { seq: number; eventType: string; createdAt: Date; eventHash: string }[];
+  /** X2: the device signature sent with the pair, as checked at finalize. Null when none was sent. */
+  capture: StoredAttestation | null;
 };
 
 /**
@@ -204,7 +230,7 @@ export async function getSubmissionDetail(actor: Actor, id: string, x: Executor 
       : null;
   if (!access) throw new NotFoundError(NOT_FOUND);
 
-  const [[project], files, events] = await Promise.all([
+  const [[project], files, events, [attested]] = await Promise.all([
     x
       .select({ id: impactProject.id, title: impactProject.title, activityType: impactProject.activityType, toleranceMeters: impactProject.toleranceMeters, ownerOrgName: organization.name })
       .from(impactProject)
@@ -232,8 +258,16 @@ export async function getSubmissionDetail(actor: Actor, id: string, x: Executor 
       .from(auditEvent)
       .where(and(eq(auditEvent.orgId, submission.ownerOrgId), sql`${auditEvent.payload}->>'submissionId' = ${submission.id}`))
       .orderBy(asc(auditEvent.seq)),
+    x.select({ capture: evidenceSubmission.captureAttestation }).from(evidenceSubmission).where(eq(evidenceSubmission.id, submission.id)),
   ]);
-  return { submission, access, project: project!, files: files.map((f) => ({ ...f, exif: (f.exif as ExifFacts | null) ?? null })), events };
+  return {
+    submission,
+    access,
+    project: project!,
+    files: files.map((f) => ({ ...f, exif: (f.exif as ExifFacts | null) ?? null })),
+    events,
+    capture: (attested?.capture as StoredAttestation | null) ?? null,
+  };
 }
 
 export type PublicProof = {
@@ -252,6 +286,12 @@ export type PublicProof = {
   decisions: { decision: (typeof reviewDecision.$inferSelect)["decision"]; reason: string; round: number; createdAt: Date; reviewerOrgName: string }[];
   /** The canonical document sealed at approval, exactly as stored: a verifier hashes it itself. Null for a record approved without one. */
   manifest: Manifest | null;
+  /**
+   * X2: the device signature over the first round's pair, when one was sent and verified at
+   * finalize; the proof page checks it again in the visitor's browser. The public key is a
+   * pseudonym of the signing browser, nothing more.
+   */
+  capture: { publicKey: string; signature: string; signedAt: string } | null;
   /** The batch this record's leaf is in, whatever its state, with the leaf's proof path. Null until it is batched. */
   anchor: {
     batchId: number;
@@ -314,6 +354,7 @@ export async function getPublicProof(submissionId: string, x: Executor = db): Pr
   ]);
   const { s, p } = row;
   const anchor = anchors[0];
+  const attested = s.captureAttestation as StoredAttestation | null;
   return {
     submission: { id: s.id, status: s.status as "APPROVED" | "ANCHORED", round: s.round, submittedAt: s.submittedAt, anchored: s.status === "ANCHORED" },
     project: {
@@ -329,6 +370,7 @@ export async function getPublicProof(submissionId: string, x: Executor = db): Pr
     files,
     decisions,
     manifest: (s.manifest as Manifest | null) ?? null,
+    capture: attested?.verified ? { publicKey: attested.publicKey, signature: attested.signature, signedAt: attested.signedAt } : null,
     anchor: anchor ? { ...anchor, proof: anchor.proof as string[] } : null,
   };
 }
@@ -434,6 +476,8 @@ const fileSchema = z.object({
     .optional(),
 });
 const pairSchema = z.object({
+  // X2: an optional device signature over the pair; checked, never required (capture-attestation.ts)
+  attestation: z.unknown().optional(),
   files: z
     .array(fileSchema.extend({ role: z.enum(["BEFORE", "AFTER"]) }))
     .length(2, "a submission is exactly one BEFORE and one AFTER photo")
@@ -564,7 +608,7 @@ async function recordHashMismatches(x: Executor, rows: { id: string; submissionI
 export async function finalizeSubmission(
   actor: Actor,
   submissionId: string,
-  input: { files: { role: "BEFORE" | "AFTER"; pathname: string; clientSha256?: string }[] },
+  input: { files: { role: "BEFORE" | "AFTER"; pathname: string; clientSha256?: string }[]; attestation?: unknown },
   x: Executor = db,
   storage: StoragePort = evidenceStorage,
 ): Promise<SubmissionSummary> {
@@ -573,17 +617,28 @@ export async function finalizeSubmission(
     const s = await loadOwnForWrite(tx, actor, submissionId, ["DRAFT"]);
     const stored = await Promise.all(data.files.map((f) => readStoredUpload(storage, s, f.pathname)));
     assertTransition(s.status, "PENDING_FORENSICS");
+    // against the server's own fingerprints of the stored bytes, never the client's
+    const capture = checkCaptureAttestation(data.attestation, s.projectId, data.files.map((f, i) => ({ role: f.role, sha256: stored[i]!.sha256 })));
     const rows = await tx
       .insert(evidenceFile)
       .values(data.files.map((f, i) => ({ submissionId: s.id, role: f.role, storageKey: f.pathname, ...stored[i]!, clientSha256: f.clientSha256 ?? null, round: s.round })))
       .returning();
     await recordHashMismatches(tx, rows);
-    const [updated] = await tx.update(evidenceSubmission).set({ status: "PENDING_FORENSICS" }).where(eq(evidenceSubmission.id, s.id)).returning();
+    const [updated] = await tx.update(evidenceSubmission).set({ status: "PENDING_FORENSICS", captureAttestation: capture }).where(eq(evidenceSubmission.id, s.id)).returning();
     await appendAuditEvent(tx, {
       orgId: s.ownerOrgId,
       eventType: "SUBMISSION_FINALIZED",
       actorUserId: actor.userId,
-      payload: { submissionId: s.id, projectId: s.projectId, round: s.round, from: "DRAFT", status: "PENDING_FORENSICS", files: rows.map((r) => ({ role: r.role, sha256: r.sha256 })) },
+      payload: {
+        submissionId: s.id,
+        projectId: s.projectId,
+        round: s.round,
+        from: "DRAFT",
+        status: "PENDING_FORENSICS",
+        files: rows.map((r) => ({ role: r.role, sha256: r.sha256 })),
+        // the chain fixes the signature too: the column alone could be edited later
+        ...(capture ? { capture: { keyId: capture.keyId, verified: capture.verified, signature: capture.signature } } : {}),
+      },
     });
     await enqueueJob({ kind: FORENSICS_JOB, payload: { submissionId: s.id, round: s.round }, idempotencyKey: `forensics:${s.id}:${s.round}` }, tx);
     return toSummary(updated!);

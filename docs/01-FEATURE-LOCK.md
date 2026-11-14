@@ -41,14 +41,15 @@ is out of scope. Do not build it, do not scaffold it, do not add a
 | S7 | **Printable proof certificate** | Print stylesheet on `/proof/[id]`. No dependencies. |
 | S8 | **Labelled forensic eval set** | Precision/recall over resized, recompressed, cropped and cross-project duplicates → `docs/FORENSIC_EVAL.md`. |
 | S9 | **5k+ seeded submissions + local k6** | Seed reuses a small image pool. k6 against local Docker Postgres only, never against the hosted free tier. |
-| S10 | **Webhooks** | Signed, retried. |
+| S10 | ~~Webhooks~~ | **Cut** (2026-11-14, maintainer decision), first in the cut order below. No schema, no route; alerts are in-app lists. |
 
 ## STRETCH — only after everything above ships
 
 | # | Feature |
 |---|---|
-| X1 | Sentinel-2 NDVI cross-check, feature-flagged, graceful `inconclusive` |
-| X2 | Passkey-signed capture hash / C2PA read |
+| X1 | Sentinel-2 NDVI cross-check, feature-flagged, graceful `inconclusive` — **built 2026-11-14**: free keyless Earth Search, `NDVI_ENABLED`, one `SATELLITE_NDVI` finding, always `INFO` |
+| X2 | Passkey-signed capture hash / C2PA read — **built 2026-11-14 as a device-key signature**: a non-extractable WebCrypto P-256 key in the browser, checked at finalize and again on the proof page. Not WebAuthn, not hardware-backed, no C2PA read |
+| X3 | Error level analysis lens in the Evidence Lab — **added by the maintainer 2026-11-14**: browser-only, toggled on the comparison, a reading aid that writes no finding |
 
 ## CUT — never build these
 
@@ -70,6 +71,8 @@ is out of scope. Do not build it, do not scaffold it, do not add a
 Cut in exactly this order. Never cut a MUST.
 
 `S10 webhooks → S4 funder portal → S8 eval set → S6 replay → S1 quorum`
+
+S10 was cut on 2026-11-14. Nothing else on this list has been.
 
 ---
 

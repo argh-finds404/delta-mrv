@@ -36,6 +36,13 @@
       "when": 1793636913758,
       "tag": "0004_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794614762857,
+      "tag": "0005_satellite_and_capture",
+      "breakpoints": true
     }
   ]
 }
