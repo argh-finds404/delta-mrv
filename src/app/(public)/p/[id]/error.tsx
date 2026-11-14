@@ -40,7 +40,7 @@ export default function ProjectError({
 
       <main className="mx-auto max-w-lg px-6 py-20 text-center space-y-6">
         <div className="mx-auto flex size-12 items-center justify-center rounded-full border border-paper-rule bg-paper-card text-paper-ink">
-          <AlertCircle className="size-6 text-[#B4432F]" aria-hidden />
+          <AlertCircle className="size-6 text-fraud" aria-hidden />
         </div>
 
         <div className="space-y-2">

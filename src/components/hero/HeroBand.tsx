@@ -52,14 +52,16 @@ export function HeroBand() {
       return next === s.active ? s : { active: next, gen: s.gen + 1, prev: { index: s.active, gen: s.gen } };
     });
 
-  // the first scene's files start loading with the page; the rest once it is under way
+  // the first scene's files load with the page; each next scene's while the one before it plays,
+  // so a visitor who leaves early never downloads the paintings they would not have seen
   for (const href of heroArtFiles(scenes[0]!.art)) preload(href, { as: "image" });
   React.useEffect(() => {
+    const next = scenes[(active + 1) % scenes.length]!;
     const t = setTimeout(() => {
-      for (const s of scenes.slice(1)) for (const href of heroArtFiles(s.art)) new Image().src = href;
-    }, 1500);
+      for (const href of heroArtFiles(next.art)) new Image().src = href;
+    }, 3000);
     return () => clearTimeout(t);
-  }, [scenes]);
+  }, [scenes, active]);
 
   React.useEffect(() => {
     const el = rootRef.current;
@@ -75,7 +77,6 @@ export function HeroBand() {
 
   return (
     <div className="contents">
-      {/* Left Column, Row 2: Tabs with progress bar and active caption */}
       <div className="hero-band relative z-10 order-last space-y-4 lg:order-none lg:col-start-1 lg:row-start-2 lg:self-start" data-running={running || undefined}>
         <div className="flex items-start gap-4">
           <div role="tablist" aria-label="How Delta checks a claim" className="grid flex-1 grid-cols-4 gap-3">
@@ -125,7 +126,6 @@ export function HeroBand() {
           </button>
         </div>
 
-        {/* Caption */}
         <p
           key={gen}
           id="hero-panel"
@@ -142,7 +142,6 @@ export function HeroBand() {
         </p>
       </div>
 
-      {/* Right Column, Rows 1-2: the painting, with no frame: it thins into the paper at its edges */}
       <figure
         ref={rootRef}
         className="hero-art relative -mx-6 sm:mx-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-center"

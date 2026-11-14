@@ -138,7 +138,6 @@ async function ProjectBody({ params }: ProjectPageProps) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Left: Claim */}
             <div className="rounded-lg border border-paper-rule bg-paper-card p-5 space-y-2">
               <span className="text-xs font-medium text-paper-muted block">
                 1. Project developer claim
@@ -151,7 +150,6 @@ async function ProjectBody({ params }: ProjectPageProps) {
               </p>
             </div>
 
-            {/* Right: Record */}
             <div className="rounded-lg border border-paper-seal/40 bg-paper-card p-5 space-y-2 flex flex-col justify-between">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -186,8 +184,7 @@ async function ProjectBody({ params }: ProjectPageProps) {
             </div>
           </div>
 
-          {/* Unflattering gap banner */}
-          <div className="rounded-lg border border-[#E8A33D]/40 bg-[#E8A33D]/10 p-4 text-xs font-sans text-[#8F5B10] flex items-start gap-2.5">
+          <div className="rounded-lg border border-review/30 bg-review/10 p-4 text-xs font-sans text-review flex items-start gap-2.5">
             <AlertCircle className="size-4 shrink-0 mt-0.5" />
             <div>
               <span className="font-semibold">The honest gap: </span>

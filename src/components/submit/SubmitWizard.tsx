@@ -287,7 +287,7 @@ export function SubmitWizard({
       // 1. Client-side SHA-256 computation
       const hash = await computeSha256(file);
 
-      // 2. Client-side EXIF inspection via exifr (Feature 1 & 5)
+      // 2. Client-side EXIF inspection via exifr
       let parsedGps: { latitude: number; longitude: number } | null = null;
       let cameraModel: string | null = null;
       let dateTimeOriginal: string | null = null;
@@ -697,7 +697,6 @@ export function SubmitWizard({
 
         <div className="flex flex-wrap items-center justify-end gap-2 pt-1 text-xs text-field-muted">
 
-          {/* Local Vault Badge */}
           {offlineCount > 0 && (
             <button
               type="button"
@@ -711,7 +710,6 @@ export function SubmitWizard({
         </div>
       </header>
 
-      {/* Local Vault Drawer */}
       {showVaultDrawer && savedDrafts.length > 0 && (
         <div className="rounded-xl border border-field-hairline bg-field-canopy p-4 space-y-3">
           <div className="flex items-center justify-between">
@@ -756,7 +754,6 @@ export function SubmitWizard({
         </div>
       )}
 
-      {/* Adversarial Fraud Simulator Bar (Feature 8) */}
       {isDemoMode && !isSupplement && submissionState === "idle" && (
         <div className="rounded-xl border border-signal/20 bg-field-canopy/60 p-4 space-y-3">
           <div className="flex items-center justify-between">
@@ -886,7 +883,6 @@ export function SubmitWizard({
       ) : (
         /* 4. Active Submit Form */
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Pair Upload Cards OR Supplement Card */}
           {isSupplement ? (
             <PhotoCaptureCard
               role="SUPPLEMENT"
@@ -915,7 +911,6 @@ export function SubmitWizard({
             </div>
           )}
 
-          {/* Optional Note */}
           <div className="rounded-xl border border-field-hairline bg-field-canopy p-4 space-y-2">
             <label htmlFor="submit-note" className="block text-xs font-medium text-field-text">
               {isSupplement ? "Remediation Notes" : "Field Observations"}{" "}
@@ -936,7 +931,6 @@ export function SubmitWizard({
             />
           </div>
 
-          {/* Optional Device Location */}
           <div className="rounded-xl border border-field-hairline bg-field-canopy p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
@@ -987,7 +981,6 @@ export function SubmitWizard({
             </label>
           )}
 
-          {/* Submission Gate & Actions */}
           <div className="space-y-3 border-t border-field-hairline pt-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="text-xs text-field-muted">
@@ -1107,7 +1100,7 @@ function PhotoCaptureCard({
               ) : null}
             </div>
 
-            {/* 2. Client-Side EXIF Pre-Flight Inspection (Feature 1 & 5) */}
+            {/* 2. Client-side EXIF pre-flight inspection */}
             {slot.exifChecked && (
               <div className="space-y-1.5 pt-1 border-t border-field-hairline/60">
                 {slot.gps ? (

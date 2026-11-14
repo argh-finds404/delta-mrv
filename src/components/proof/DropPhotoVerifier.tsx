@@ -121,7 +121,6 @@ export function DropPhotoVerifier({
         </p>
       </div>
 
-      {/* Drop Zone */}
       <div
         onDrop={onDrop}
         onDragOver={onDragOver}
@@ -175,9 +174,8 @@ export function DropPhotoVerifier({
         className="hidden"
       />
 
-      {/* Real-time Verification Output */}
       {isHashing && (
-        <div className="mt-4 flex items-center gap-2 text-xs font-mono text-signal animate-pulse">
+        <div className={cn("mt-4 flex items-center gap-2 text-xs font-mono animate-pulse", isPaper ? "text-paper-muted" : "text-signal")}>
           <HardDrive className="size-4" />
           <span>Computing SHA-256 digest on local device…</span>
         </div>
@@ -208,7 +206,6 @@ export function DropPhotoVerifier({
             />
           </div>
 
-          {/* Verdict Banner */}
           {matchedFile ? (
             <div
               className={cn(
@@ -235,7 +232,7 @@ export function DropPhotoVerifier({
               className={cn(
                 "rounded-lg border p-4 space-y-2",
                 isPaper
-                  ? "border-[#E8A33D]/40 bg-[#E8A33D]/10 text-[#9A6014]"
+                  ? "border-review/30 bg-review/10 text-review"
                   : "border-review/40 bg-review/10 text-review",
               )}
             >
@@ -253,7 +250,6 @@ export function DropPhotoVerifier({
         </div>
       )}
 
-      {/* Permanent Privacy & Client-Side Notice */}
       <div
         className={cn(
           "mt-4 flex items-start gap-2 text-[11px] leading-relaxed pt-3 border-t",

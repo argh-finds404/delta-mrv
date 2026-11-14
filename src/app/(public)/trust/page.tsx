@@ -46,7 +46,7 @@ const STATUS: [part: string, built: boolean][] = [
   ["Device signature over the photos' fingerprints (a browser-held key, optional)", true],
 ];
 
-const sev = { INFO: "text-paper-muted", LOW: "text-paper-ink", MEDIUM: "text-[#8A5A12]", HIGH: "text-[#A3301E]" } as const;
+const sev = { INFO: "text-paper-muted", LOW: "text-paper-ink", MEDIUM: "text-review", HIGH: "text-fraud" } as const;
 
 export default function TrustPage() {
   const cellKm = Math.round((111.32 / FUZZ_CELLS_PER_DEGREE) * 10) / 10;

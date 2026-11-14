@@ -108,7 +108,6 @@ export function BitGrid({
         className
       )}
     >
-      {/* Header and Telemetry */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 mb-3 border-inherit">
         <div>
           <span className="font-sans font-medium text-xs block">
@@ -131,7 +130,7 @@ export function BitGrid({
               className={cn(
                 "inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-xs font-mono tabular-nums",
                 isDuplicate
-                  ? "bg-[#E2644F]/15 text-fraud border border-fraud/30"
+                  ? "bg-fraud/15 text-fraud border border-fraud/30"
                   : isPaper
                   ? "bg-paper border border-paper-rule text-paper-muted"
                   : "bg-field-raised border border-field-hairline text-field-text"
@@ -177,7 +176,7 @@ export function BitGrid({
                   "flex items-center justify-center font-mono tabular-nums rounded-[2px] transition-colors cursor-crosshair border",
                   sizeClasses,
                   isDiff
-                    ? "bg-[#E2644F]/20 border-fraud text-fraud font-bold"
+                    ? "bg-fraud/20 border-fraud text-fraud font-bold"
                     : bitA === "1"
                     ? isPaper
                       ? "bg-[#1B1D1A]/10 border-paper-rule text-paper-ink"
@@ -195,7 +194,6 @@ export function BitGrid({
         </div>
       </div>
 
-      {/* Matrix Footer Legend */}
       <div
         className={cn(
           "mt-3 flex items-center justify-between border-t pt-2 text-[11px] font-mono tabular-nums border-inherit",
@@ -228,7 +226,7 @@ export function BitGrid({
           </span>
           {isComparing && (
             <span className="flex items-center gap-1 text-fraud font-medium">
-              <span className="inline-block size-2 rounded-xs bg-[#E2644F]/40 border border-fraud" />
+              <span className="inline-block size-2 rounded-xs bg-fraud/40 border border-fraud" />
               diff
             </span>
           )}

@@ -58,12 +58,12 @@ const statusIconConfig: Record<
   warning: {
     icon: AlertTriangle,
     fieldColor: "text-review",
-    paperColor: "text-[#8F5B10]",
+    paperColor: "text-review",
   },
   failed: {
     icon: X,
     fieldColor: "text-fraud",
-    paperColor: "text-[#9E2A18]",
+    paperColor: "text-fraud",
   },
   skipped: {
     icon: Minus,
@@ -96,7 +96,6 @@ export function StepperProgress({
         className
       )}
     >
-      {/* Header with Title and Elapsed Time */}
       <div className="flex items-center justify-between border-b pb-2 mb-3 border-inherit">
         <span className="font-medium text-xs">{title}</span>
         {typeof elapsedSeconds === "number" && (
@@ -111,7 +110,6 @@ export function StepperProgress({
         )}
       </div>
 
-      {/* Discrete Step Sequence */}
       <div className="space-y-2">
         {steps.map((step) => {
           const config = statusIconConfig[step.status];

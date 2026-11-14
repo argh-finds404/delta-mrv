@@ -78,7 +78,6 @@ export function EmptyState({
         {reason}
       </p>
 
-      {/* Optional Unfiltered Count Callout */}
       {typeof unfilteredCount === "number" && (
         <div
           className={cn(

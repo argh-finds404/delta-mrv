@@ -222,7 +222,6 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
 
   return (
     <div className="space-y-6 text-field-text">
-      {/* Header & Step Tracker */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-[13px] text-field-muted">
@@ -270,7 +269,6 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
       {/* STEP 1: USER DETAILS */}
       {step === 1 && (
         <form method="post" onSubmit={handleProceedToStep2} noValidate className="space-y-4">
-          {/* Full Name */}
           <div className="space-y-1.5">
             <label
               htmlFor="name"
@@ -302,7 +300,6 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
             )}
           </div>
 
-          {/* Email */}
           <div className="space-y-1.5">
             <label
               htmlFor="email"
@@ -430,7 +427,6 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
       {/* STEP 2: ORGANISATION & TYPE CARDS */}
       {step === 2 && (
         <form method="post" onSubmit={handleFinalSubmit} noValidate className="space-y-5">
-          {/* Organisation Name */}
           <div className="space-y-1.5">
             <label
               htmlFor="orgName"
@@ -460,7 +456,6 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
             )}
           </div>
 
-          {/* Country & Website Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label
@@ -594,7 +589,6 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
             </p>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex items-center gap-3 pt-2">
             <button
               type="button"
@@ -626,7 +620,6 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
         </form>
       )}
 
-      {/* Auxiliary Link */}
       <div className="pt-6 border-t border-field-hairline text-[15px]">
         <span className="text-field-muted">Already registered? </span>
         <Link

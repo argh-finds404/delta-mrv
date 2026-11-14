@@ -56,7 +56,6 @@ export function BoundaryPlot({
         </span>
       </div>
 
-      {/* Mini SVG Boundary Representation */}
       <div className="relative aspect-[5/2] w-full overflow-hidden rounded-md border border-field-hairline bg-field-canopy/60">
         <svg
           viewBox="0 0 400 160"
@@ -72,7 +71,6 @@ export function BoundaryPlot({
 
           <rect width="100%" height="100%" fill="url(#boundary-grid)" />
 
-          {/* Registered Project Polygon */}
           <polygon
             points={polygonPts}
             className="fill-verified/10 stroke-verified/60"
@@ -80,7 +78,6 @@ export function BoundaryPlot({
             strokeDasharray="none"
           />
 
-          {/* Polygon label */}
           <text
             x="170"
             y="48"
@@ -89,7 +86,6 @@ export function BoundaryPlot({
             Registered Plot Area
           </text>
 
-          {/* Distance offset line if outside */}
           {isOutside && (
             <>
               <line
@@ -112,7 +108,6 @@ export function BoundaryPlot({
             </>
           )}
 
-          {/* GPS Pin Marker */}
           <g transform={`translate(${pinPos.x}, ${pinPos.y})`}>
             {insideBoundary ? (
               <>
@@ -142,7 +137,6 @@ export function BoundaryPlot({
         </svg>
       </div>
 
-      {/* Telemetry metadata rows */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1 border-t border-field-hairline">
         <div className="space-y-0.5">
           <span className="text-field-muted block">EXIF coordinates:</span>

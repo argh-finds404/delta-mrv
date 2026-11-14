@@ -135,6 +135,24 @@ the maintainer's watercolour illustrations.
   a supplement, the round switch, two approvals), and an offline draft through the dashboard
   banner and the sign-out warning (cancel keeps it, accept clears it).
 
+**Clean-up and polish pass (2026-11-14, after the wrap-up):**
+
+- The hero painting fades out along an ellipse into the paper and ends at the viewport edge
+  instead of being cut by it (`.hero-art .dw-fig` in `globals.css`).
+- Speed: MapLibre loads only when a map comes within 400 px of the screen (`AtlasMap`); the hero
+  fetches the next scene only, while the current one plays; the sign-in painting's backing shape
+  uses a 72 KB outline (`review-mask.webp`, made by `scripts/render-hero-art.ts`) instead of a
+  second 576 KB download. Measured at 4x CPU slowdown: landing 6.5 MB to 2.7 MB, submission page
+  5.9 MB to 1.6 MB with 3.9 s of main-thread blocking down to 0.02 s. The overview's map sits
+  at the top of the page, so it still costs what it did.
+- Colour: amber badge text `#9A6014` measured 4.22:1 on its tint (3.77:1 on paper) and is now
+  `--review`; the other hard-coded reds and ambers are the `--review` and `--fraud` tokens; the
+  photo verifier's "computing" line was lime on paper and is now muted ink.
+- Removed: an empty file named `` `--signal` ``, the 2 November `DELTA_MRV_FULL_AUDIT_REPORT.md`
+  (stale, overclaiming, referenced nowhere), the unused `ApiScope` type, and 40 label comments
+  that restated the markup. No source file is unreachable. `date-fns`, `shadcn` and
+  `@vitest/coverage-v8` are imported nowhere but are in the approved stack (docs/07), so kept.
+
 **Not built or not done:**
 
 - The Base Sepolia deployment and a real batch; the hosted deployment. Both by hand.

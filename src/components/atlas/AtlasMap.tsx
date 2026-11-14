@@ -160,7 +160,26 @@ export function AtlasMap({
     }
   }, []);
 
+  // MapLibre is a megabyte of script and seconds of main thread on a phone: load it only once the
+  // map comes near the screen, so a map further down a page costs nothing until it is wanted.
+  const [near, setNear] = React.useState(false);
   React.useEffect(() => {
+    const el = container.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (!e?.isIntersecting) return;
+        setNear(true);
+        io.disconnect();
+      },
+      { rootMargin: "400px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  React.useEffect(() => {
+    if (!near) return;
     let cancelled = false;
     let map: MapLibreMap | undefined;
     void import("maplibre-gl").then(({ default: maplibregl }) => {
@@ -302,7 +321,7 @@ export function AtlasMap({
       map?.remove();
       mapRef.current = null;
     };
-  }, [explore, fitAll]);
+  }, [explore, fitAll, near]);
 
   React.useEffect(() => {
     if (ready && mapRef.current) applyBasemap(mapRef.current, basemap);

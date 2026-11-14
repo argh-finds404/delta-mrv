@@ -224,7 +224,6 @@ export function QueuePane({
         </div>
       </div>
 
-      {/* Rows */}
       <div
         ref={listRef}
         role="listbox"

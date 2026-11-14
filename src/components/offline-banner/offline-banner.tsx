@@ -46,12 +46,12 @@ export function OfflineBanner({
         "w-full border-b px-4 py-2 text-xs transition-colors",
         isOffline
           ? isPaper
-            ? "border-[#8F5B10]/30 bg-[#E8A33D]/15 text-paper-ink"
-            : "border-[#E8A33D]/30 bg-[#E8A33D]/10 text-field-text"
+            ? "border-review/30 bg-review/10 text-paper-ink"
+            : "border-review/30 bg-review/10 text-field-text"
           : isSyncing
           ? isPaper
-            ? "border-paper-seal/30 bg-[#1F6B55]/10 text-paper-ink"
-            : "border-verified/30 bg-[#3E9D80]/10 text-field-text"
+            ? "border-paper-seal/30 bg-paper-seal/10 text-paper-ink"
+            : "border-verified/30 bg-verified/10 text-field-text"
           : isPaper
           ? "border-paper-rule bg-paper-card text-paper-muted"
           : "border-field-hairline bg-field-canopy text-field-muted",
@@ -59,7 +59,6 @@ export function OfflineBanner({
       )}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-        {/* Left Indicator */}
         <div className="flex items-center gap-2">
           {isOffline ? (
             <span className="flex items-center gap-1.5 font-medium text-review">
@@ -100,7 +99,6 @@ export function OfflineBanner({
           </span>
         </div>
 
-        {/* Right CTA */}
         {queuedCount > 0 && onViewQueue && (
           <button
             type="button"

@@ -383,14 +383,20 @@ mark.brush {
   --brush: color-mix(in srgb, var(--signal) 62%, transparent);
 }
 /*
-  The painting has no frame: from 1024px it grows past its column and runs off the right edge of
-  the page (the hero section clips it at the viewport), the way felt.com's art does. Its own
-  edges are scattered trees fading into the paper, so the cut never reads as a border.
+  The painting has no frame and no edge: it fades out along an ellipse, eased, so every side
+  dissolves into the paper like an island and no straight line is left to read as a picture's
+  border. The paint runs to within a few pixels of the file's edge, and the viewport used to cut
+  it as well. From 1024px it reaches the viewport's right edge, faded out by the time it gets there.
 */
+.hero-art .dw-fig {
+  --fade: radial-gradient(ellipse 50% 50% at 50% 50%, #000 60%, rgb(0 0 0 / 0.8) 74%, rgb(0 0 0 / 0.35) 88%, transparent 100%);
+  -webkit-mask-image: var(--fade);
+  mask-image: var(--fade);
+}
 @media (min-width: 1024px) {
   .hero-art {
     margin-left: -3rem;
-    margin-right: calc(-1 * (max(0px, (100vw - 1280px) / 2) + 4rem + 8vw));
+    margin-right: calc(-1 * (max(0px, (100vw - 1280px) / 2) + 4rem));
   }
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -599,8 +605,9 @@ mark.brush {
 }
 .auth-island-ground {
   background: #efe8d8;
-  -webkit-mask: url("/images/hero/review-colour.webp") center / 100% 100% no-repeat;
-  mask: url("/images/hero/review-colour.webp") center / 100% 100% no-repeat;
+  /* the painting's outline only (72 KB): the painting itself arrives resized through next/image */
+  -webkit-mask: url("/images/hero/review-mask.webp") center / 100% 100% no-repeat;
+  mask: url("/images/hero/review-mask.webp") center / 100% 100% no-repeat;
   filter: drop-shadow(0 20px 28px rgba(23, 34, 31, 0.16));
 }
 .auth-island img {

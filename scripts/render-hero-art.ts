@@ -558,6 +558,15 @@ function scene(seed: number, shape: { cu: number; cv: number; ru: number; rv: nu
       const raw = { raw: { width: W, height: H, channels: 4 as const } };
       await sharp(toLayer(colour), raw).webp({ quality: 80, alphaQuality: 80, effort: 5 }).toFile(`${OUT}/${name}-colour.webp`);
       await sharp(toLayer(sketch, ink), raw).webp({ quality: 82, alphaQuality: 90, effort: 5 }).toFile(`${OUT}/${name}-sketch.webp`);
+      if (name === "review") {
+        // the sign-in page's backing shape needs only the outline: a half-size, alpha-only copy
+        const [w, h] = [W / 2, H / 2];
+        const alpha = await sharp(`${OUT}/${name}-colour.webp`).resize(w, h).extractChannel(3).raw().toBuffer();
+        await sharp({ create: { width: w, height: h, channels: 3, background: "#000" } })
+          .joinChannel(alpha, { raw: { width: w, height: h, channels: 1 } })
+          .webp({ quality: 50, alphaQuality: 70, effort: 6 })
+          .toFile(`${OUT}/review-mask.webp`);
+      }
     },
   };
 }

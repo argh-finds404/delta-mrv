@@ -12,7 +12,6 @@ import { NotFoundError, ValidationError } from "./errors";
 // revoked by a timestamp, never deleted.
 
 export const API_SCOPES = ["stats:read"] as const;
-export type ApiScope = (typeof API_SCOPES)[number];
 
 const KEY = /^dmrv_([0-9a-f]{12})_([A-Za-z0-9_-]{43})$/;
 const hashOf = (key: string) => createHash("sha256").update(key).digest("hex");

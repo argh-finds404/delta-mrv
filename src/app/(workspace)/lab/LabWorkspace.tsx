@@ -603,7 +603,6 @@ export function LabWorkspace() {
         )}
       </div>
 
-      {/* Keyboard shortcuts */}
       {isShortcutsOpen && (
         <div
           role="dialog"

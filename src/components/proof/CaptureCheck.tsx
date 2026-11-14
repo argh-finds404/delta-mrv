@@ -42,7 +42,7 @@ export function CaptureCheck({
   const when = new Date(capture.signedAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" });
   return (
     <p className="flex items-start gap-2.5 text-[15px] leading-[1.6]" data-testid="capture-badge" data-state={state}>
-      <KeyRound className={`mt-1 size-4 shrink-0 ${state === "invalid" ? "text-[#A3301E]" : "text-paper-seal"}`} aria-hidden />
+      <KeyRound className={`mt-1 size-4 shrink-0 ${state === "invalid" ? "text-fraud" : "text-paper-seal"}`} aria-hidden />
       <span role="status">
         <span className="font-medium">
           {state === "checking" ? "Device-signed capture, checking the signature…" : state === "valid" ? "Device-signed capture, checked in your browser." : "A device signature is recorded, but it does not match these fingerprints."}
