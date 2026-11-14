@@ -54,7 +54,7 @@ silently switch package managers, and never generate a `package-lock.json`.
 | Auth | `better-auth` stable `1.x` | `organization` plugin, Drizzle adapter, `nextCookies()` last. CLI `generate` only. |
 | Validation | `zod`, `server-only` | Hand-written Zod DTOs, kept separate from the DB schema. |
 | Cartography | `maplibre-gl` `^5` | Client component only. Import its CSS. Keyless vector tiles. |
-| Forensics | `exifr`, `sharp`, `@contentauth/c2pa-wasm` | Node runtime only (`serverExternalPackages`). |
+| Forensics | `exifr`, `sharp`, `@contentauth/c2pa-wasm` | Node runtime only (`serverExternalPackages`). `c2pa_bg.wasm` is read from `node_modules` at run time, so `next.config.ts` traces it (`outputFileTracingIncludes`) into the four routes that run forensics; the reader always gets a network-off context. |
 | AI | `@google/genai` | Model name from `GEMINI_MODEL`, never hardcoded. |
 | Storage | `@vercel/blob` | Private store behind `StoragePort`. |
 | Crypto / chain | `viem`, `@openzeppelin/merkle-tree`, `canonicalize` | |

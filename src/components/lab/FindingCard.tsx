@@ -79,8 +79,10 @@ export function findingSummary(finding: LabFinding): string {
   if (kind === "CLAIM_CHECKED" && claim?.perHectare !== undefined) return `About ${claim.perHectare.toLocaleString("en-GB")} per hectare.`;
   if (kind === "CLAIM_CHECKED") return "The claimed area fits the boundary.";
   if (kind === "CONTENT_CREDENTIALS") {
-    if (evidence.c2pa?.outcome === "valid") return "Signed C2PA manifest; signature verified.";
+    if (evidence.c2pa?.outcome === "valid") return evidence.c2pa.trustedTime === false ? "Signed and verified; no trusted timestamp." : "Signed C2PA manifest; signature verified.";
     if (evidence.c2pa?.outcome === "invalid") return "C2PA manifest present; signature failed.";
+    if (evidence.c2pa?.outcome === "remote") return "Points to a remote manifest, not fetched.";
+    if (evidence.c2pa?.outcome === "unreadable") return "C2PA data present but unreadable.";
     return "No C2PA Content Credentials in the file.";
   }
   return "See the numbers for the measured values.";
@@ -189,13 +191,24 @@ export function FindingCard({ finding, theme = "field", className }: FindingCard
     : null;
 
   const c2paRows = evidence.c2pa
-    ? evidence.c2pa.outcome === "absent"
+    ? evidence.c2pa.outcome === "absent" || evidence.c2pa.outcome === "remote" || evidence.c2pa.outcome === "unreadable"
       ? [
-          { label: "Manifest", value: "None embedded", mono: false },
+          {
+            label: "Manifest",
+            value:
+              evidence.c2pa.outcome === "absent"
+                ? "None embedded"
+                : evidence.c2pa.outcome === "remote"
+                  ? `Stored at ${evidence.c2pa.host ?? "an unclear address"}; never fetched`
+                  : `Present, unreadable (${evidence.c2pa.code ?? "reader error"})`,
+            mono: false,
+          },
           { label: "Rule version", value: evidence.ruleVersion || "c2pa.v1", mono: true },
         ]
       : [
           { label: "Status", value: evidence.c2pa.outcome === "valid" ? "Signature and data hash verified" : "Verification failed", mono: false },
+          { label: "Certificate", value: evidence.c2pa.trusted ? "On the C2PA trust list" : "Not on the trust list", mono: false },
+          { label: "Signing time", value: evidence.c2pa.trustedTime === false ? "No trusted timestamp: the signer's word" : "Trusted timestamp", mono: false },
           { label: "Signer", value: evidence.c2pa.signer ?? evidence.c2pa.issuer ?? "Not recorded", mono: false },
           ...(evidence.c2pa.claimGenerator ? [{ label: "Generator", value: evidence.c2pa.claimGenerator, mono: true }] : []),
           ...(evidence.c2pa.signedAt ? [{ label: "Signed at", value: evidence.c2pa.signedAt, mono: true }] : []),

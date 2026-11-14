@@ -257,8 +257,8 @@ finding row with a severity and a human-readable reason.
 **Implementation steps**
 
 1. Port the salvaged `computeSha256`, `computeDHash` and
-   `extractExifTelemetry` from `docs/salvage/`. They are correct; they just
-   need to write into the new model.
+   `extractExifTelemetry` (done; the salvage folder has since been removed).
+   They were correct; they just needed to write into the new model.
 2. **One shared dHash function**, imported by the pipeline, the seed script
    and the eval harness. Three copies is how an eval harness starts lying.
 3. Each stage is independent and wrapped so a failure produces a `FAILED`

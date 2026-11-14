@@ -197,7 +197,8 @@ type ProjectFacts = { createdAt: Date; claimedQuantity: string | null; claimedUn
 async function analyse(x: Executor, s: SubmissionRow, project: ProjectFacts, files: Inspected[]): Promise<PipelineFinding[]> {
   const out: PipelineFinding[] = [];
   for (const { file, dhash, facts, gps, c2pa } of files) {
-    if (c2pa.outcome !== "absent") {
+    // one finding per photo that carries Content Credentials; none when the reader could not run
+    if (c2pa.outcome !== "absent" && c2pa.outcome !== "unavailable") {
       const cf = c2paFinding(c2pa);
       out.push({ evidenceFileId: file.id, kind: cf.kind, severity: cf.severity, reason: cf.reason, evidence: cf.evidence, ruleVersion: C2PA_RULE_VERSION });
     }

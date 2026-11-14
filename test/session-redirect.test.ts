@@ -1,4 +1,4 @@
-// Regression (docs/SESSION-HANDOFF.md §7): a workspace page reached with a session cookie that
+// Regression: a workspace page reached with a session cookie that
 // has expired or is not valid sent the visitor to /sign-in with nowhere to come back to. The
 // proxy passes the requested path on, and requireSession puts it in next=, as the proxy itself
 // does when there is no cookie at all.

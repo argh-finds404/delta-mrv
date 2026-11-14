@@ -45,7 +45,11 @@ export interface LabFinding {
     claim?: { boundaryAreaM2?: number; perHectare?: number; perSquareMetre?: number; maxPerSquareMetre?: number; ratio?: number; tolerance?: number; claimed?: number; plants?: number; unit?: string };
     /** X9 (c2pa.v1): Content Credentials (C2PA) JUMBF manifest read. */
     c2pa?: {
-      outcome: "absent" | "valid" | "invalid";
+      outcome: "absent" | "remote" | "unreadable" | "valid" | "invalid";
+      host?: string | null;
+      code?: string;
+      trusted?: boolean;
+      trustedTime?: boolean;
       activeManifest?: string;
       signer?: string | null;
       issuer?: string | null;

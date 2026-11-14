@@ -265,6 +265,24 @@ describe("runForensics", () => {
     const replay = await replayForensics(id, tx, store.port);
     expect(replay.identical).toBe(true);
   });
+
+  scenario("Content Credentials (X9): a photo that names a remote manifest is recorded as remote, never fetched, and replays identically", async (tx, w, store) => {
+    const remote = readFileSync(path.join(process.cwd(), "test/fixtures/forensics/c2pa-remote.jpg"));
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("forensics must not fetch"));
+    try {
+      const id = await submitPair(tx, store, w.u.ownerMember, w.project.id, remote, await synthetic(6660));
+      expect(await runForensics(id, 1, tx, store.port)).toBe("done");
+      const before = await fileOf(tx, id, "BEFORE");
+      const c2pa = (await findings(tx, id)).filter((f) => f.kind === "CONTENT_CREDENTIALS");
+      expect(c2pa).toEqual([
+        expect.objectContaining({ evidenceFileId: before.id, severity: "INFO", evidence: { ruleVersion: "c2pa.v1", c2pa: { outcome: "remote", host: "cai-manifests.adobe.com" } } }),
+      ]);
+      expect((await replayForensics(id, tx, store.port)).identical).toBe(true);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 });
 
 describe("replayForensics (#12)", () => {

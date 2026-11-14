@@ -84,7 +84,7 @@ stack (`pnpm dev:local`); forensic eval write-up (`pnpm eval:forensics`), replay
 (`pnpm bench:queries`, in place of k6), tamper demo, contrast assertion and keyboard pass, and
 the README are done; k6 and deployment are not. Later the same day: `/submissions/[id]`,
 `/projects/[id]/manage`, the job queue on `/admin`, invitations, and the 320 px and 200 % zoom
-pass; three Playwright specs pass. See `docs/SESSION-HANDOFF.md` section 2.
+pass; three Playwright specs pass.
 
 ### Stage 3 — Atlas and public read path
 
