@@ -19,6 +19,7 @@ import { listApiKeys } from "@/src/server/services/api-key.service";
 import { myFunderPortfolio } from "@/src/server/services/funder.service";
 import { listProjects, myOrganisations } from "@/src/server/services/projects.service";
 import { reviewQueueOverview } from "@/src/server/services/reviews.service";
+import { checkupsDueForOwner } from "@/src/server/services/checkups.service";
 import { countSubmissionsByStatus, listSubmissionsForProject } from "@/src/server/services/submissions.service";
 import { workspaceSites } from "../sites";
 import { FunderSection } from "./FunderSection";
@@ -58,6 +59,7 @@ async function Dashboard({ searchParams }: { searchParams?: Promise<{ invite?: s
     ? (await Promise.all(owned.map((p) => listSubmissionsForProject(actor, p.id)))).flat().filter((s) => s.status === "NEEDS_MORE_PROOF")
     : [];
   const titleOf = new Map(projects.map((p) => [p.id, p.title]));
+  const checkupsDue = owned.length ? await checkupsDueForOwner(actor) : [];
 
   const isVerifier = queue.isVerifier;
   const isOwner = owned.length > 0;
@@ -100,6 +102,20 @@ async function Dashboard({ searchParams }: { searchParams?: Promise<{ invite?: s
         </header>
 
         {typeof invite === "string" && <JoinInvitation invitationId={invite} signedInAs={session.user.email} />}
+
+        {/* an account that never registered its organisation (an interrupted sign-up): one step left */}
+        {orgs.length === 0 && typeof invite !== "string" && (
+          <section className="rise-in max-w-[640px] space-y-3 rounded-2xl border border-field-hairline bg-field-canopy p-8" style={rise(1)} data-testid="no-organisation">
+            <h2 className="font-serif text-[28px] leading-tight">One step left</h2>
+            <p className="text-[15px] leading-[1.6] text-field-muted">
+              Your account belongs to no organisation yet. Register the one you work for, or open the invitation link a colleague sent you.
+            </p>
+            <Link href="/sign-up/finish" className={primary}>
+              Register your organisation
+              <ArrowRight className="size-4" aria-hidden />
+            </Link>
+          </section>
+        )}
 
         {/* A new organisation: what this page will hold, and the one step that fills it (docs/15 §2) */}
         {org && mine.length === 0 && !funded && (
@@ -159,7 +175,7 @@ async function Dashboard({ searchParams }: { searchParams?: Promise<{ invite?: s
         )}
 
         {/* What needs this person */}
-        {(needsMoreProof.length > 0 || (isVerifier && queue.items.length > 0)) && (
+        {(needsMoreProof.length > 0 || checkupsDue.length > 0 || (isVerifier && queue.items.length > 0)) && (
           <section aria-labelledby="attention" className="rise-in space-y-4" style={rise(3)}>
             <h2 id="attention" className="font-serif text-[28px] leading-tight tracking-[-0.01em]">
               Needs your attention
@@ -182,6 +198,27 @@ async function Dashboard({ searchParams }: { searchParams?: Promise<{ invite?: s
                       <ArrowRight className="size-4" aria-hidden />
                     </Link>
                   </span>
+                </li>
+              ))}
+              {checkupsDue.slice(0, 4).map((c) => (
+                <li
+                  key={c.recordId}
+                  className="lift flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-field-hairline border-l-4 bg-field-canopy p-4 pl-5"
+                  style={{ borderLeftColor: "var(--review)" }}
+                  data-testid="checkup-due"
+                >
+                  <div className="min-w-0 space-y-1">
+                    <p className="font-medium">{c.projectTitle}</p>
+                    <p className="text-[14px] text-field-muted">
+                      <span className="font-medium text-review">{c.state === "overdue" ? "Check-up overdue" : "Check-up due"}</span>
+                      {c.state === "overdue" ? " since " : " by "}
+                      {c.nextDueAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}. Photograph the spot again, from where the approved photo was taken.
+                    </p>
+                  </div>
+                  <Link href={`/projects/${c.projectId}/submit?checkup=${c.recordId}`} className={primary}>
+                    Start the check-up
+                    <ArrowRight className="size-4" aria-hidden />
+                  </Link>
                 </li>
               ))}
               {isVerifier &&

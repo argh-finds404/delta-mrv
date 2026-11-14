@@ -21,6 +21,20 @@ export const MAX_SCENE_CLOUD = 40;
 export const MIN_CLEAR_SHARE = 0.5;
 /** The two scenes must be at least this far apart to say anything about change. */
 export const MIN_DAYS_APART = 20;
+/** Earlier years read for the same season, so a flood month is compared with flood months. */
+export const SEASON_YEARS = 4;
+/** Days either side of the current scene's date that count as "the same season" in an earlier year. */
+export const SEASON_WINDOW_DAYS = 30;
+
+export type SeasonPoint = { year: number; sceneId: string; datetime: string; ndvi: number };
+export type Seasonal = {
+  /** One reading per earlier year that had a clear view in the same season, oldest first. */
+  years: SeasonPoint[];
+  /** The middle of those readings; null with fewer than two years to compare. */
+  median: number | null;
+  /** Current minus median: how far this season sits from its own usual. */
+  anomaly: number | null;
+};
 
 export type SceneReading = {
   sceneId: string;
@@ -41,7 +55,7 @@ export type Telemetry = {
 };
 
 export type NdviResult =
-  | { outcome: "measured"; baseline: SceneReading; current: SceneReading; delta: number; telemetry: Telemetry }
+  | { outcome: "measured"; baseline: SceneReading; current: SceneReading; delta: number; seasonal: Seasonal; telemetry: Telemetry }
   | { outcome: "inconclusive"; reason: string; telemetry: Telemetry };
 
 export type NdviRequest = {
@@ -150,9 +164,11 @@ async function readScene(item: StacItem, ring: [number, number][], fetchRange: F
   return { sceneId: item.id, datetime: item.properties.datetime, cloudCover: item.properties["eo:cloud_cover"] ?? 0, ndvi: out.ndvi, pixels: out.pixels, clear: out.clear };
 }
 
-/** The clearest readable scene in the WINDOW_DAYS before `end`: at most three are tried, least cloudy first. */
-async function bestScene(req: NdviRequest, end: Date, deps: ReturnType<typeof httpDeps>, t: Telemetry): Promise<SceneReading | null> {
-  const from = new Date(end.getTime() - WINDOW_DAYS * DAY);
+/** The clearest readable scene in the WINDOW_DAYS before `end`. */
+const bestScene = (req: NdviRequest, end: Date, deps: ReturnType<typeof httpDeps>, t: Telemetry) => bestSceneBetween(req, new Date(end.getTime() - WINDOW_DAYS * DAY), end, deps, t);
+
+/** The clearest readable scene dated within [from, end]: at most three are tried, least cloudy first. */
+async function bestSceneBetween(req: NdviRequest, from: Date, end: Date, deps: ReturnType<typeof httpDeps>, t: Telemetry): Promise<SceneReading | null> {
   const [lon, lat] = req.searchPoint;
   const body = {
     collections: [COLLECTION],
@@ -163,7 +179,11 @@ async function bestScene(req: NdviRequest, end: Date, deps: ReturnType<typeof ht
     limit: 6,
   };
   const page = (await deps.fetchJson(STAC_SEARCH, body)) as { features?: StacItem[] };
-  const items = page.features ?? [];
+  // the catalogue's word on dates is checked too: a scene outside the window says nothing about it
+  const items = (page.features ?? []).filter((i) => {
+    const at = Date.parse(i.properties.datetime);
+    return at >= from.getTime() && at <= end.getTime();
+  });
   t.searched.push({ from: iso(from), to: iso(end), candidates: items.map((i) => ({ id: i.id, cloudCover: i.properties["eo:cloud_cover"] ?? 0 })) });
   for (const item of items.slice(0, 3)) {
     const reading = await readScene(item, req.ring, deps.fetchRange, t);
@@ -172,12 +192,43 @@ async function bestScene(req: NdviRequest, end: Date, deps: ReturnType<typeof ht
   return null;
 }
 
+const median = (xs: number[]) => {
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2;
+};
+
 /**
- * NDVI over the site around the two dates, and the change between them. Every failure that is
- * the world's, not the code's (no clear scene, the archive slow or refusing, an image it cannot
- * read), is an `inconclusive` result with a reason, never an exception: the check is advisory.
+ * The same season in each of the `years` before the current scene: the clearest view within
+ * SEASON_WINDOW_DAYS of the same date, read in parallel. A year with no clear view, or one the
+ * archive fails on, is simply missing: the history is context, and never makes the check fail.
  */
-export async function crossCheckNdvi(req: NdviRequest, deps: ReturnType<typeof httpDeps> = httpDeps()): Promise<NdviResult> {
+async function seasonalHistory(req: NdviRequest, current: SceneReading, deps: ReturnType<typeof httpDeps>, t: Telemetry, years: number): Promise<Seasonal> {
+  const at = new Date(current.datetime);
+  const readings = await Promise.all(
+    Array.from({ length: years }, async (_, i) => {
+      const centre = new Date(at);
+      centre.setUTCFullYear(at.getUTCFullYear() - (i + 1));
+      try {
+        const r = await bestSceneBetween(req, new Date(centre.getTime() - SEASON_WINDOW_DAYS * DAY), new Date(centre.getTime() + SEASON_WINDOW_DAYS * DAY), deps, t);
+        return r ? { year: centre.getUTCFullYear(), sceneId: r.sceneId, datetime: r.datetime, ndvi: r.ndvi } : null;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  const found = readings.filter((r): r is SeasonPoint => r !== null).sort((a, b) => a.year - b.year);
+  const mid = found.length >= 2 ? median(found.map((r) => r.ndvi)) : null;
+  return { years: found, median: mid, anomaly: mid === null ? null : current.ndvi - mid };
+}
+
+/**
+ * NDVI over the site around the two dates, the change between them, and the current scene against
+ * the same season in earlier years. Every failure that is the world's, not the code's (no clear
+ * scene, the archive slow or refusing, an image it cannot read), is an `inconclusive` result with
+ * a reason, never an exception: the check is advisory.
+ */
+export async function crossCheckNdvi(req: NdviRequest, deps: ReturnType<typeof httpDeps> = httpDeps(), opts: { seasonYears?: number } = {}): Promise<NdviResult> {
   const started = Date.now();
   const t: Telemetry = { endpoint: STAC_SEARCH, searched: [], scenes: [], bytesRead: 0, elapsedMs: 0 };
   const done = <R extends NdviResult>(r: R): R => {
@@ -192,7 +243,8 @@ export async function crossCheckNdvi(req: NdviRequest, deps: ReturnType<typeof h
     if (Math.abs(Date.parse(current.datetime) - Date.parse(baseline.datetime)) < MIN_DAYS_APART * DAY) {
       return done({ outcome: "inconclusive", reason: `the two clearest views are less than ${MIN_DAYS_APART} days apart, too close to show change`, telemetry: t });
     }
-    return done({ outcome: "measured", baseline, current, delta: current.ndvi - baseline.ndvi, telemetry: t });
+    const seasonal = await seasonalHistory(req, current, deps, t, opts.seasonYears ?? SEASON_YEARS);
+    return done({ outcome: "measured", baseline, current, delta: current.ndvi - baseline.ndvi, seasonal, telemetry: t });
   } catch (e) {
     if (e instanceof ArchiveUnavailable || e instanceof UnsupportedCog) return done({ outcome: "inconclusive", reason: e.message, telemetry: t });
     if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError" || e.name === "TypeError")) {

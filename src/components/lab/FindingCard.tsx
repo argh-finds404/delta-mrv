@@ -37,6 +37,9 @@ export const findingKindDisplayMap: Record<string, string> = {
   CLIENT_HASH_MISMATCH: "File changed between the device and the server",
   AI_OBSERVATION: "Advisory observation",
   SATELLITE_NDVI: "Satellite vegetation cross-check",
+  CLAIM_CHECKED: "The claim against the drawn boundary",
+  CLAIM_EXCEEDS_AREA: "Claims more area than the boundary holds",
+  CLAIM_DENSITY_IMPLAUSIBLE: "More plants per square metre than any method",
 };
 
 /**
@@ -69,6 +72,11 @@ export function findingSummary(finding: LabFinding): string {
     if (baseline && current && delta !== undefined) return `NDVI ${baseline.ndvi.toFixed(2)} to ${current.ndvi.toFixed(2)} (${delta >= 0 ? "+" : ""}${delta.toFixed(2)}).`;
     return "Inconclusive: no clean satellite comparison.";
   }
+  const claim = evidence.claim;
+  if (kind === "CLAIM_EXCEEDS_AREA" && claim?.ratio !== undefined) return `The claim is ${claim.ratio.toFixed(1)}× the area drawn.`;
+  if (kind === "CLAIM_DENSITY_IMPLAUSIBLE" && claim?.perSquareMetre !== undefined) return `${claim.perSquareMetre.toLocaleString("en-GB", { maximumFractionDigits: 1 })} per m², above ${claim.maxPerSquareMetre ?? 5}.`;
+  if (kind === "CLAIM_CHECKED" && claim?.perHectare !== undefined) return `About ${claim.perHectare.toLocaleString("en-GB")} per hectare.`;
+  if (kind === "CLAIM_CHECKED") return "The claimed area fits the boundary.";
   return "See the numbers for the measured values.";
 }
 
@@ -154,7 +162,27 @@ export function FindingCard({ finding, theme = "field", className }: FindingCard
         ]
     : null;
 
-  const rows: { label: string; value: string; mono: boolean }[] = ndviRows ?? [
+  const c = evidence.claim;
+  const ha = (m2?: number) => (m2 === undefined ? "Not recorded" : `${(m2 / 10_000).toLocaleString("en-GB", { maximumFractionDigits: 2 })} ha`);
+  const claimRows = c
+    ? [
+        { label: "Boundary area", value: ha(c.boundaryAreaM2), mono: true },
+        ...(c.plants !== undefined
+          ? [
+              { label: "Claimed", value: `${c.plants.toLocaleString("en-GB")} ${c.unit ?? ""}`.trim(), mono: true },
+              { label: "Density", value: `${(c.perHectare ?? 0).toLocaleString("en-GB")} per ha, ${c.perSquareMetre ?? 0} per m²`, mono: true },
+              { label: "Flagged above", value: `${c.maxPerSquareMetre ?? 5} per m²`, mono: true },
+            ]
+          : [
+              { label: "Claimed", value: `${c.claimed ?? ""} ${c.unit ?? ""}`.trim(), mono: true },
+              { label: "Claim ÷ boundary", value: `${c.ratio ?? "?"}×`, mono: true },
+              { label: "Flagged above", value: `${c.tolerance ?? 1.05}×`, mono: true },
+            ]),
+        { label: "Rule version", value: evidence.ruleVersion || "claims.v1", mono: true },
+      ]
+    : null;
+
+  const rows: { label: string; value: string; mono: boolean }[] = ndviRows ?? claimRows ?? [
     {
       label:
         evidence.hammingDistance !== undefined
@@ -244,6 +272,8 @@ export function FindingCard({ finding, theme = "field", className }: FindingCard
               </div>
             ))}
           </dl>
+
+          {evidence.ndvi?.seasonal && evidence.ndvi.current && <SeasonChart seasonal={evidence.ndvi.seasonal} current={evidence.ndvi.current} theme={theme} />}
 
           {finding.resolution && (
             <div className="space-y-1 rounded-sm border border-field-hairline bg-field-raised p-3">
@@ -343,5 +373,47 @@ export function FindingCard({ finding, theme = "field", className }: FindingCard
         </div>
       )}
     </article>
+  );
+}
+
+/**
+ * The current NDVI against the same season in earlier years: one dot per year, the median as a
+ * dashed line, this season as the filled dot. Every value is also in the text beside it.
+ */
+function SeasonChart({ seasonal, current, theme }: { seasonal: NonNullable<NonNullable<LabFinding["evidence"]["ndvi"]>["seasonal"]>; current: { ndvi: number; datetime: string }; theme: "field" | "paper" }) {
+  const points = [...seasonal.years.map((y) => ({ year: y.year, ndvi: y.ndvi, now: false })), { year: new Date(current.datetime).getUTCFullYear(), ndvi: current.ndvi, now: true }];
+  if (points.length < 2) return null;
+  const [W, H, PAD] = [280, 72, 14];
+  const values = points.map((p) => p.ndvi);
+  const lo = Math.min(...values, seasonal.median ?? Infinity) - 0.05;
+  const hi = Math.max(...values, seasonal.median ?? -Infinity) + 0.05;
+  const x = (i: number) => PAD + (i * (W - 2 * PAD)) / (points.length - 1);
+  const y = (v: number) => H - PAD - ((v - lo) / (hi - lo || 1)) * (H - 2 * PAD);
+  const muted = theme === "paper" ? "text-paper-muted" : "text-field-muted";
+  const summary = `NDVI in the same season: ${seasonal.years.map((s) => `${s.year} ${s.ndvi.toFixed(2)}`).join(", ")}; this season ${current.ndvi.toFixed(2)}${seasonal.median !== null ? `, median of earlier years ${seasonal.median.toFixed(2)}` : ""}.`;
+  return (
+    <figure className="space-y-1.5" data-testid="season-chart">
+      <figcaption className={muted}>
+        Same season, earlier years
+        {seasonal.anomaly !== null && (
+          <span className="ml-1 font-mono tabular-nums">
+            · this season {seasonal.anomaly >= 0 ? "+" : ""}
+            {seasonal.anomaly.toFixed(2)} against the median
+          </span>
+        )}
+      </figcaption>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={summary} className="h-[72px] w-full max-w-[320px] overflow-visible">
+        {seasonal.median !== null && <line x1={PAD} x2={W - PAD} y1={y(seasonal.median)} y2={y(seasonal.median)} stroke="currentColor" strokeDasharray="3 3" className={muted} />}
+        <polyline points={points.map((p, i) => `${x(i)},${y(p.ndvi)}`).join(" ")} fill="none" stroke="currentColor" strokeWidth={1} className={muted} />
+        {points.map((p, i) => (
+          <g key={p.year}>
+            <circle cx={x(i)} cy={y(p.ndvi)} r={p.now ? 4.5 : 3} className={p.now ? "fill-verified" : "fill-current"} />
+            <text x={x(i)} y={H} textAnchor="middle" className={cn("fill-current text-[10px]", muted)}>
+              {p.year}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </figure>
   );
 }

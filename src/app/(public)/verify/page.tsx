@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "@/src/components/site/SiteFooter";
 import { SiteHeader } from "@/src/components/site/SiteHeader";
+import { BundleVerifier } from "@/src/components/verify/BundleVerifier";
 import { ReverseLookup } from "@/src/components/verify/ReverseLookup";
 
 export const metadata: Metadata = {
   title: "Check a photo · Delta",
-  description: "Look up a photo, a proof id or a transaction hash among Delta's approved records. The photo never leaves your device.",
+  description: "Look up a photo, a proof id or a transaction hash among Delta's approved records, or recheck a saved proof file offline. Nothing leaves your device.",
 };
 
 /** /verify (docs/16-AMENDMENTS-v2.md A7). */
@@ -22,6 +23,9 @@ export default function VerifyPage() {
           </p>
         </header>
         <ReverseLookup />
+        <div className="border-t border-paper-rule pt-10">
+          <BundleVerifier />
+        </div>
         <p className="border-t border-paper-rule pt-6 text-[14px] leading-[1.6] text-paper-muted">
           A match means the file is byte-for-byte the one that was reviewed. It does not mean the photo shows what its caption says, or that the work on the ground happened.{" "}
           <Link href="/trust" className="text-paper-ink underline decoration-paper-rule underline-offset-[5px] hover:decoration-paper-ink">

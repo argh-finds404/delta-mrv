@@ -134,8 +134,42 @@ describe("crossCheckNdvi against a fake archive", () => {
     expect(r.telemetry.bytesRead).toBeGreaterThan(0);
   });
 
+  it("sets the current season against the same season in earlier years, skipping years with no clear view", async () => {
+    // October in 2022, 2023 and 2025 (2024 had no scene): NDVI 0.5, 0.6 and 0.7, so a median of 0.6
+    const years = [
+      scene("S2_2022", "2022-10-14T04:50:00Z", 1000, 3000),
+      scene("S2_2023", "2023-10-30T04:50:00Z", 1000, 4000),
+      scene("S2_2025", "2025-10-21T04:50:00Z", 1000, 5666.666666666667),
+    ];
+    const seasonal = memoryArchive({ ...before.files, ...after.files, ...Object.assign({}, ...years.map((y) => y.files)) });
+    const fetchJson = async (_url: string, body: unknown) => {
+      const [from, to] = (body as { datetime: string }).datetime.split("/") as [string, string];
+      if (to.startsWith("2026-02")) return { features: [before.item] };
+      if (to.startsWith("2026-11")) return { features: [after.item] };
+      // a catalogue that also returns a scene outside the window: it must be ignored
+      return { features: [...years.map((y) => y.item).filter((i) => i.properties.datetime >= from && i.properties.datetime <= to), after.item] };
+    };
+    const r = await crossCheckNdvi(request, { fetchJson, fetchRange: seasonal.fetchRange }, { seasonYears: 4 });
+    expect(r.outcome).toBe("measured");
+    if (r.outcome !== "measured") return;
+    expect(r.seasonal.years.map((y) => y.year)).toEqual([2022, 2023, 2025]);
+    expect(r.seasonal.median).toBeCloseTo(0.6, 6);
+    expect(r.seasonal.anomaly).toBeCloseTo(r.current.ndvi - 0.6, 6);
+  });
+
+  it("leaves the seasonal median empty with fewer than two earlier years", async () => {
+    const fetchJson = async (_url: string, body: unknown) => {
+      const to = (body as { datetime: string }).datetime.split("/")[1]!;
+      return { features: [to.startsWith("2026-02") ? before.item : after.item] };
+    };
+    const r = await crossCheckNdvi(request, { fetchJson, fetchRange: archive.fetchRange }, { seasonYears: 3 });
+    expect(r).toMatchObject({ outcome: "measured", seasonal: { years: [], median: null, anomaly: null } });
+  });
+
   it("is inconclusive, never an error, when the two clearest scenes are too close in time", async () => {
-    const r = await crossCheckNdvi(request, { fetchJson: async () => ({ features: [after.item] }), fetchRange: archive.fetchRange });
+    // both windows hold the same October scene: the photos were taken a week apart
+    const close = { ...request, baselineEnd: new Date("2026-10-25T00:00:00Z") };
+    const r = await crossCheckNdvi(close, { fetchJson: async () => ({ features: [after.item] }), fetchRange: archive.fetchRange });
     expect(r).toMatchObject({ outcome: "inconclusive", reason: expect.stringMatching(/too close/) });
   });
 

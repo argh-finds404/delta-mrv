@@ -29,10 +29,10 @@ The one line that matters:
 
 ## 2. Current state
 
-**Date of this update:** 2026-11-14, fifth update (wrap-up). Run for it, all passing:
-`pnpm check` (ESLint with no warning, 264 unit tests in 17 files), `pnpm test:integration` on
-local Docker (166 tests in 22 files), `pnpm build`, `pnpm test:e2e` (3 specs) against the local
-stack with migration `0005` applied, and `pnpm contracts:test` (16 tests).
+**Date of this update:** 2026-11-14, sixth update. Run for it, all passing: `pnpm check` (ESLint
+with no warning, 296 unit tests in 22 files), `pnpm test:integration` on local Docker (171 tests in
+23 files), `pnpm build` (no warning), `pnpm test:e2e` (5 specs) against the local stack with
+migration `0006` applied, and `pnpm contracts:test` (16 tests).
 
 | Stage | Status |
 |---|---|
@@ -152,6 +152,52 @@ the maintainer's watercolour illustrations.
   (stale, overclaiming, referenced nowhere), the unused `ApiScope` type, and 40 label comments
   that restated the markup. No source file is unreachable. `date-fns`, `shadcn` and
   `@vitest/coverage-v8` are imported nowhere but are in the approved stack (docs/07), so kept.
+
+**Maintainer additions X4 to X12 (2026-11-14, `docs/01-FEATURE-LOCK.md`), migration `0006`:**
+
+- **X4** boundary import: drop a GeoJSON or KML file on the `/projects/new` map, or choose it;
+  `src/lib/geo/boundary-file.ts`, with the area, perimeter and a live claim-density hint.
+- **X5** offline proof file: `/proof/[id]` downloads `delta.proof-bundle.v1`; `/verify` rechecks it
+  in the browser (`src/lib/proof-bundle.ts`). The chain step asks only the registry this site is
+  configured with (`NEXT_PUBLIC_CONTRACT_ADDRESS`), never the contract the file names.
+- **X6** email: `src/server/email.ts` (Resend over fetch, or `.local/outbox` in development),
+  Better Auth's verification and reset hooks, `/forgot-password`, `/reset-password`,
+  `/sign-up/finish`. `pnpm dev:local` now requires confirmation; seeded demo accounts are confirmed.
+- **X7** seasonal NDVI baseline; **X8** Lab queue windowing (40 rows at a time).
+- **X10** feeds: `/api/v1/projects/[id]/feed` (JSON Feed), `/p/[id]/feed.xml` (Atom),
+  `/api/v1/batches` and `/api/v1/batches/[id]` (every leaf of a confirmed batch).
+- **X11** survival check-ups: `?checkup=<record>` on the submit page, one photo framed against the
+  record's own; the schedule on the manage page; "Is it still there?" on `/p/[id]` and the proof
+  page; due and overdue check-ups on the owner's overview; reviewers see the record's photo as
+  the before.
+- **X12** `claims.v1`: `CLAIM_CHECKED`, `CLAIM_EXCEEDS_AREA`, `CLAIM_DENSITY_IMPLAUSIBLE`.
+- **X9** C2PA read is not built: the sandbox refused to run the downloaded
+  `@contentauth/c2pa-wasm` package to evaluate it. Approve the package (9 MB WebAssembly,
+  MIT, no install script) and it can read Content Credentials server-side as an INFO finding.
+
+**Sixth update, review and polish of X4 to X12 (2026-11-14):**
+
+- Bug: an unconfirmed person who signed in got a fresh link that returned to `/`, so the
+  organisation chosen at sign-up was never created. The server no longer sends a link at sign-in;
+  the sign-in form asks for one that returns through `/sign-up/finish`, which now asks for the
+  organisation when the link carries none. The overview offers the same to any account with no
+  organisation. The organisation fields live in `src/components/auth/OrganisationFields.tsx`,
+  shared by both pages.
+- Bug: a boundary file chosen before the map had loaded was neither drawn nor zoomed to (corners
+  set before load were always dropped). The map now takes the current corners when it loads.
+- The check-up note in the review workspace sat inside the collapsed "Capture details"; it is
+  above the comparison now. Two "Save" buttons on the manage page are now told apart, and
+  "Saving…" no longer shows beside "Saved". `/p/[id]` lists survival as one table per project,
+  and its Title Case headings are sentence case like the rest.
+- The development email outbox made the build trace the whole project into the server bundle;
+  marked `turbopackIgnore`, the build is warning-free.
+- Design sources (the maintainer's list, licences checked): a curve loader and draw-once icons in
+  `src/components/motion/`, dot-grid placeholders (`.pattern-dots`), and a step-by-step proof-file
+  checklist. All original code; React Bits (Commons Clause) and the unlicensed loader repository
+  were not copied; heavy runtimes (Spline, Rive, Lottie, ShaderGradient) left out. README
+  "Credits and design sources" lists each.
+- README rewritten: features, architecture and layers, data model, auth, API, UI, configuration.
+  `docs/02-ARCHITECTURE.md` folder map now matches the tree.
 
 **Not built or not done:**
 

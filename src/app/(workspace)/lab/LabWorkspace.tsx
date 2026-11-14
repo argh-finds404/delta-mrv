@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, ImageOff, Keyboard, ListChecks, ShieldCheck, UserCheck, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, History, ImageOff, Keyboard, ListChecks, ShieldCheck, UserCheck, X } from "lucide-react";
 import {
   QueuePane,
   EvidencePair,
@@ -44,6 +44,8 @@ type RealItem = QueueItem & {
   requiredQuorum: number;
   userDecision?: DecisionAction;
   files: LabFile[];
+  /** A survival check-up's comparison: the approved record's own after photo. */
+  reference: LabFile | null;
 };
 
 /** An evidence file as the queue reports it: what the stored file says about itself, nothing inferred. */
@@ -73,6 +75,7 @@ type ApiOverview = {
     userDecision: DecisionAction | null;
     findingCounts: QueueItem["findingCounts"];
     files: LabFile[];
+    reference?: LabFile | null;
   }[];
 };
 
@@ -148,6 +151,7 @@ export function LabWorkspace() {
             rejectionsCount: s.rejections,
             requiredQuorum: QUORUM,
             files: s.files ?? [],
+            reference: s.reference ?? null,
           }))
           .sort(compareSeverity);
         setItems(mapped);
@@ -426,20 +430,31 @@ export function LabWorkspace() {
                     </div>
                   }
                 />
-              ) : activeReal && activeReal.files.some((f) => f.role === "BEFORE") && activeReal.files.some((f) => f.role === "AFTER") ? (
+              ) : activeReal && (activeReal.files.some((f) => f.role === "BEFORE") || activeReal.reference) && activeReal.files.some((f) => f.role === "AFTER") ? (
                 (() => {
-                  // the pair belongs to the round it was sent in; a later round adds supplements to it
-                  const beforeFile = activeReal.files.findLast((f) => f.role === "BEFORE")!;
+                  // the pair belongs to the round it was sent in; a later round adds supplements to it.
+                  // A check-up has no before of its own: the approved record's photo is its before.
+                  const isCheckup = Boolean(activeReal.reference);
+                  const beforeFile = activeReal.files.findLast((f) => f.role === "BEFORE") ?? activeReal.reference!;
                   const afterFile = activeReal.files.findLast((f) => f.role === "AFTER")!;
                   const supplements = activeReal.files.filter((f) => f.role === "SUPPLEMENT");
                   return (
+                    <>
+                    {isCheckup && (
+                      <p className="mb-3 flex shrink-0 items-start gap-2 rounded-lg border border-chain/30 bg-chain/10 px-3 py-2 text-[14px] leading-5 text-field-text" data-testid="checkup-note">
+                        <History className="mt-0.5 size-4 shrink-0 text-chain" aria-hidden="true" />
+                        <span>
+                          <span className="font-medium">A survival check-up.</span> The same spot, photographed again after the record was approved. Compare it with the approved photo on the left: is the work still there?
+                        </span>
+                      </p>
+                    )}
                     <EvidencePair
                       key={activeReal.id}
                       className="flex-1"
                       before={toImage(beforeFile)}
                       after={toImage(afterFile)}
-                      beforeLabel="Before"
-                      afterLabel="After"
+                      beforeLabel={isCheckup ? "Approved record" : "Before"}
+                      afterLabel={isCheckup ? "Check-up" : "After"}
                       // a record sent back for more proof: each supplement against the before photo, latest first
                       views={
                         supplements.length
@@ -472,6 +487,7 @@ export function LabWorkspace() {
                         </div>
                       }
                     />
+                    </>
                   );
                 })()
               ) : (

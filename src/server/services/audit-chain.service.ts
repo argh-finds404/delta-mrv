@@ -23,7 +23,8 @@ export type AuditEventType =
   | "VERIFIER_ASSIGNED"
   | "REVIEWER_REQUESTED"
   | "MATCH_RESOLVED"
-  | "PROJECT_STATUS_CHANGED";
+  | "PROJECT_STATUS_CHANGED"
+  | "CHECKUP_SCHEDULE_SET";
 
 /** What is hashed: the whole event except its own hash, so type, actor, time and order are covered too. */
 export type AuditBody = { orgId: string; seq: number; eventType: string; actorUserId: string | null; createdAt: string; payload: unknown };

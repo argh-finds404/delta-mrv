@@ -38,10 +38,11 @@ See `docs/06-DESIGN-SYSTEM.md`.
 |---|---|---|
 | `/` | public | Landing. Problem, how it works, a real seeded proof, the "what this does not prove" block, CTA. |
 | `/atlas` | public | Impact Atlas. **Fuzzed geometry only** when unauthenticated. Exact polygons appear when an authorised session is present. |
-| `/p/[id]` | public | Project overview, reported impact, verification status, proof links. No session branch at all: area-level geometry, approved records only (A6). The workspace view is `/projects/[id]`, §3. |
+| `/p/[id]` | public | Project overview, reported impact, verification status, proof links, survival check-ups (X11), feed links. No session branch at all: area-level geometry, approved records only (A6). The workspace view is `/projects/[id]`, §3. |
 | `/proof/[id]` | public | Proof dossier. The product's centrepiece. See §4. Printing is the print stylesheet of this page (S7). |
 | `/proof/[id]/print` | public | **Not a separate address.** The print stylesheet on `/proof/[id]` is the print-optimised certificate. |
-| `/verify` | public | Reverse lookup: a proof id, a transaction hash, or a dropped file hashed in the browser (A7). |
+| `/verify` | public | Reverse lookup: a proof id, a transaction hash, or a dropped file hashed in the browser (A7). Also rechecks a saved proof file (`.delta-proof.json`, X5) in the browser: no upload, no database, the chain asked only of Delta's registry. |
+| `/p/[id]/feed.xml` | public | The project's anchored records as Atom 1.0 (X10). Pull-only. |
 | `/trust` | public | What is proved and not, every finding rule, measured precision and recall, threat model summary, how fuzzing works (A8; replaces `/about`). |
 
 `/atlas` is deliberately public and deliberately shared between anonymous and
@@ -53,7 +54,10 @@ which geometry it receives. There is no client-side "if logged in, show exact".
 | Route | Guard | Purpose |
 |---|---|---|
 | `/sign-in` | public | Email + password. |
-| `/sign-up` | public | Creates user, then organisation with an `org_type`. |
+| `/sign-up` | public | Creates user, then organisation with an `org_type`. Where email is configured (X6) the account waits for its emailed link, and the organisation is created on `/sign-up/finish`. |
+| `/sign-up/finish` | session | Where the confirmation link lands: creates the organisation chosen at sign-up, once. |
+| `/forgot-password` | public | Asks for a reset link; the answer never says whether an account exists. Says so plainly where email is not configured. |
+| `/reset-password` | public, token | The new password, with the token from the emailed link; every other session is signed out. |
 | `/demo` | public, `DEMO_MODE` only | One-click role switcher. Route does not exist when the flag is off. |
 
 ## 3. Workspace — `src/app/(workspace)/` · theme Field
@@ -63,8 +67,8 @@ which geometry it receives. There is no client-side "if logged in, show exact".
 | `/dashboard` | session | Role-aware home. Owner: project and submission status. Verifier: review queue depth. Funder: verified outcomes. |
 | `/projects/new` | owner | Create project. Boundary drawn on a MapLibre canvas, not typed as coordinates. |
 | `/projects/[id]` | owner \| verifier | The project in the workspace: exact boundary, every submission and its state (A6). |
-| `/projects/[id]/manage` | owner | Edit the description; the name, the claim and the tolerance until evidence has been sent, after which they are fixed. Close the project. Shows which organisations review it, and lets an owner or admin ask once for a reviewer (an audit event; an operator then assigns one). |
-| `/projects/[id]/submit` | owner | Evidence intake. Before/after pair, previews, client-side hashing, offline queue. See §5. |
+| `/projects/[id]/manage` | owner | Edit the description; the name, the claim and the tolerance until evidence has been sent, after which they are fixed. Close the project. Shows which organisations review it, and lets an owner or admin ask once for a reviewer (an audit event; an operator then assigns one). Sets the survival check-up interval (X11): set or shortened, never lengthened or removed once a record is approved. |
+| `/projects/[id]/submit` | owner | Evidence intake. Before/after pair, previews, client-side hashing, offline queue, the framing check. `?checkup=<record>`: a survival check-up, one photo framed against the approved record's own. See §5. |
 | `/submissions/[id]` | owner \| verifier | Full submission detail: decisions and reasons, evidence and hashes, findings, EXIF, map, audit trail, anchor. A linked funder gets a 404 here and reads `/proof/[id]`. |
 | `/lab` | verifier | **The reviewer workspace.** See §3.1. `/lab?s=<submission id>` opens one record. |
 | `/lab/[submissionId]` | verifier | **Not a separate address.** `/lab?s=<submission id>` and `/submissions/[id]` cover it. |
@@ -148,9 +152,12 @@ An unreachable RPC showing red would be a lie. `UNAVAILABLE` is neutral grey.
 | `/api/v1/projects` | api key | List projects. Fuzzed geometry. Paginated. |
 | `/api/v1/projects/[id]` | api key | Project detail |
 | `/api/v1/submissions/[id]/proof` | public | Canonical manifest + Merkle proof. Powers third-party verification. |
+| `/api/v1/projects/[id]/feed` | public | The project's anchored records as JSON Feed 1.1 (X10). Pull-only; S10 webhooks stay cut. |
+| `/api/v1/batches` | public | The newest confirmed anchor batches |
+| `/api/v1/batches/[id]` | public | One confirmed batch and every leaf (record id, manifest fingerprint, approval time), enough to rebuild its root and keep a mirror |
 | `/api/v1/stats` | api key | Aggregate counts for the key's organisation: its funded projects, their approved and anchored records |
 | `/api/v1/proofs/lookup` | public | `/verify`'s lookup (A7): a proof id, a file's SHA-256 or a transaction hash, matched against public proofs only |
-| `/api/submissions` | session, owner | `POST`: start a draft submission |
+| `/api/submissions` | session, owner | `POST`: start a draft submission: `{ projectId }` for a before/after pair, `{ checkupOf }` for a survival check-up of an approved record (X11), which then takes one AFTER photo |
 | `/api/submissions/[id]/upload-token` | session, owner | `POST`: a token for one direct upload to private storage |
 | `/api/submissions/[id]/finalize` | session, owner | `POST`: draft to pending forensics, in one transaction. Takes an optional device signature (X2), checked against the stored bytes, never required |
 | `/api/submissions/[id]/supplement` | session, owner | `POST`: one more photo after a request for more proof |

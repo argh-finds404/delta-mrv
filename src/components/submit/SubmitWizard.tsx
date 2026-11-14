@@ -34,6 +34,7 @@ import {
   type AdversarialScenario,
 } from "./adversarial-generator";
 import { signWithDeviceKey } from "./device-key";
+import { FramingCheck } from "./FramingCheck";
 import {
   deleteOfflineDraft,
   fileToStored,
@@ -53,6 +54,8 @@ export interface SubmitWizardProps {
   isDemoMode?: boolean;
   /** Open the list of drafts saved on this device (the overview links here with ?drafts=1). */
   openVault?: boolean;
+  /** A survival check-up of an approved record: one new photo of the same spot, framed against the record's own. */
+  checkup?: { recordId: string; referenceUrl: string | null; approvedAt: string; visits: number };
 }
 
 type EvidenceRole = "BEFORE" | "AFTER" | "SUPPLEMENT";
@@ -123,8 +126,10 @@ export function SubmitWizard({
   supplementSubmissionId,
   isDemoMode = true,
   openVault = false,
+  checkup,
 }: SubmitWizardProps) {
   const isSupplement = Boolean(supplementSubmissionId);
+  const isCheckup = Boolean(checkup) && !isSupplement;
   // per file, while it is sent: what the progress bars show
   const [uploads, setUploads] = React.useState<Upload[]>([]);
   const track = (role: EvidenceRole, file: File) => {
@@ -444,7 +449,9 @@ export function SubmitWizard({
   const canSubmitSupplement =
     Boolean(supplement.file && supplement.clientSha256) && !supplement.isHashing;
 
-  const canSubmit = isSupplement ? canSubmitSupplement : canSubmitPair;
+  const canSubmitCheckup = Boolean(after.file && after.clientSha256) && !after.isHashing;
+
+  const canSubmit = isSupplement ? canSubmitSupplement : isCheckup ? canSubmitCheckup : canSubmitPair;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -465,14 +472,14 @@ export function SubmitWizard({
       setSteps((s) =>
         s.map((step) =>
           step.id === "upload"
-            ? { ...step, status: "failed", value: "This device is offline. The pair is saved on this device; send it when you are back online." }
+            ? { ...step, status: "failed", value: isCheckup ? "This device is offline. Send the check-up when you are back online." : "This device is offline. The pair is saved on this device; send it when you are back online." }
             : step.id === "hash"
               ? step
               : { ...step, status: "skipped" },
         ),
       );
       // Automatically commit to offline vault
-      if (!isSupplement && before.file && before.clientSha256 && after.file && after.clientSha256) {
+      if (!isSupplement && !isCheckup && before.file && before.clientSha256 && after.file && after.clientSha256) {
         handleSaveDraftOffline();
       }
       return;
@@ -514,6 +521,53 @@ export function SubmitWizard({
         }
 
         await followChecks(supplementSubmissionId);
+        return;
+      }
+
+      // -------------------------------------------------------------
+      // Flow C: Survival check-up, one new photo of an approved record's spot
+      // -------------------------------------------------------------
+      if (isCheckup && checkup) {
+        const aFile = after.file!;
+        const draftRes = await fetch("/api/submissions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ checkupOf: checkup.recordId }),
+        });
+        if (!draftRes.ok) {
+          const err = (await draftRes.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(err?.error || `Failed to start the check-up (${draftRes.status})`);
+        }
+        const draft = (await draftRes.json()) as { id: string };
+        setStep("upload", { value: "Requesting an upload link…" });
+        const tokRes = await fetch(`/api/submissions/${draft.id}/upload-token`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: "AFTER", contentType: aFile.type || "image/jpeg" }),
+        });
+        if (!tokRes.ok) {
+          const err = (await tokRes.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(err?.error || "Failed to issue an upload link");
+        }
+        const tok = (await tokRes.json()) as { pathname: string; clientToken: string };
+        setStep("upload", { value: "Uploading today's photo…" });
+        await uploadEvidence(tok.pathname, aFile, tok.clientToken, track("AFTER", aFile));
+        let attestation: CaptureSignature | undefined;
+        if (signCapture) {
+          const signedAt = new Date().toISOString();
+          attestation = await signWithDeviceKey(userId, captureStatement(projectId, [{ role: "AFTER", sha256: after.clientSha256! }], signedAt), signedAt).catch(() => undefined);
+        }
+        setStep("upload", { value: "Recording the file…" });
+        const finRes = await fetch(`/api/submissions/${draft.id}/finalize`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ files: [{ role: "AFTER", pathname: tok.pathname, clientSha256: after.clientSha256 }], ...(attestation ? { attestation } : {}) }),
+        });
+        if (!finRes.ok) {
+          const err = (await finRes.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(err?.error || `Intake finalization failed (${finRes.status})`);
+        }
+        await followChecks(draft.id);
         return;
       }
 
@@ -668,7 +722,7 @@ export function SubmitWizard({
 
         <div className="flex flex-wrap items-end justify-between gap-3 pt-1">
           <h1 className="font-serif text-[36px] leading-[1.08] tracking-[-0.02em] text-field-text sm:text-[42px]">
-            {isSupplement ? "Add more proof" : "Submit evidence"}
+            {isSupplement ? "Add more proof" : isCheckup ? "Survival check-up" : "Submit evidence"}
           </h1>
           <span
             className="rounded-full px-2.5 py-0.5 text-[13px] font-medium"
@@ -689,6 +743,11 @@ export function SubmitWizard({
               Submitting this photo advances the submission to the next review round.
             </p>
           </div>
+        ) : isCheckup && checkup ? (
+          <p className="max-w-[60ch] text-[16px] leading-[1.55] text-field-muted">
+            Photograph the same spot again, from where the earlier photo was taken. It is reviewed like any submission and added to the record&apos;s survival history: visit{" "}
+            {checkup.visits + 1} since it was approved on {new Date(checkup.approvedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}.
+          </p>
         ) : (
           <p className="max-w-[60ch] text-[16px] leading-[1.55] text-field-muted">
             A before and an after photo of the same spot. Each is fingerprinted on this device, uploaded straight to private storage, and checked for reuse, capture time and position.
@@ -754,7 +813,7 @@ export function SubmitWizard({
         </div>
       )}
 
-      {isDemoMode && !isSupplement && submissionState === "idle" && (
+      {isDemoMode && !isSupplement && !isCheckup && submissionState === "idle" && (
         <div className="rounded-xl border border-signal/20 bg-field-canopy/60 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -891,7 +950,23 @@ export function SubmitWizard({
               slot={supplement}
               onSelect={(file) => handleFileSelect("SUPPLEMENT", file)}
             />
+          ) : isCheckup && checkup ? (
+            <div className="space-y-4">
+              {checkup.referenceUrl && !after.previewUrl && (
+                <figure className="space-y-2 rounded-xl border border-field-hairline bg-field-canopy p-4" data-testid="checkup-reference">
+                  <figcaption className="text-[14px] font-medium text-field-text">
+                    The earlier photo <span className="font-normal text-field-muted">· stand where it was taken, facing the same way</span>
+                  </figcaption>
+                  <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-field-stage">
+                    <Image src={checkup.referenceUrl} alt="The approved record's after photo, the view to match" fill unoptimized sizes="(min-width: 768px) 720px, 100vw" className="object-cover" />
+                  </div>
+                </figure>
+              )}
+              <PhotoCaptureCard role="AFTER" label="Today's photo" description="The same spot and the same view, taken with the phone's camera" slot={after} onSelect={(file) => handleFileSelect("AFTER", file)} />
+              {checkup.referenceUrl && after.previewUrl && <FramingCheck reference={checkup.referenceUrl} candidate={after.previewUrl} referenceLabel="The earlier photo" candidateLabel="Today's photo" />}
+            </div>
           ) : (
+            <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <PhotoCaptureCard
                 role="BEFORE"
@@ -908,6 +983,8 @@ export function SubmitWizard({
                 slot={after}
                 onSelect={(file) => handleFileSelect("AFTER", file)}
               />
+            </div>
+            {before.previewUrl && after.previewUrl && <FramingCheck reference={before.previewUrl} candidate={after.previewUrl} referenceLabel="The before photo" candidateLabel="The after photo" />}
             </div>
           )}
 
@@ -993,13 +1070,15 @@ export function SubmitWizard({
                   <span>
                     {isSupplement
                       ? "Select supplementary photograph to enable submission"
-                      : "Select both BEFORE and AFTER photographs to enable submission"}
+                      : isCheckup
+                        ? "Choose today's photo to enable submission"
+                        : "Select both BEFORE and AFTER photographs to enable submission"}
                   </span>
                 )}
               </div>
 
               <div className="flex items-center gap-2">
-                {!isSupplement && canSubmitPair && (
+                {!isSupplement && !isCheckup && canSubmitPair && (
                   <button
                     type="button"
                     onClick={handleSaveDraftOffline}
@@ -1021,7 +1100,7 @@ export function SubmitWizard({
                   )}
                 >
                   <span>
-                    {isSupplement ? "Submit Supplementary Proof" : "Submit for Independent Review"}
+                    {isSupplement ? "Submit Supplementary Proof" : isCheckup ? "Submit the check-up" : "Submit for Independent Review"}
                   </span>
                   <ArrowRight className="size-3.5" />
                 </button>

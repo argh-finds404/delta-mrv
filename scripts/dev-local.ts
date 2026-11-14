@@ -45,6 +45,8 @@ async function main() {
     // no key is handed over: the local node signs with its own unlocked account
     LOCAL_CHAIN_ANCHORER: chain.anchorerAddress,
     LOCAL_STORAGE_DIR: ".local/storage",
+    // email confirmation and password reset on, each message written here instead of sent
+    EMAIL_OUTBOX_DIR: ".local/outbox",
     FORENSICS_MATCH_KEY: "local-development-only-forensics-match-key",
     CRON_SECRET,
     DEMO_MODE: "true",

@@ -16,6 +16,7 @@ import {
 } from "../db/schema";
 import { actorContext, assignedVerifierOrgs, isUuid, parseInput, type Actor, type Executor } from "./access";
 import { appendAuditEvent } from "./audit-chain.service";
+import { referencePhotos } from "./checkups.service";
 import { ConflictError, ConflictOfInterestError, ForbiddenError } from "./errors";
 import { sealManifest } from "./manifest.service";
 import { getSubmission, toSummary, type SubmissionSummary } from "./submissions.service";
@@ -272,6 +273,8 @@ export type ReviewQueueItem = SubmissionSummary & {
    * itself states, null when it does not say.
    */
   files: { id: string; role: "BEFORE" | "AFTER" | "SUPPLEMENT"; round: number; sha256: string; capturedAt: Date | null; gps: GeoPoint | null }[];
+  /** A survival check-up's comparison photo: the latest AFTER of the approved record it revisits. */
+  reference: { id: string; role: "AFTER"; round: number; sha256: string; capturedAt: Date | null; gps: GeoPoint | null; submissionId: string } | null;
 };
 
 export type ReviewQueueOverview = {
@@ -313,6 +316,7 @@ export async function reviewQueueOverview(actor: Actor, limit = 100, x: Executor
   ]);
   const project = new Map(projects.map((p) => [p.id, p]));
   const org = new Map(orgs.map((o) => [o.id, o.name]));
+  const references = await referencePhotos(x, [...new Set(page.map((s) => s.followsSubmissionId).filter((id): id is string => id !== null))]);
 
   const items = page.map((s): ReviewQueueItem => {
     const current = votes.filter((v) => v.submissionId === s.id && v.round === s.round);
@@ -328,6 +332,10 @@ export async function reviewQueueOverview(actor: Actor, limit = 100, x: Executor
       userDecision: current.find((v) => v.reviewer === actor.userId)?.decision ?? null,
       findingCounts: counts,
       files: files.filter((f) => f.submissionId === s.id).map(({ id, role, round, sha256, capturedAt, gps }) => ({ id, role, round, sha256, capturedAt, gps })),
+      reference: (() => {
+        const r = s.followsSubmissionId ? references.get(s.followsSubmissionId) : undefined;
+        return r ? { id: r.id, role: "AFTER" as const, round: r.round, sha256: r.sha256, capturedAt: r.capturedAt, gps: r.gps, submissionId: r.submissionId } : null;
+      })(),
     };
   });
   return { isVerifier: true, hasAssignments: true, total: queue.length, items };

@@ -7,6 +7,7 @@ import { db } from "../db/client";
 import { evidenceFile, evidenceSubmission, forensicFinding, impactProject } from "../db/schema";
 import { crossCheckNdvi, MIN_DAYS_APART, WINDOW_DAYS, type NdviRequest, type NdviResult } from "../satellite/earth-search";
 import type { Executor } from "./access";
+import { referencePhotos } from "./checkups.service";
 import { NDVI_JOB, refreshRiskCache } from "./forensics.service";
 import { registerJobHandler } from "./jobs.service";
 import { siteRingForChecks } from "./projects.service";
@@ -27,9 +28,14 @@ const two = (n: number) => n.toFixed(2);
 function reasonOf(r: NdviResult): string {
   if (r.outcome === "inconclusive") return `Satellite cross-check inconclusive: ${r.reason}. Advisory only; it weighs nothing in a decision.`;
   const way = r.delta >= 0 ? "a rise" : "a fall";
+  const { years, median, anomaly } = r.seasonal;
+  const season =
+    median !== null && anomaly !== null
+      ? ` In the same season of ${years.length} earlier years (${years[0]!.year} to ${years.at(-1)!.year}) it was ${two(median)} at the median, so this season is ${two(Math.abs(anomaly))} ${anomaly >= 0 ? "above" : "below"} its usual.`
+      : "";
   return (
     `Advisory, not evidence: the Sentinel-2 vegetation index (NDVI) over the site was ${two(r.baseline.ndvi)} on ${day(r.baseline.datetime)} ` +
-    `and ${two(r.current.ndvi)} on ${day(r.current.datetime)}, ${way} of ${two(Math.abs(r.delta))}. Seasons, tides and floods move this number too, ` +
+    `and ${two(r.current.ndvi)} on ${day(r.current.datetime)}, ${way} of ${two(Math.abs(r.delta))}.${season} Seasons, tides and floods move this number too, ` +
     `and a 20 m pixel shows no single plant.`
   );
 }
@@ -54,9 +60,11 @@ export async function runNdviCheck(
     .limit(1);
   if (seen) return "already-checked";
 
-  // the photos' own capture times when they state them, else when the project and the submission began
+  // the photos' own capture times when they state them, else when the project and the submission began;
+  // a check-up's "before" is the record it revisits, whose own AFTER photo is the baseline
   const files = await x.select({ role: evidenceFile.role, capturedAt: evidenceFile.capturedAt }).from(evidenceFile).where(and(eq(evidenceFile.submissionId, submissionId), eq(evidenceFile.round, 1)));
-  const baselineEnd = files.find((f) => f.role === "BEFORE")?.capturedAt ?? row.projectCreatedAt;
+  const reference = row.s.followsSubmissionId ? (await referencePhotos(x, [row.s.followsSubmissionId])).get(row.s.followsSubmissionId) : undefined;
+  const baselineEnd = (reference ? reference.capturedAt : files.find((f) => f.role === "BEFORE")?.capturedAt) ?? row.projectCreatedAt;
   const currentEnd = files.find((f) => f.role === "AFTER")?.capturedAt ?? row.s.submittedAt;
 
   const inconclusive = (reason: string): NdviResult => ({ outcome: "inconclusive", reason, telemetry: { endpoint: "", searched: [], scenes: [], bytesRead: 0, elapsedMs: 0 } });
@@ -75,7 +83,7 @@ export async function runNdviCheck(
       reason: reasonOf(result),
       evidence: {
         outcome: result.outcome,
-        ...(result.outcome === "measured" ? { baseline: result.baseline, current: result.current, delta: result.delta } : { reason: result.reason }),
+        ...(result.outcome === "measured" ? { baseline: result.baseline, current: result.current, delta: result.delta, seasonal: result.seasonal } : { reason: result.reason }),
         baselineEnd: baselineEnd.toISOString(),
         currentEnd: currentEnd.toISOString(),
         windowDays: WINDOW_DAYS,

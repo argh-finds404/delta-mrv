@@ -29,6 +29,8 @@ export const impactProject = pgTable("impact_project", {
   fuzzedCentroid: geographyPoint("fuzzed_centroid"),
   locationCommitment: char("location_commitment", { length: 64 }),
   toleranceMeters: integer("tolerance_meters").notNull().default(100),
+  // Survival check-ups: months between re-photographs of each approved record. Null: none promised.
+  checkupMonths: integer("checkup_months"),
   status: projectStatus("status").notNull().default("DRAFT"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })

@@ -316,7 +316,7 @@ function MapFrame({ children, caption }: { children?: ReactNode; caption?: React
       <Link
         href="/atlas"
         aria-label="Open the impact atlas"
-        className="group relative block aspect-[16/10] overflow-hidden rounded-lg border border-paper-rule bg-[#EFEBE2] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-paper-ink"
+        className="pattern-dots group relative block aspect-[16/10] overflow-hidden rounded-lg border border-paper-rule bg-[#EFEBE2] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-paper-ink"
       >
         {children}
         <span className="absolute bottom-4 left-4 inline-flex h-9 items-center gap-2 rounded-lg border border-paper-rule bg-paper-card px-3 text-[13px] text-paper-ink transition-colors group-hover:border-paper-muted">

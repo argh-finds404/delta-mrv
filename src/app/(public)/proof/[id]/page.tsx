@@ -7,11 +7,15 @@ import { HashDisplay } from "@/src/components/hash-display/hash-display";
 import { ComplianceExport, DropPhotoVerifier, ProofVerifier } from "@/src/components/proof";
 import { CaptureCheck } from "@/src/components/proof/CaptureCheck";
 import { CustodyTimeline } from "@/src/components/proof/CustodyTimeline";
+import { SurvivalTimeline } from "@/src/components/proof/SurvivalTimeline";
+import { env } from "@/src/env";
 import { SiteFooter } from "@/src/components/site/SiteFooter";
 import { SiteHeader } from "@/src/components/site/SiteHeader";
 import { ACTIVITY_LABEL, formatClaim, formatLatLon } from "@/src/lib/format";
 import { explorerAddress, explorerTx } from "@/src/lib/chain/registry";
 import { DOES_NOT_PROVE, PROVES } from "@/src/lib/limits";
+import { buildProofBundle } from "@/src/lib/proof-bundle";
+import { projectSurvival } from "@/src/server/services/checkups.service";
 import { NotFoundError } from "@/src/server/services/errors";
 import { getPublicProof, type PublicProof } from "@/src/server/services/submissions.service";
 
@@ -52,13 +56,34 @@ async function Dossier({ params }: ProofPageProps) {
   });
   const { submission, project, files, decisions, manifest, anchor, capture } = proof;
   const claim = formatClaim(project.claimedQuantity, project.claimedUnit);
+  // survival: the record this page belongs to (itself, or the one a check-up revisits)
+  const recordId = submission.followsSubmissionId ?? submission.id;
+  const survival = await projectSurvival(project.id, { limit: 50 });
+  const record = survival.records.find((r) => r.recordId === recordId);
+  const bundle =
+    manifest && submission.manifestHash
+      ? buildProofBundle(
+          {
+            submissionId: submission.id,
+            project: { id: project.id, title: project.title, ownerOrgName: project.ownerOrgName },
+            claim,
+            checkupOf: submission.followsSubmissionId,
+            manifest,
+            manifestHash: submission.manifestHash,
+            anchor: anchor && { chainId: anchor.chainId, contractAddress: anchor.contractAddress, batchId: anchor.batchId, merkleRoot: anchor.merkleRoot, proof: anchor.proof, txHash: anchor.txHash, blockNumber: anchor.blockNumber, status: anchor.status },
+            capture,
+            decisions: decisions.map((d) => ({ decision: d.decision, reason: d.reason, round: d.round, createdAt: d.createdAt.toISOString(), reviewerOrgName: d.reviewerOrgName })),
+          },
+          `${env.BETTER_AUTH_URL.replace(/\/$/, "")}/proof/${submission.id}`,
+        )
+      : null;
 
   return (
     <main className={`${container} space-y-16 py-12 lg:py-16`}>
       {/* 1. Header */}
       <header className="space-y-6">
         <p className="text-[15px] text-paper-muted">
-          Proof of an approved submission · {ACTIVITY_LABEL[project.activityType] ?? project.activityType}
+          {submission.followsSubmissionId ? "Proof of an approved survival check-up" : "Proof of an approved submission"} · {ACTIVITY_LABEL[project.activityType] ?? project.activityType}
         </p>
         <h1 className="type-display">{project.title}</h1>
         <dl className="grid gap-x-10 gap-y-4 border-y border-paper-rule py-5 text-[15px] sm:grid-cols-3">
@@ -79,6 +104,20 @@ async function Dossier({ params }: ProofPageProps) {
           The claim is the organisation&apos;s own. This page shows what was checked about the evidence for it, and by whom.
         </p>
       </header>
+
+      {record && (submission.followsSubmissionId || survival.checkupMonths || record.visits.length > 0) && (
+        <section aria-labelledby="survival" className="space-y-4">
+          <h2 id="survival" className="type-section">
+            Is it still there?
+          </h2>
+          <p className="max-w-[62ch] text-[15px] leading-[1.6] text-paper-muted">
+            {submission.followsSubmissionId
+              ? "This check-up photographed the spot of an approved record again, and was reviewed the same way. Each visit is its own record, checked and anchored like this one."
+              : "The site's owner photographs this spot again on a schedule, and each visit is reviewed by the same independent organisation. A missed visit is shown as missed."}
+          </p>
+          <SurvivalTimeline record={record} checkupMonths={survival.checkupMonths} currentId={submission.id} />
+        </section>
+      )}
 
       <CustodyTimeline files={files} decisions={decisions} anchor={anchor} capture={capture ? "Signed by the capturing device's key" : undefined} />
 
@@ -191,9 +230,9 @@ async function Dossier({ params }: ProofPageProps) {
         )}
       </section>
 
-      {manifest && (
+      {bundle && (
         <section aria-label="Keep a copy" className="print:hidden">
-          <ComplianceExport submissionId={submission.id} projectTitle={project.title} bundleData={{ ...proof, exportedAt: new Date().toISOString(), verify: "Hash `manifest` as RFC 8785 JSON with SHA-256, build the leaf [submissionId, hash, approved second], and call verify(batchId, proof, leafHash) on the contract." }} theme="paper" />
+          <ComplianceExport bundle={bundle} theme="paper" />
         </section>
       )}
 

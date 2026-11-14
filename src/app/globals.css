@@ -675,6 +675,58 @@ mark.brush {
   from { transform: scaleX(0); }
   to { transform: scaleX(1); }
 }
+
+/*
+  Small motion vocabulary (2026-11-14). A curve loader: a short ink stroke running along a
+  mathematical curve, the one thing allowed to loop, and only while work is under way. Icons that
+  draw once as they appear: the ring, then the mark, inside docs/06's 600 ms ceiling. A step list
+  whose results arrive one by one. All of it still without motion.
+*/
+.curve-loader-run {
+  stroke-dasharray: 18 82;
+}
+.drawn-icon-ring,
+.drawn-icon-mark {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .curve-loader-run {
+    animation: curve-run 1.6s linear infinite;
+  }
+  .drawn-icon-ring {
+    animation: draw-stroke 360ms var(--ease-enter) both;
+  }
+  .drawn-icon-mark {
+    animation: draw-stroke 240ms var(--ease-enter) 200ms both;
+  }
+  .step-arrive {
+    animation: rise-in 320ms var(--ease-enter) both;
+    animation-delay: calc(var(--i, 0) * 140ms);
+  }
+}
+@keyframes curve-run {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes draw-stroke {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+/*
+  Quiet grounds (after PatternCraft's CSS patterns, MIT): a dot grid in the hairline colour,
+  shown where a map or a drop zone has not arrived yet, so an empty frame reads as a surface
+  waiting for content rather than a broken box.
+*/
+.pattern-dots {
+  background-image: radial-gradient(color-mix(in srgb, var(--field-muted) 22%, transparent) 1px, transparent 1.4px);
+  background-size: 16px 16px;
+}
+[data-theme="paper"] .pattern-dots,
+.theme-paper .pattern-dots {
+  background-image: radial-gradient(color-mix(in srgb, var(--paper-muted) 20%, transparent) 1px, transparent 1.4px);
+}
 .maplibregl-map .maplibregl-ctrl-attrib,
 .maplibregl-map .maplibregl-ctrl-attrib * {
   font-size: 11px !important;

@@ -400,7 +400,7 @@ export function AtlasMap({
   };
 
   return (
-    <div className={cn("relative overflow-hidden bg-field-stage", explore && "atlas-explore", className)}>
+    <div className={cn("pattern-dots relative overflow-hidden bg-field-stage", explore && "atlas-explore", className)}>
       <div
         ref={container}
         role={explore ? "region" : "img"}

@@ -41,6 +41,8 @@ export type SubmissionSummary = {
   riskScore: string | null;
   riskBand: (typeof evidenceSubmission.$inferSelect)["riskBand"];
   submittedAt: Date;
+  /** A survival check-up: the approved record it revisits. Null for an ordinary submission. */
+  followsSubmissionId: string | null;
 };
 
 type SubmissionRow = typeof evidenceSubmission.$inferSelect;
@@ -57,6 +59,7 @@ export const toSummary = (r: SubmissionRow): SubmissionSummary => ({
   riskScore: r.riskScore,
   riskBand: r.riskBand,
   submittedAt: r.submittedAt,
+  followsSubmissionId: r.followsSubmissionId,
 });
 
 /**
@@ -203,7 +206,7 @@ export type EvidenceFileView = {
 export type SubmissionDetail = {
   submission: SubmissionSummary;
   access: "owner" | "verifier";
-  project: { id: string; title: string; activityType: (typeof impactProject.$inferSelect)["activityType"]; ownerOrgName: string; toleranceMeters: number };
+  project: { id: string; title: string; activityType: (typeof impactProject.$inferSelect)["activityType"]; ownerOrgName: string; toleranceMeters: number; status: (typeof impactProject.$inferSelect)["status"] };
   /** Every file of every round, oldest round first, before then after then supplements. */
   files: EvidenceFileView[];
   /** This submission's events on its owner's audit chain, oldest first. */
@@ -232,7 +235,7 @@ export async function getSubmissionDetail(actor: Actor, id: string, x: Executor 
 
   const [[project], files, events, [attested]] = await Promise.all([
     x
-      .select({ id: impactProject.id, title: impactProject.title, activityType: impactProject.activityType, toleranceMeters: impactProject.toleranceMeters, ownerOrgName: organization.name })
+      .select({ id: impactProject.id, title: impactProject.title, activityType: impactProject.activityType, toleranceMeters: impactProject.toleranceMeters, status: impactProject.status, ownerOrgName: organization.name })
       .from(impactProject)
       .innerJoin(organization, eq(organization.id, impactProject.ownerOrgId))
       .where(eq(impactProject.id, submission.projectId)),
@@ -271,7 +274,17 @@ export async function getSubmissionDetail(actor: Actor, id: string, x: Executor 
 }
 
 export type PublicProof = {
-  submission: { id: string; status: "APPROVED" | "ANCHORED"; round: number; submittedAt: Date; anchored: boolean };
+  submission: {
+    id: string;
+    status: "APPROVED" | "ANCHORED";
+    round: number;
+    submittedAt: Date;
+    anchored: boolean;
+    /** A survival check-up: the approved record it revisits. */
+    followsSubmissionId: string | null;
+    /** The stored fingerprint of the sealed manifest: a verifier recomputes it, this is the claim. */
+    manifestHash: string | null;
+  };
   project: {
     id: string;
     title: string;
@@ -356,7 +369,15 @@ export async function getPublicProof(submissionId: string, x: Executor = db): Pr
   const anchor = anchors[0];
   const attested = s.captureAttestation as StoredAttestation | null;
   return {
-    submission: { id: s.id, status: s.status as "APPROVED" | "ANCHORED", round: s.round, submittedAt: s.submittedAt, anchored: s.status === "ANCHORED" },
+    submission: {
+      id: s.id,
+      status: s.status as "APPROVED" | "ANCHORED",
+      round: s.round,
+      submittedAt: s.submittedAt,
+      anchored: s.status === "ANCHORED",
+      followsSubmissionId: s.followsSubmissionId,
+      manifestHash: s.manifestHash,
+    },
     project: {
       id: p.id,
       title: p.title,
@@ -484,6 +505,12 @@ const pairSchema = z.object({
     .refine((fs) => new Set(fs.map((f) => f.role)).size === 2, "a submission is exactly one BEFORE and one AFTER photo")
     .refine((fs) => new Set(fs.map((f) => f.pathname)).size === 2, "the BEFORE and AFTER photos must be different uploads"),
 });
+// a survival check-up: the original record's photo is the "before"; only today's photo is sent
+const checkupSchema = z.object({
+  attestation: z.unknown().optional(),
+  files: z.array(fileSchema.extend({ role: z.literal("AFTER") }), { error: "a check-up is exactly one new photo, sent as AFTER" }).length(1, "a check-up is exactly one new photo, sent as AFTER"),
+});
+const intakeSchema = z.object({ attestation: z.unknown().optional(), files: z.array(fileSchema.extend({ role: z.enum(["BEFORE", "AFTER"]) })).min(1).max(2) });
 const tokenSchema = z.object({ role: z.enum(["BEFORE", "AFTER", "SUPPLEMENT"]), contentType: z.string().min(1).max(100) });
 
 /** Every upload for a submission lives under this prefix; a token is only issued inside it. */
@@ -521,6 +548,29 @@ export async function createDraft(actor: Actor, projectId: string, x: Executor =
 }
 
 /**
+ * Starts a survival check-up of an approved record: a draft that takes one new photo of the same
+ * spot, reviewed like any submission. A check-up of a check-up revisits the original record, so
+ * every visit hangs off one record. Owners' members only; an unapproved record cannot be revisited.
+ */
+export async function createCheckupDraft(actor: Actor, recordId: string, x: Executor = db): Promise<SubmissionSummary> {
+  if (!isUuid(recordId)) throw new NotFoundError(NOT_FOUND);
+  const [row] = await x
+    .select({ s: evidenceSubmission, projectStatus: impactProject.status })
+    .from(evidenceSubmission)
+    .innerJoin(impactProject, eq(impactProject.id, evidenceSubmission.projectId))
+    .where(eq(evidenceSubmission.id, recordId));
+  const ctx = await actorContext(x, actor);
+  if (!row || !ctx.orgIds.includes(row.s.ownerOrgId)) throw new NotFoundError(NOT_FOUND);
+  if (row.s.status !== "APPROVED" && row.s.status !== "ANCHORED") throw new ConflictError("Only an approved record can be revisited for a check-up.");
+  if (row.projectStatus !== "ACTIVE") throw new ConflictError("only an ACTIVE project takes new evidence");
+  const [draft] = await x
+    .insert(evidenceSubmission)
+    .values({ projectId: row.s.projectId, ownerOrgId: row.s.ownerOrgId, submittedByUserId: actor.userId, status: "DRAFT", followsSubmissionId: row.s.followsSubmissionId ?? row.s.id })
+    .returning();
+  return toSummary(draft!);
+}
+
+/**
  * A token for one direct upload. The server names the file (a user-supplied name is a path
  * traversal vector) and the token can write that one path, once, within the limits.
  */
@@ -536,6 +586,7 @@ export async function issueUploadToken(
   const type = ACCEPTED_EVIDENCE_TYPES.find((t) => t === data.contentType);
   if (!type) throw new ValidationError("a photo must be a JPEG, PNG or WebP image");
   const s = await loadOwnForWrite(x, actor, submissionId, data.role === "SUPPLEMENT" ? ["NEEDS_MORE_PROOF"] : ["DRAFT"]);
+  if (s.followsSubmissionId && data.role === "BEFORE") throw new ValidationError("a check-up takes no BEFORE photo: the record it revisits is the before");
   const pathname = `${uploadPrefix(s)}${data.role.toLowerCase()}-${randomUUID()}.${EXTENSION[type]}`;
   const clientToken = await storage.uploadToken(pathname, { maxBytes: MAX_EVIDENCE_BYTES, contentTypes: ACCEPTED_EVIDENCE_TYPES });
   return { pathname, clientToken };
@@ -612,9 +663,10 @@ export async function finalizeSubmission(
   x: Executor = db,
   storage: StoragePort = evidenceStorage,
 ): Promise<SubmissionSummary> {
-  const data = parseInput(pairSchema, input);
+  const raw = parseInput(intakeSchema, input);
   return x.transaction(async (tx) => {
     const s = await loadOwnForWrite(tx, actor, submissionId, ["DRAFT"]);
+    const data = parseInput(s.followsSubmissionId ? checkupSchema : pairSchema, raw);
     const stored = await Promise.all(data.files.map((f) => readStoredUpload(storage, s, f.pathname)));
     assertTransition(s.status, "PENDING_FORENSICS");
     // against the server's own fingerprints of the stored bytes, never the client's
@@ -636,6 +688,8 @@ export async function finalizeSubmission(
         from: "DRAFT",
         status: "PENDING_FORENSICS",
         files: rows.map((r) => ({ role: r.role, sha256: r.sha256 })),
+        // the link from a check-up to its record is on the chain, whose head the manifest seals
+        ...(s.followsSubmissionId ? { followsSubmissionId: s.followsSubmissionId } : {}),
         // the chain fixes the signature too: the column alone could be edited later
         ...(capture ? { capture: { keyId: capture.keyId, verified: capture.verified, signature: capture.signature } } : {}),
       },

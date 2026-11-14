@@ -25,6 +25,11 @@ const bootSchema = z.object({
   ),
   // the satellite cross-check (X1) calls a public archive only when this is "true"
   NDVI_ENABLED: z.preprocess(unsetIfEmpty, z.literal("true").optional()),
+  // Email (verification and password reset). Resend's HTTP API, free tier, when both are set
+  RESEND_API_KEY: z.preprocess(unsetIfEmpty, z.string().startsWith("re_", "must be a Resend API key (re_...)").optional()),
+  EMAIL_FROM: z.preprocess(unsetIfEmpty, z.string().regex(/^([^<>]+<)?[^\s@<>]+@[^\s@<>]+>?$/, "must be an address, or Name <address>").optional()),
+  // development only: write each email as a JSON file here instead of sending it (ignored in production)
+  EMAIL_OUTBOX_DIR: z.preprocess(unsetIfEmpty, z.string().optional()),
 });
 
 // Belong to later stages. Absent at boot is fine; requireEnv asserts them where
@@ -55,6 +60,9 @@ const parsed = bootSchema.safeParse({
   DEMO_MODE: process.env.DEMO_MODE,
   OPERATOR_EMAILS: process.env.OPERATOR_EMAILS,
   NDVI_ENABLED: process.env.NDVI_ENABLED,
+  RESEND_API_KEY: process.env.RESEND_API_KEY,
+  EMAIL_FROM: process.env.EMAIL_FROM,
+  EMAIL_OUTBOX_DIR: process.env.EMAIL_OUTBOX_DIR,
 });
 
 if (!parsed.success) {

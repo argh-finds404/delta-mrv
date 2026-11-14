@@ -191,6 +191,9 @@ Permitted, each because it carries meaning:
 | Drop-photo hash comparing character-group by character-group, settling green | the comparison is real, not asserted |
 | Queue advancing after a decision | your action landed, here is the next one |
 | Skeleton → content crossfade | the shape was predicted correctly |
+| A check's results arriving one by one (`.step-arrive`) | each step was run, in this order |
+| An icon drawing its mark once as it appears (`DrawnIcon`, 360 ms) | this result just happened |
+| A stroke running along a curve (`CurveLoader`) while a check is in flight | work is under way and has not stalled |
 
 Rules:
 
@@ -202,7 +205,12 @@ Rules:
 - Every animation sits inside
   `@media (prefers-reduced-motion: no-preference)`. The reduced-motion path
   is the default and must be fully functional.
-- Nothing loops. No pulsing, no breathing, no infinite shimmer.
+- Nothing loops. No pulsing, no breathing, no infinite shimmer. Two exceptions, both the
+  maintainer's: the landing hero (2026-11-11, with a pause control), and an activity indicator
+  (`CurveLoader`, spinners) while a check is actually in flight (2026-11-14), which stops when
+  the work does and stands still with reduced motion.
+- Empty frames waiting for content (a map not loaded yet, a drop zone) show the hairline dot
+  grid, `.pattern-dots`, not a blank box.
 
 ## 7. Components
 

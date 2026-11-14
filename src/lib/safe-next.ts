@@ -6,7 +6,8 @@ export function safeNext(raw: string | null | undefined): string | null {
   if (!raw) return null;
   if (!raw.startsWith("/") || raw.startsWith("//")) return null;
   if (raw.includes("\\") || /[\u0000-\u001f\u007f]/.test(raw)) return null;
-  // returning someone to an auth page just loops
+  // returning someone to an auth page just loops; /sign-up/finish does not, it completes an account
+  if (/^\/sign-up\/finish(?:[?#]|$)/.test(raw)) return raw;
   if (/^\/(sign-in|sign-up|demo)(?:[/?#]|$)/.test(raw)) return null;
   return raw;
 }

@@ -43,6 +43,13 @@
       "when": 1794614762857,
       "tag": "0005_satellite_and_capture",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794634500911,
+      "tag": "0006_survival_and_claims",
+      "breakpoints": true
     }
   ]
 }

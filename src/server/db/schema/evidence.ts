@@ -1,4 +1,5 @@
 import {
+  type AnyPgColumn,
   char,
   integer,
   jsonb,
@@ -45,6 +46,10 @@ export const findingKind = pgEnum("finding_kind", [
   "AI_OBSERVATION",
   // X1: Sentinel-2 vegetation index before and after; advisory, always INFO, weighs nothing
   "SATELLITE_NDVI",
+  // claims.v1: the project's own claimed number against its own registered boundary
+  "CLAIM_CHECKED",
+  "CLAIM_EXCEEDS_AREA",
+  "CLAIM_DENSITY_IMPLAUSIBLE",
 ]);
 
 export const evidenceSubmission = pgTable("evidence_submission", {
@@ -71,6 +76,9 @@ export const evidenceSubmission = pgTable("evidence_submission", {
   // X2: the device's signature over the capture's fingerprints, checked at finalize. Additive
   // metadata, never part of the anchored manifest; null when none was sent.
   captureAttestation: jsonb("capture_attestation"),
+  // A survival check-up: the approved record (never itself a check-up) it revisits, photographed
+  // again from the same spot. Null for an ordinary before/after submission.
+  followsSubmissionId: uuid("follows_submission_id").references((): AnyPgColumn => evidenceSubmission.id),
   // set when the draft is created; the 24h draft sweep ages from it
   submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
 });

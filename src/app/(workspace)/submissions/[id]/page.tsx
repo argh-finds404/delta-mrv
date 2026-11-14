@@ -210,12 +210,27 @@ async function SubmissionBody({ params }: Props) {
             <p className="text-[14px] text-field-muted">
               Submission <span className="font-mono">{s.id.slice(0, 8)}</span> · round {s.round} · started {when(s.submittedAt)}
             </p>
+            {s.followsSubmissionId && (
+              <p className="text-[15px]" data-testid="checkup-of">
+                A survival check-up of{" "}
+                <Link href={`/submissions/${s.followsSubmissionId}`} className="font-medium text-signal underline-offset-4 hover:underline">
+                  record {s.followsSubmissionId.slice(0, 8)}
+                </Link>
+                : the same spot, photographed again after it was approved.
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             {isPublic && (
               <Link href={`/proof/${s.id}`} className={secondary}>
                 Public proof page
                 <ExternalLink className="size-4" aria-hidden />
+              </Link>
+            )}
+            {isOwner && isPublic && project.status === "ACTIVE" && (
+              <Link href={`/projects/${project.id}/submit?checkup=${s.followsSubmissionId ?? s.id}`} className={secondary}>
+                <Camera className="size-[18px]" aria-hidden />
+                Start a check-up
               </Link>
             )}
             {isOwner && s.status === "NEEDS_MORE_PROOF" && (

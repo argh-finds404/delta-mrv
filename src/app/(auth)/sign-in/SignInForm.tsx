@@ -19,6 +19,8 @@ export interface SignInPageProps {
   onSubmit?: (credentials: SignInCredentials) => Promise<{ success: boolean; error?: string }>;
   /** Whether the /demo route exists (DEMO_MODE). The link is hidden when it does not. */
   demoEnabled?: boolean;
+  /** Whether this server sends email: password reset is offered only when it does. */
+  emailEnabled?: boolean;
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -33,10 +35,16 @@ async function signInWithAuth({ email, password }: SignInCredentials): Promise<{
   if (!result.error) return { success: true };
   if (result.error.status === 429) return { success: false, error: "Too many attempts. Wait a moment and try again." };
   if (result.error.status >= 500) return { success: false, error: "Sign-in is unavailable right now. Try again shortly." };
+  // only reached with the right password, so it tells nothing to someone guessing addresses. The new
+  // link returns through /sign-up/finish, which registers the organisation if it does not exist yet.
+  if (result.error.code === "EMAIL_NOT_VERIFIED") {
+    await authClient.sendVerificationEmail({ email: email.trim(), callbackURL: "/sign-up/finish" }).catch(() => null);
+    return { success: false, error: "Confirm your email first. We have sent a new link to it; open it to sign in." };
+  }
   return { success: false, error: "Email or password is incorrect." };
 }
 
-export function SignInForm({ onSubmit, demoEnabled = false }: SignInPageProps) {
+export function SignInForm({ onSubmit, demoEnabled = false, emailEnabled = false }: SignInPageProps) {
   const router = useRouter();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -114,9 +122,16 @@ export function SignInForm({ onSubmit, demoEnabled = false }: SignInPageProps) {
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="password" className={authLabel}>
-            Password
-          </label>
+          <div className="flex items-baseline justify-between gap-3">
+            <label htmlFor="password" className={authLabel}>
+              Password
+            </label>
+            {emailEnabled && (
+              <Link href="/forgot-password" className="text-[14px] text-field-muted underline decoration-field-hairline underline-offset-[5px] transition-colors hover:text-field-text hover:decoration-field-text">
+                Forgot your password?
+              </Link>
+            )}
+          </div>
           <div className="relative">
             <input
               id="password"

@@ -28,6 +28,12 @@ describe("safeNext", () => {
     expect(safeNext(p)).toBeNull();
   });
 
+  it("lets the end of sign-up through: it finishes an account and goes on, so it cannot loop", () => {
+    expect(safeNext("/sign-up/finish?org=%7B%7D")).toBe("/sign-up/finish?org=%7B%7D");
+    expect(safeNext("/sign-up/finished")).toBeNull();
+    expect(safeNext("/sign-up/other")).toBeNull();
+  });
+
   it("does not mistake a similar path for an auth page", () => {
     expect(safeNext("/sign-installer")).toBe("/sign-installer");
     expect(safeNext("/demonstration")).toBe("/demonstration");

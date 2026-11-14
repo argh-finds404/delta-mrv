@@ -52,6 +52,9 @@ const QUEUE_FILTERS: Record<QueueFilter, { label: string; tone?: "fraud" | "revi
   MINE: { label: "Awaiting my vote", test: (s) => !s.userHasDecided },
 };
 
+/** Rows drawn at first and per step. Rows are a fixed 72px, so the list never jumps as it grows. */
+const WINDOW = 40;
+
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** "18 Oct 09:42", in UTC so the server render and the browser agree. */
@@ -97,6 +100,35 @@ export function QueuePane({
     return { pinnedItems: [], regularItems: [...filtered].sort(compareSeverity) };
   }, [filtered, isVerifierAdmin]);
 
+  // Only a window of rows is in the page: a queue of hundreds would otherwise be thousands of
+  // elements to lay out. The selected row is always inside it, wherever j/k or a link put it.
+  const [shown, setShown] = React.useState(WINDOW);
+  const selectedIndex = regularItems.findIndex((s) => s.id === selectedId);
+  const limit = Math.max(shown, selectedIndex + WINDOW / 4);
+  const visibleRegular = regularItems.slice(0, limit);
+  const hidden = regularItems.length - visibleRegular.length;
+  const sentinelRef = React.useRef<HTMLDivElement>(null);
+  const focusAfterGrow = React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || hidden <= 0) return;
+    const io = new IntersectionObserver(([e]) => e?.isIntersecting && setShown((n) => n + WINDOW), { root: listRef.current, rootMargin: "0px 0px 360px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hidden]);
+
+  // a key that moved past the last drawn row focuses its target once the window has grown
+  React.useEffect(() => {
+    const at = focusAfterGrow.current;
+    if (at === null) return;
+    const rows = listRef.current?.querySelectorAll<HTMLElement>('[role="option"]');
+    if (rows && rows.length > at) {
+      focusAfterGrow.current = null;
+      rows[at]?.focus();
+    }
+  }, [limit]);
+
   // j/k change the selection from outside the list; keep the row in view.
   React.useEffect(() => {
     listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
@@ -110,6 +142,13 @@ export function QueuePane({
     if (rows.length === 0) return;
     e.preventDefault();
     const at = rows.indexOf(document.activeElement as HTMLElement);
+    const total = pinnedItems.length + regularItems.length;
+    // past the drawn rows: grow the window, then focus the row once it exists
+    if (hidden > 0 && (e.key === "End" || (e.key === "ArrowDown" && at === rows.length - 1))) {
+      focusAfterGrow.current = e.key === "End" ? total - 1 : at + 1;
+      setShown(e.key === "End" ? regularItems.length : (n) => n + WINDOW);
+      return;
+    }
     const next =
       e.key === "Home" ? 0
       : e.key === "End" ? rows.length - 1
@@ -269,7 +308,7 @@ export function QueuePane({
           </div>
         )}
 
-        {regularItems.map((sub, i) => (
+        {visibleRegular.map((sub, i) => (
           <QueueRow
             key={sub.id}
             submission={sub}
@@ -280,6 +319,18 @@ export function QueuePane({
             theme={theme}
           />
         ))}
+
+        {hidden > 0 && (
+          <div ref={sentinelRef} className="flex h-[72px] items-center justify-center px-5">
+            <button
+              type="button"
+              onClick={() => setShown((n) => n + WINDOW)}
+              className="inline-flex h-9 items-center rounded-md border border-field-hairline px-3 text-[13px] text-field-muted transition-colors hover:text-field-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+            >
+              Show {Math.min(WINDOW, hidden)} more <span className="ml-1 font-mono tabular-nums">· {hidden} not shown</span>
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );

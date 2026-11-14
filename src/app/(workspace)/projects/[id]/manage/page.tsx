@@ -6,13 +6,15 @@ import { connection } from "next/server";
 import { ArrowLeft } from "lucide-react";
 import { AppShell, AppShellLoading } from "@/src/components/app/AppShell";
 import { ManageProjectForm } from "@/src/components/projects/ManageProjectForm";
+import { CheckupSchedule } from "@/src/components/projects/CheckupSchedule";
 import { RequestReviewer } from "@/src/components/projects/RequestReviewer";
+import { projectSurvival } from "@/src/server/services/checkups.service";
 import { isOperator } from "@/src/server/services/operators";
 import { requireSession } from "@/src/server/auth/session";
 import { NotFoundError } from "@/src/server/services/errors";
 import { getProject, listProjectReviewers, myOrganisations, reviewerRequestedAt } from "@/src/server/services/projects.service";
 import { listSubmissionsForProject } from "@/src/server/services/submissions.service";
-import { requestReviewerAction, updateProjectAction } from "./actions";
+import { requestReviewerAction, setCheckupScheduleAction, updateProjectAction } from "./actions";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -43,7 +45,13 @@ async function ManageBody({ params }: Props) {
   });
   // the owning organisation only (docs/05-ROUTES.md §3); to anyone else this page does not exist
   if (project.access !== "owner") notFound();
-  const [orgs, submissions, reviewers, requestedAt] = await Promise.all([myOrganisations(actor), listSubmissionsForProject(actor, id), listProjectReviewers(actor, id), reviewerRequestedAt(actor, id)]);
+  const [orgs, submissions, reviewers, requestedAt, survival] = await Promise.all([
+    myOrganisations(actor),
+    listSubmissionsForProject(actor, id),
+    listProjectReviewers(actor, id),
+    reviewerRequestedAt(actor, id),
+    projectSurvival(project.id, { includePending: true }),
+  ]);
   const role = orgs.find((o) => o.orgId === project.ownerOrgId)?.role;
   const mayChange = role === "owner" || role === "admin"; // the service checks again on every save
   const locked = submissions.some((s) => s.status !== "DRAFT");
@@ -90,6 +98,16 @@ async function ManageBody({ params }: Props) {
               {project.status === "ACTIVE" && <RequestReviewer requestedAt={requestedAt} canAsk={mayChange} action={requestReviewerAction.bind(null, project.id)} />}
             </div>
           )}
+        </section>
+
+        <section aria-labelledby="checkups" className="rise-in max-w-[720px] space-y-3">
+          <h2 id="checkups" className="font-serif text-[24px] leading-tight">
+            Survival check-ups
+          </h2>
+          <p className="max-w-[64ch] text-[15px] leading-[1.6] text-field-muted">
+            An approval says the work was there on the day. A check-up photographs the same spot again later, reviewed the same way, so the public page can show whether it is still there.
+          </p>
+          <CheckupSchedule months={survival.checkupMonths} committed={survival.records.length > 0} canChange={mayChange} action={setCheckupScheduleAction.bind(null, project.id)} />
         </section>
 
         <section aria-labelledby="details" className="rise-in space-y-5">

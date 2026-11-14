@@ -349,6 +349,31 @@ export async function requestReviewer(actor: Actor, id: string, x: Executor = db
 }
 
 /**
+ * The survival check-up promise: months between re-photographs of each approved record. Before any
+ * record is approved it may be anything, or none. After, it may only be set or shortened: removing
+ * or lengthening it would make an overdue site look fine on its public page. On the owner's chain.
+ */
+export async function setCheckupSchedule(actor: Actor, id: string, months: number | null, x: Executor = db): Promise<{ checkupMonths: number | null }> {
+  if (months !== null && (!Number.isInteger(months) || months < 1 || months > 60)) throw new ValidationError("Choose between 1 and 60 months between check-ups.");
+  return x.transaction(async (tx) => {
+    const row = await loadForOwnerWrite(tx, actor, id);
+    if (row.status === "CLOSED") throw new ConflictError("A closed project takes no new schedule.");
+    if (row.checkupMonths === months) return { checkupMonths: months };
+    const [approved] = await tx
+      .select({ id: evidenceSubmission.id })
+      .from(evidenceSubmission)
+      .where(and(eq(evidenceSubmission.projectId, row.id), inArray(evidenceSubmission.status, ["APPROVED", "ANCHORED"])))
+      .limit(1);
+    if (approved && row.checkupMonths !== null && (months === null || months > row.checkupMonths)) {
+      throw new ConflictError(`Records here are already approved under check-ups every ${row.checkupMonths} months. The interval can be shortened, never lengthened or removed.`);
+    }
+    await tx.update(impactProject).set({ checkupMonths: months }).where(eq(impactProject.id, row.id));
+    await appendAuditEvent(tx, { orgId: row.ownerOrgId, eventType: "CHECKUP_SCHEDULE_SET", actorUserId: actor.userId, payload: { projectId: row.id, from: row.checkupMonths, to: months } });
+    return { checkupMonths: months };
+  });
+}
+
+/**
  * Totals across ACTIVE projects for the landing page. Counts only, nothing per site.
  * `approved` includes ANCHORED: an anchored record was approved first.
  */

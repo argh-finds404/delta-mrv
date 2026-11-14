@@ -100,6 +100,7 @@ organization.website     text
 | `fuzzed_centroid` | geography(Point,4326) | public-safe |
 | `location_commitment` | char(64) | |
 | `tolerance_meters` | integer | default 100 |
+| `checkup_months` | integer | nullable; `CHECK` 1 to 60. X11: months between survival check-ups of each approved record. Set or shortened only, once a record is approved (service rule, `CHECKUP_SCHEDULE_SET` audit event) |
 | `status` | enum | `DRAFT`,`ACTIVE`,`CLOSED` |
 | `created_at`/`updated_at` | timestamptz | |
 
@@ -148,6 +149,7 @@ public proof dossiers are unaffected — this scopes the portal, not the proofs.
 | `manifest_hash` | char(64) | nullable until approved |
 | `manifest_version` | integer | default 1 |
 | `capture_attestation` | jsonb | nullable. X2: the device signature sent with the pair, as checked at finalize (`verified`, `keyId`, public key, signature, the device's clock). Never part of the manifest |
+| `follows_submission_id` | uuid | nullable, FK → evidence_submission, partial index. X11: a survival check-up's approved original record (never itself a check-up). On the `SUBMISSION_FINALIZED` audit event too, so the chain head the manifest seals covers it. Migration `0006` |
 | `submitted_at` | timestamptz | |
 
 The files of a submission are rows in `evidence_file`, not columns here.

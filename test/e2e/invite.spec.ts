@@ -4,6 +4,7 @@
 //   2. the colleague opens it with no account, signs up (no organisation to register) and joins
 //   3. they are a member, and the invitation is spent
 import { expect, test } from "@playwright/test";
+import { linkFromEmail } from "./outbox";
 
 const PASSWORD = "delta-demo-2026"; // src/lib/demo-accounts.ts: seeded demo databases only
 
@@ -37,6 +38,9 @@ test("a colleague joins an organisation through an invitation link", async ({ br
   await signUp.locator("#email").fill(email);
   await signUp.locator("#password").fill("a-long-test-password-1");
   await signUp.getByRole("button", { name: "Create account" }).click();
+  // the local stack confirms addresses: the emailed link signs them in and returns to the invitation
+  await expect(guest.getByTestId("check-email")).toContainText(email);
+  await guest.goto(await linkFromEmail(email, /Confirm your email/));
   await guest.waitForURL(/\/dashboard\?invite=/);
   await guest.getByRole("button", { name: "Join Delta Independent Audit" }).click();
   await guest.waitForURL(/\/dashboard$/);

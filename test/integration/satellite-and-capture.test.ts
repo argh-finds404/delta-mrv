@@ -68,7 +68,14 @@ describe("the satellite cross-check job (X1)", () => {
       const reading = (id: string, datetime: string, ndvi: number) => ({ sceneId: id, datetime, cloudCover: 2, ndvi, pixels: 80, clear: 78 });
       const check = async (req: NdviRequest): Promise<NdviResult> => {
         asked.push(req);
-        return { outcome: "measured", baseline: reading("S2_A", "2026-01-20T04:50:00Z", 0.31), current: reading("S2_B", "2026-10-20T04:50:00Z", 0.72), delta: 0.41, telemetry: { endpoint: "fake", searched: [], scenes: [], bytesRead: 1, elapsedMs: 1 } };
+        return {
+          outcome: "measured",
+          baseline: reading("S2_A", "2026-01-20T04:50:00Z", 0.31),
+          current: reading("S2_B", "2026-10-20T04:50:00Z", 0.72),
+          delta: 0.41,
+          seasonal: { years: [{ year: 2024, sceneId: "S2_C", datetime: "2024-10-18T04:50:00Z", ndvi: 0.6 }, { year: 2025, sceneId: "S2_D", datetime: "2025-10-21T04:50:00Z", ndvi: 0.64 }], median: 0.62, anomaly: 0.1 },
+          telemetry: { endpoint: "fake", searched: [], scenes: [], bytesRead: 1, elapsedMs: 1 },
+        };
       };
       expect(await runNdviCheck(s.id, tx, { enabled: true, check })).toBe("measured");
       expect(asked[0]!.searchPoint).toEqual(w.project.fuzzedLocation!.coordinates);
@@ -76,6 +83,8 @@ describe("the satellite cross-check job (X1)", () => {
       const [f] = await ndviOf(tx, s.id);
       expect(f!.evidence).toMatchObject({ outcome: "measured", delta: 0.41, baseline: { sceneId: "S2_A", ndvi: 0.31 }, current: { sceneId: "S2_B" } });
       expect(f!.reason).toMatch(/^Advisory, not evidence: the Sentinel-2 vegetation index \(NDVI\) over the site was 0\.31 .* and 0\.72 .* a rise of 0\.41/);
+      expect(f!.reason).toContain("In the same season of 2 earlier years (2024 to 2025) it was 0.62 at the median, so this season is 0.10 above its usual.");
+      expect(f!.evidence).toMatchObject({ seasonal: { median: 0.62, years: [{ year: 2024 }, { year: 2025 }] } });
     }));
 });
 

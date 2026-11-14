@@ -5,6 +5,7 @@ import exifr from "exifr";
 import sharp from "sharp";
 import { z } from "zod";
 import { requireEnv } from "../../env";
+import { checkClaim, claimFinding, CLAIMS_RULE_VERSION } from "../../lib/forensics/claims";
 import { DHASH_RESIZE, hammingDistance, packDHash } from "../../lib/forensics/dhash";
 import { scoreV1 } from "../../lib/scoring/v1";
 import { assertTransition } from "../../lib/state-machine";
@@ -189,7 +190,9 @@ const finding = (file: FileRow | null, kind: Kind, severity: Severity, reason: s
   ruleVersion: RULE_VERSION,
 });
 
-async function analyse(x: Executor, s: SubmissionRow, project: { createdAt: Date }, files: Inspected[]): Promise<PipelineFinding[]> {
+type ProjectFacts = { createdAt: Date; claimedQuantity: string | null; claimedUnit: string | null; boundaryAreaM2: number };
+
+async function analyse(x: Executor, s: SubmissionRow, project: ProjectFacts, files: Inspected[]): Promise<PipelineFinding[]> {
   const out: PipelineFinding[] = [];
   for (const { file, dhash, facts, gps } of files) {
     for (const m of await exactMatches(x, s, file)) {
@@ -251,6 +254,12 @@ async function analyse(x: Executor, s: SubmissionRow, project: { createdAt: Date
       out.push(finding(after.file, "NO_VISIBLE_CHANGE", "MEDIUM", "The before and after photos are nearly identical; the pair may show the same scene with no change.", { distance, threshold: NO_CHANGE_THRESHOLD }));
     }
   }
+
+  // claims.v1, once per submission: the project's own number against its own boundary
+  if (files[0]?.file.round === 1) {
+    const claim = claimFinding(checkClaim(project.claimedQuantity === null ? null : Number(project.claimedQuantity), project.claimedUnit, project.boundaryAreaM2));
+    if (claim) out.push({ evidenceFileId: null, kind: claim.kind, severity: claim.severity, reason: claim.reason, evidence: claim.evidence, ruleVersion: CLAIMS_RULE_VERSION });
+  }
   return out;
 }
 
@@ -261,11 +270,17 @@ const roundFiles = (x: Executor, submissionId: string, round: number) =>
 async function load(x: Executor, submissionId: string) {
   const [s] = await x.select().from(evidenceSubmission).where(eq(evidenceSubmission.id, submissionId));
   if (!s) throw new Error(`submission ${submissionId} not found`);
-  const [project] = await x.select({ createdAt: impactProject.createdAt }).from(impactProject).where(eq(impactProject.id, s.projectId));
-  return { s, project: project! };
+  const [project] = await x
+    .select({ createdAt: impactProject.createdAt, claimedQuantity: impactProject.claimedQuantity, claimedUnit: impactProject.claimedUnit })
+    .from(impactProject)
+    .where(eq(impactProject.id, s.projectId));
+  // the spheroid area of the exact boundary, which never leaves the server
+  const [area] = await x.execute<{ area: number | null }>(sql`select ST_Area(boundary) as area from project_private_location where project_id = ${s.projectId}`);
+  return { s, project: { ...project!, boundaryAreaM2: Number(area?.area ?? 0) } };
 }
 
 const GPS_KINDS: Kind[] = ["GPS_MISSING", "GPS_INSIDE_BOUNDARY", "GPS_WITHIN_TOLERANCE", "GPS_OUTSIDE_BOUNDARY"];
+const CLAIM_KINDS = new Set<Kind>(["CLAIM_CHECKED", "CLAIM_EXCEEDS_AREA", "CLAIM_DENSITY_IMPLAUSIBLE"]);
 
 // ---------------------------------------------------------------------------------------
 // The run, the score cache and the replay.
@@ -344,23 +359,25 @@ const lineOf = (f: Omit<PipelineFinding, "ruleVersion"> & { ruleVersion: string 
 export async function replayForensics(submissionId: string, x: Executor = db, storage: StoragePort = evidenceStorage) {
   const { s, project } = await load(x, submissionId);
   const rounds = await x.selectDistinct({ round: evidenceFile.round }).from(evidenceFile).where(eq(evidenceFile.submissionId, submissionId)).orderBy(asc(evidenceFile.round));
-  const expected: string[] = [];
+  const fresh: PipelineFinding[] = [];
   const actualFiles: string[] = [];
   const storedFiles: string[] = [];
   for (const { round } of rounds) {
     const inspected = await Promise.all((await roundFiles(x, submissionId, round)).map((f) => inspect(storage, f)));
-    expected.push(...(await analyse(x, s, project, inspected)).map(lineOf));
+    fresh.push(...(await analyse(x, s, project, inspected)));
     for (const i of inspected) {
       actualFiles.push(canonical([i.file.id, i.dhash, i.facts, i.gps, i.capturedAt?.toISOString() ?? null]));
       storedFiles.push(canonical([i.file.id, i.file.dhash, i.file.exif, i.file.gps, i.file.capturedAt?.toISOString() ?? null]));
     }
   }
-  const stored = (
-    await x
-      .select()
-      .from(forensicFinding)
-      .where(and(eq(forensicFinding.submissionId, submissionId), notInArray(forensicFinding.kind, ["AI_OBSERVATION", "SATELLITE_NDVI", "CLIENT_HASH_MISMATCH"])))
-  ).map((f) => lineOf({ ...f, evidence: f.evidence as Record<string, unknown> }));
+  const storedRows = await x
+    .select()
+    .from(forensicFinding)
+    .where(and(eq(forensicFinding.submissionId, submissionId), notInArray(forensicFinding.kind, ["AI_OBSERVATION", "SATELLITE_NDVI", "CLIENT_HASH_MISMATCH"])));
+  const stored = storedRows.map((f) => lineOf({ ...f, evidence: f.evidence as Record<string, unknown> }));
+  // a record checked before claims.v1 existed has no claim finding: it is not re-judged by a rule it never ran
+  const claimsRan = storedRows.some((f) => CLAIM_KINDS.has(f.kind));
+  const expected = fresh.filter((f) => claimsRan || !CLAIM_KINDS.has(f.kind)).map(lineOf);
   const sorted = (a: string[]) => [...a].sort();
   const findingsMatch = canonical(sorted(expected)) === canonical(sorted(stored));
   const filesMatch = canonical(actualFiles) === canonical(storedFiles);

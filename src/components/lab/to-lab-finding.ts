@@ -40,8 +40,24 @@ export const toLabFinding = (f: ApiFinding, files: { id: string; role: keyof typ
             current: f.evidence.current as NdviScene | undefined,
             delta: num(f.evidence.delta),
             reason: typeof f.evidence.reason === "string" ? f.evidence.reason : undefined,
+            seasonal: f.evidence.seasonal as NonNullable<LabFinding["evidence"]["ndvi"]>["seasonal"],
           },
           telemetry: f.evidence.telemetry,
+        }
+      : {}),
+    ...(f.kind.startsWith("CLAIM_")
+      ? {
+          claim: {
+            boundaryAreaM2: num(f.evidence.boundaryAreaM2),
+            perHectare: num(f.evidence.perHectare),
+            perSquareMetre: num(f.evidence.perSquareMetre),
+            maxPerSquareMetre: num(f.evidence.maxPerSquareMetre),
+            ratio: num(f.evidence.ratio),
+            tolerance: num(f.evidence.tolerance),
+            claimed: num(f.evidence.claimed),
+            plants: num(f.evidence.plants),
+            unit: typeof f.evidence.unit === "string" ? f.evidence.unit : undefined,
+          },
         }
       : {}),
   },

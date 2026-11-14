@@ -3,17 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Eye,
-  EyeOff,
-  Loader2,
-  ArrowRight,
-  ArrowLeft,
-  Check,
-  Building2,
-  ShieldCheck,
-  Coins,
-} from "lucide-react";
+import { Eye, EyeOff, Loader2, ArrowRight, ArrowLeft } from "lucide-react";
+import { CheckEmail } from "@/src/components/auth/CheckEmail";
+import { OrganisationFields } from "@/src/components/auth/OrganisationFields";
+import { createOrganisation, finishUrl, type OrgDetails } from "@/src/components/auth/create-organisation";
 import { authClient } from "@/src/lib/auth-client";
 import { safeNext } from "@/src/lib/safe-next";
 import { cn } from "@/src/lib/utils";
@@ -36,31 +29,24 @@ export interface SignUpPageProps {
 }
 
 /**
- * The real registration: create the user (which signs them in), then their organisation
- * with its org_type. Better Auth reports failures as { error }, not as exceptions.
+ * The real registration: create the user, then their organisation with its org_type. Where the
+ * server confirms email addresses there is no session until the emailed link is opened, so the
+ * organisation is created on /sign-up/finish, where that link returns. Better Auth reports
+ * failures as { error }, not as exceptions.
  */
-async function registerWithAuth(data: SignUpData): Promise<{ success: boolean; error?: string }> {
+async function registerWithAuth(data: SignUpData): Promise<{ success: boolean; error?: string; verifyEmail?: string }> {
+  const details: OrgDetails = { name: data.organizationName.trim(), type: data.organizationType, country: data.country.trim(), website: data.website.trim() };
   const account = await authClient.signUp.email({
     name: data.name.trim(),
     email: data.email.trim(),
     password: data.password,
+    callbackURL: finishUrl(details),
   });
   if (account.error) return { success: false, error: account.error.message ?? "Could not create the account." };
+  if (!account.data?.token) return { success: true, verifyEmail: data.email.trim() };
 
-  const base = data.organizationName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "organisation";
-  const org = await authClient.organization.create({
-    name: data.organizationName.trim(),
-    slug: `${base}-${crypto.randomUUID().slice(0, 6)}`, // slugs are unique; two orgs may share a name
-    orgType: data.organizationType,
-    country: data.country.trim(),
-    website: data.website.trim() || undefined,
-  });
-  if (org.error) {
-    return {
-      success: false,
-      error: `Your account was created, but the organisation was not: ${org.error.message ?? "unknown error"}. Sign in to try again.`,
-    };
-  }
+  const org = await createOrganisation(details);
+  if (!org.ok) return { success: false, error: `Your account was created, but the organisation was not: ${org.error}. Sign in to try again.` };
   return { success: true };
 }
 
@@ -127,11 +113,21 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
   const [orgType, setOrgType] = React.useState<OrgType>("OWNER");
 
   // Errors & submission
+  const [verifyEmail, setVerifyEmail] = React.useState<string | null>(null);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [globalError, setGlobalError] = React.useState<string | null>(null);
 
   const passwordStrength = evaluatePasswordStrength(password);
+  const changeOrg = (p: Partial<OrgDetails>) => {
+    if (p.name !== undefined) {
+      setOrgName(p.name);
+      if (errors.orgName) setErrors((prev) => ({ ...prev, orgName: "" }));
+    }
+    if (p.country !== undefined) setCountry(p.country);
+    if (p.website !== undefined) setWebsite(p.website);
+    if (p.type !== undefined) setOrgType(p.type);
+  };
 
   // Validate Step 1 before advancing
   const handleProceedToStep2 = (e: React.FormEvent) => {
@@ -163,9 +159,11 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
     setIsSubmitting(true);
     setGlobalError(null);
     authClient.signUp
-      .email({ name: name.trim(), email: email.trim(), password })
+      .email({ name: name.trim(), email: email.trim(), password, callbackURL: next ?? "/dashboard" })
       .then((account) => {
         if (account.error) setGlobalError(account.error.message ?? "Could not create the account.");
+        // the emailed link signs them in and returns to the invitation
+        else if (!account.data?.token) setVerifyEmail(email.trim());
         else router.push(next ?? "/dashboard");
       })
       .catch(() => setGlobalError("Could not connect to the authentication service. Please try again."))
@@ -208,6 +206,8 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
         const res = await registerWithAuth(payload);
         if (!res.success) {
           setGlobalError(res.error ?? "Registration failed. Please try again.");
+        } else if (res.verifyEmail) {
+          setVerifyEmail(res.verifyEmail);
         } else {
           // the role-aware home (docs/05-ROUTES.md §3), unless the proxy sent them from somewhere
           router.push(safeNext(new URLSearchParams(window.location.search).get("next")) ?? "/dashboard");
@@ -219,6 +219,20 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
       setIsSubmitting(false);
     }
   };
+
+  if (verifyEmail) {
+    return (
+      <div className="space-y-6 text-field-text">
+        <CheckEmail email={verifyEmail} purpose="verify" />
+        <p className="text-[15px] text-field-muted">
+          Already confirmed?{" "}
+          <Link href="/sign-in" className="text-field-text underline decoration-field-hairline underline-offset-[5px] hover:decoration-field-text">
+            Sign in
+          </Link>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 text-field-text">
@@ -427,167 +441,7 @@ export default function SignUpPage({ onSubmit }: SignUpPageProps) {
       {/* STEP 2: ORGANISATION & TYPE CARDS */}
       {step === 2 && (
         <form method="post" onSubmit={handleFinalSubmit} noValidate className="space-y-5">
-          <div className="space-y-1.5">
-            <label
-              htmlFor="orgName"
-              className="block text-[14px] font-medium text-field-text"
-            >
-              Organisation legal name
-            </label>
-            <input
-              id="orgName"
-              type="text"
-              value={orgName}
-              onChange={(e) => {
-                setOrgName(e.target.value);
-                if (errors.orgName) setErrors((prev) => ({ ...prev, orgName: "" }));
-              }}
-              required
-              className={cn(
-                "h-12 w-full rounded-lg border px-3.5 text-[16px] text-field-text bg-field-canopy focus-visible:outline-none focus-visible:ring-2 transition-colors",
-                errors.orgName
-                  ? "border-fraud focus-visible:ring-fraud"
-                  : "border-field-hairline focus-visible:ring-signal"
-              )}
-              placeholder="e.g. Sundarbans Restoration Trust"
-            />
-            {errors.orgName && (
-              <p className="text-[13px] text-fraud">{errors.orgName}</p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label
-                htmlFor="country"
-                className="block text-[14px] font-medium text-field-text"
-              >
-                Country of registry
-              </label>
-              <input
-                id="country"
-                type="text"
-                value={country}
-                onChange={(e) => setCountry(e.target.value)}
-                required
-                className="h-12 w-full rounded-lg border border-field-hairline px-3.5 text-[16px] text-field-text bg-field-canopy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label
-                htmlFor="website"
-                className="block text-[14px] font-medium text-field-text"
-              >
-                Website (optional)
-              </label>
-              <input
-                id="website"
-                type="url"
-                value={website}
-                onChange={(e) => setWebsite(e.target.value)}
-                placeholder="https://example.org"
-                className="h-12 w-full rounded-lg border border-field-hairline px-3.5 text-[16px] text-field-text bg-field-canopy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
-              />
-            </div>
-          </div>
-
-          {/* ORGANISATION TYPE SELECTOR (Three Cards, Never a Dropdown - docs/15-UI-STATES.md §6) */}
-          <div className="space-y-2">
-            <label className="block text-[14px] font-medium text-field-text">
-              Organisation type
-            </label>
-
-            <div className="space-y-2.5">
-              {/* Card 1: Project Owner */}
-              <button
-                type="button"
-                onClick={() => setOrgType("OWNER")}
-                className={cn(
-                  "w-full text-left rounded-lg border p-3 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-field-text cursor-pointer",
-                  orgType === "OWNER"
-                    ? "border-field-text bg-field-raised/80"
-                    : "border-field-hairline bg-field-canopy hover:bg-field-raised/40"
-                )}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Building2 className={cn("size-4", orgType === "OWNER" ? "text-field-text" : "text-field-muted")} />
-                    <span className="text-[15px] font-medium text-field-text">Project owner</span>
-                  </div>
-                  {orgType === "OWNER" && (
-                    <span className="flex size-4 items-center justify-center rounded-full bg-field-text text-field-abyss">
-                      <Check className="size-3 stroke-[3]" />
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 text-[14px] leading-[1.5] text-field-muted pl-6">
-                  You run restoration projects and submit evidence
-                </p>
-              </button>
-
-              {/* Card 2: Independent Verifier */}
-              <button
-                type="button"
-                onClick={() => setOrgType("VERIFIER")}
-                className={cn(
-                  "w-full text-left rounded-lg border p-3 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-field-text cursor-pointer",
-                  orgType === "VERIFIER"
-                    ? "border-field-text bg-field-raised/80"
-                    : "border-field-hairline bg-field-canopy hover:bg-field-raised/40"
-                )}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className={cn("size-4", orgType === "VERIFIER" ? "text-field-text" : "text-field-muted")} />
-                    <span className="text-[15px] font-medium text-field-text">Independent verifier</span>
-                  </div>
-                  {orgType === "VERIFIER" && (
-                    <span className="flex size-4 items-center justify-center rounded-full bg-field-text text-field-abyss">
-                      <Check className="size-3 stroke-[3]" />
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 text-[14px] leading-[1.5] text-field-muted pl-6">
-                  You review other organisations&apos; evidence
-                </p>
-              </button>
-
-              {/* Card 3: Funder */}
-              <button
-                type="button"
-                onClick={() => setOrgType("FUNDER")}
-                className={cn(
-                  "w-full text-left rounded-lg border p-3 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-field-text cursor-pointer",
-                  orgType === "FUNDER"
-                    ? "border-field-text bg-field-raised/80"
-                    : "border-field-hairline bg-field-canopy hover:bg-field-raised/40"
-                )}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Coins className={cn("size-4", orgType === "FUNDER" ? "text-field-text" : "text-field-muted")} />
-                    <span className="text-[15px] font-medium text-field-text">Funder</span>
-                  </div>
-                  {orgType === "FUNDER" && (
-                    <span className="flex size-4 items-center justify-center rounded-full bg-field-text text-field-abyss">
-                      <Check className="size-3 stroke-[3]" />
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 text-[14px] leading-[1.5] text-field-muted pl-6">
-                  You fund projects and review verified outcomes
-                </p>
-              </button>
-            </div>
-
-            {/* Crucial conflict-of-interest notice (docs/15-UI-STATES.md §6) */}
-            <p className="mt-2 text-[14px] leading-[1.5] text-field-muted">
-              Organisation type determines what you can do. A project owner cannot
-              review evidence, including its own. This cannot be changed later
-              without administrator approval.
-            </p>
-          </div>
+          <OrganisationFields value={{ name: orgName, country, website, type: orgType }} onChange={changeOrg} error={errors.orgName} />
 
           <div className="flex items-center gap-3 pt-2">
             <button

@@ -38,7 +38,11 @@ export interface LabFinding {
       current?: NdviScene;
       delta?: number;
       reason?: string;
+      /** The same season in earlier years, and where the current reading sits against their median. */
+      seasonal?: { years: { year: number; ndvi: number; datetime: string }[]; median: number | null; anomaly: number | null };
     };
+    /** claims.v1: the project's claimed number against its registered boundary. */
+    claim?: { boundaryAreaM2?: number; perHectare?: number; perSquareMetre?: number; maxPerSquareMetre?: number; ratio?: number; tolerance?: number; claimed?: number; plants?: number; unit?: string };
     /** Whatever the check recorded about how it ran, shown as is in the raw tier. */
     telemetry?: unknown;
   };

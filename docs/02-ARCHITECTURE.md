@@ -28,66 +28,43 @@ preserve the hash chain. Record this in `ADR-0003`.
 
 ```text
 delta-mrv/
-├── contracts/                      Foundry project
-│   ├── src/ImpactAnchorRegistry.sol
-│   ├── test/ImpactAnchorRegistry.t.sol
-│   ├── script/Deploy.s.sol
-│   └── foundry.toml
-├── docker/
-│   └── db.Dockerfile               PostGIS + pgvector in one image
-├── docs/                           This document set
-│   └── adr/
-├── drizzle/                        Generated SQL migrations
-├── scripts/
-│   ├── check-forbidden-deps.mjs    CI guard
-│   ├── lib/db.ts                   Standalone client for scripts (no server-only)
-│   ├── seed.ts
-│   ├── eval-forensics.ts
-│   └── verify-audit-chain.ts
+├── contracts/                      Foundry project: ImpactAnchorRegistry.sol, its tests, Deploy.s.sol
+├── docker/db.Dockerfile            PostGIS + pgvector in one image
+├── docs/                           This document set, ADRs, eval results, handoff
+├── drizzle/                        Reviewed SQL migrations 0000–0006 and their snapshots
+├── scripts/                        seed, dev-local, eval-forensics, replay, verify-audit-chain,
+│   └── lib/                        bench-queries, render-hero-*; scripts/lib: local chain, seed pools
+├── public/                         hero art, life photographs, service worker, offline page
 ├── src/
-│   ├── env.ts                      Zod-validated environment
-│   ├── proxy.ts                    Next 16 route proxy (NOT middleware.ts)
+│   ├── env.ts                      Zod-validated environment, checked at boot
+│   ├── proxy.ts                    Next 16 route proxy (NOT middleware.ts): optimistic redirect only
 │   ├── app/                        ROUTING AND THIN ADAPTERS ONLY
-│   │   ├── (public)/
-│   │   ├── (auth)/
-│   │   ├── (workspace)/
-│   │   └── api/
-│   ├── components/                 PRESENTATION ONLY
-│   │   ├── ui/                     shadcn primitives, CLI-generated
-│   │   ├── atlas/
-│   │   ├── lab/
-│   │   ├── proof/
-│   │   └── capture/                PWA offline capture
+│   │   ├── (public)/               /, atlas, p/[id] (+ feed.xml), proof/[id], verify, trust
+│   │   ├── (auth)/                 sign-in, sign-up (+ finish), forgot-password, reset-password, demo
+│   │   ├── (workspace)/            dashboard, projects (new, [id], submit, manage), submissions, lab, admin
+│   │   └── api/                    v1 (public), submissions, lab, evidence, internal (cron), dev, auth
+│   ├── components/                 PRESENTATION ONLY: admin, app, atlas, auth, hero, lab, motion,
+│   │                               projects, proof, site, submit, verify, and small primitives
 │   ├── lib/                        ISOMORPHIC — must run in browser AND Node
-│   │   ├── crypto/                 FROZEN. Manifest, RFC 8785, Merkle verify
-│   │   ├── state-machine/
-│   │   └── format/                 Hash/coordinate/distance display helpers
+│   │   ├── crypto/                 FROZEN. Manifest, RFC 8785, Merkle leaves, location commitment
+│   │   ├── forensics/              dHash, claims.v1, NDVI arithmetic, ELA, MIME sniffing
+│   │   ├── geo/                    Area and perimeter, boundary files, fuzzing, UTM
+│   │   ├── scoring/  state-machine/  chain/  format/
+│   │   └── capture-statement.ts  proof-bundle.ts  feeds.ts  safe-next.ts …
 │   └── server/                     SERVER ONLY — every file starts: import "server-only"
-│       ├── auth/
-│       ├── db/
-│       │   ├── client.ts
-│       │   └── schema/
-│       ├── storage/                StoragePort + blob adapter
-│       └── services/
-│           ├── projects.service.ts
-│           ├── submissions.service.ts
-│           ├── reviews.service.ts
-│           ├── jobs.service.ts
-│           ├── forensics.service.ts
-│           ├── ai-audit.service.ts
-│           ├── audit-chain.service.ts
-│           └── anchor.service.ts
-├── test/
-│   ├── stubs/empty.ts              Stubs server-only for Vitest
-│   └── integration/
-├── CLAUDE.md
-├── AGENTS.md                       → points at CLAUDE.md
-├── docker-compose.yml
-├── drizzle.config.ts
-├── eslint.config.mjs
-├── pnpm-workspace.yaml
-├── playwright.config.ts
-└── vitest.config.ts
+│       ├── auth/                   Better Auth configuration, session helpers
+│       ├── db/                     client.ts and schema/ (auth, projects, evidence, governance, operations)
+│       ├── storage/                StoragePort: private Vercel Blob, local disk in development
+│       ├── chain/  ai/             ChainPort (viem), AIPort (Gemini): every outside service behind a port
+│       ├── satellite/              Earth Search catalogue, minimal COG range reader
+│       ├── email.ts                Resend over fetch, or a development outbox
+│       └── services/               The domain: projects, submissions, reviews, forensics, checkups,
+│                                   feeds, anchor, audit-chain, admin, jobs, ndvi, ai-audit, api-key,
+│                                   funder, operators, access (tenancy), errors
+├── test/                           unit tests; integration/ (real PostGIS); e2e/ (Playwright)
+├── CLAUDE.md  AGENTS.md  README.md  LICENSE
+├── docker-compose.yml  drizzle.config.ts  eslint.config.mjs  next.config.ts
+└── playwright.config.ts  vitest.config.ts  vitest.integration.config.ts  pnpm-workspace.yaml
 ```
 
 ## 3. Layer boundaries — enforced, not advisory

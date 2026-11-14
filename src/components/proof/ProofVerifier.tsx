@@ -5,6 +5,7 @@ import { RefreshCw } from "lucide-react";
 import { createPublicClient, http, zeroHash } from "viem";
 import { baseSepolia } from "viem/chains";
 import { HashDisplay } from "@/src/components/hash-display/hash-display";
+import { CurveLoader } from "@/src/components/motion/CurveLoader";
 import { VerificationBadge, type VerificationState } from "@/src/components/verification-badge/verification-badge";
 import { explorerAddress, leafHash, REGISTRY_ABI } from "@/src/lib/chain/registry";
 import { canonicalJson, manifestHash, type Manifest } from "@/src/lib/crypto/manifest";
@@ -103,7 +104,14 @@ export function ProofVerifier({ manifest, anchor }: ProofVerifierProps) {
       <div className="rounded-xl border border-paper-rule bg-paper-card p-5 sm:p-6" aria-live="polite" aria-busy={checking}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1 space-y-2">
-            {verdict ? <VerificationBadge state={verdict.state} theme="paper" /> : <span className="text-[14px] text-paper-muted">Checking in your browser…</span>}
+            {verdict ? (
+              <VerificationBadge state={verdict.state} theme="paper" />
+            ) : (
+              <span className="inline-flex items-center gap-2 text-[14px] text-paper-muted">
+                <CurveLoader />
+                Checking in your browser…
+              </span>
+            )}
             <p data-testid="proof-verdict" data-state={verdict?.state ?? "CHECKING"} className="font-serif text-[26px] leading-[1.2] tracking-[-0.01em]">
               {verdict?.headline ?? "Recomputing this record's fingerprint"}
             </p>

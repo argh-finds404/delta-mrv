@@ -50,6 +50,15 @@ is out of scope. Do not build it, do not scaffold it, do not add a
 | X1 | Sentinel-2 NDVI cross-check, feature-flagged, graceful `inconclusive` — **built 2026-11-14**: free keyless Earth Search, `NDVI_ENABLED`, one `SATELLITE_NDVI` finding, always `INFO` |
 | X2 | Passkey-signed capture hash / C2PA read — **built 2026-11-14 as a device-key signature**: a non-extractable WebCrypto P-256 key in the browser, checked at finalize and again on the proof page. Not WebAuthn, not hardware-backed, no C2PA read |
 | X3 | Error level analysis lens in the Evidence Lab — **added by the maintainer 2026-11-14**: browser-only, toggled on the comparison, a reading aid that writes no finding |
+| X4 | Boundary import from GeoJSON or KML on `/projects/new` — **added by the maintainer 2026-11-14, built**: parsed in the browser, one area per project, holes left out with a note, the area and the claim density shown before anything is sent |
+| X5 | Offline proof file (`delta.proof-bundle.v1`) from `/proof/[id]`, rechecked on `/verify` — **added 2026-11-14, built**: manifest, Merkle path, contract and device signature; checked with no Delta server or database, the chain asked only of Delta's own registry |
+| X6 | Email verification and password reset — **added 2026-11-14, built**: Better Auth's hooks over Resend's free tier, no SDK; off where no email is configured; where it is, an operator's address counts only once confirmed |
+| X7 | Seasonal NDVI baseline (X1) — **added 2026-11-14, built**: the same season in up to four earlier years, its median and this season's distance from it; still one INFO finding |
+| X8 | Evidence Lab queue windowing — **added 2026-11-14, built**: 40 rows at a time, more on scroll, keyboard or request; the selected row always drawn |
+| X9 | C2PA Content Credentials read (X2) — **added 2026-11-14, not built**: needs `@contentauth/c2pa-wasm` (9 MB WebAssembly) added and run; waiting on the maintainer's approval of the package |
+| X10 | Pull-only feeds — **added 2026-11-14, built**: a project's anchored records as JSON Feed and Atom, and every confirmed batch's leaves at `/api/v1/batches/[id]`, so a mirror can prove a removal. S10 push webhooks stay cut |
+| X11 | Survival check-ups — **added 2026-11-14, built**: an approved record photographed again on a schedule the owner sets (shortened, never lengthened or removed once a record is approved), each visit reviewed like any submission; a missed visit reads "overdue"; the earlier photo is laid over today's to check the framing |
+| X12 | Claim check (`claims.v1`) — **added 2026-11-14, built**: the claimed area against the drawn boundary, or plants per square metre against the densest planting methods; INFO when ordinary, MEDIUM when not, never a gate |
 
 ## CUT — never build these
 

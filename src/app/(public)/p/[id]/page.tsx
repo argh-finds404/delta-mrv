@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   ArrowRight,
   Compass,
+  Rss,
 } from "lucide-react";
 import { HashDisplay } from "@/src/components/hash-display/hash-display";
 import { VerificationBadge } from "@/src/components/verification-badge/verification-badge";
@@ -20,6 +21,8 @@ import { ACTIVITY_LABEL, formatClaim, formatCount, formatLatLon } from "@/src/li
 import { DOES_NOT_PROVE, PROVES } from "@/src/lib/limits";
 import { NotFoundError } from "@/src/server/services/errors";
 import { getPublicProject, type PublicProjectDetail } from "@/src/server/services/projects.service";
+import { projectSurvival } from "@/src/server/services/checkups.service";
+import { SurvivalTable } from "@/src/components/proof/SurvivalTimeline";
 
 interface ProjectPageProps {
   params: Promise<{ id: string }>;
@@ -36,6 +39,8 @@ export async function generateMetadata({ params }: ProjectPageProps): Promise<Me
     return {
       title: `${project.title} · Delta`,
       description: project.description ?? "Restoration site under independent review.",
+      // feed readers and partner portals find the pull-only feeds from the page itself
+      alternates: { types: { "application/atom+xml": `/p/${id}/feed.xml`, "application/feed+json": `/api/v1/projects/${id}/feed` } },
     };
   } catch (e) {
     if (e instanceof NotFoundError) return { title: "Project · Delta" };
@@ -75,6 +80,8 @@ async function ProjectBody({ params }: ProjectPageProps) {
 
   const claimText = formatClaim(project.claimedQuantity, project.claimedUnit);
   const totalEvidence = project.record.approved + project.record.anchored;
+  const survival = await projectSurvival(project.id, { limit: 5 });
+  const showSurvival = survival.records.length > 0 && (survival.checkupMonths !== null || survival.records.some((r) => r.visits.length > 0));
 
   return (
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
@@ -133,14 +140,14 @@ async function ProjectBody({ params }: ProjectPageProps) {
               id="track-record-heading"
               className="font-serif text-xl font-medium text-paper-ink"
             >
-              Ecological Claim vs. Independently Verified Record
+              The claim, and the record
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="rounded-lg border border-paper-rule bg-paper-card p-5 space-y-2">
               <span className="text-xs font-medium text-paper-muted block">
-                1. Project developer claim
+                What the organisation claims
               </span>
               <div className="text-xl font-semibold font-mono tabular-nums text-paper-ink">
                 {claimText ?? "Unquantified claim"}
@@ -155,7 +162,7 @@ async function ProjectBody({ params }: ProjectPageProps) {
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-paper-seal flex items-center gap-1.5">
                     <CheckCircle2 className="size-3.5" />
-                    <span>2. Anchored cryptographic proof</span>
+                    <span>What independent reviewers approved</span>
                   </span>
                 </div>
                 <div className="text-xl font-semibold font-mono tabular-nums text-paper-ink">
@@ -181,6 +188,17 @@ async function ProjectBody({ params }: ProjectPageProps) {
                   ))}
                 </ul>
               )}
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-paper-rule/60 pt-3 text-xs text-paper-muted">
+                <Rss className="size-3.5 shrink-0" aria-hidden />
+                <span>Follow new anchored proofs:</span>
+                <a href={`/p/${project.id}/feed.xml`} className="font-medium text-paper-ink underline decoration-paper-rule underline-offset-4 hover:decoration-paper-ink">
+                  Atom
+                </a>
+                <span aria-hidden>·</span>
+                <a href={`/api/v1/projects/${project.id}/feed`} className="font-medium text-paper-ink underline decoration-paper-rule underline-offset-4 hover:decoration-paper-ink">
+                  JSON Feed
+                </a>
+              </p>
             </div>
           </div>
 
@@ -195,6 +213,26 @@ async function ProjectBody({ params }: ProjectPageProps) {
           </div>
         </section>
 
+        {showSurvival && (
+          <section aria-labelledby="survival-heading" className="space-y-4">
+            <h2 id="survival-heading" className="font-serif text-xl font-medium text-paper-ink">
+              Is it still there?
+            </h2>
+            <p className="max-w-2xl text-sm leading-relaxed text-paper-muted">
+              {survival.checkupMonths
+                ? `${project.ownerOrgName} photographs each approved spot again every ${survival.checkupMonths} months, and the same independent organisation reviews each visit. A missed visit is shown as missed.`
+                : "Approved spots photographed again later, each visit reviewed by the same independent organisation. No schedule has been promised."}
+            </p>
+            <SurvivalTable records={survival.records} />
+            {survival.records.some((r) => r.state === "overdue") && (
+              <p className="flex items-start gap-2 text-sm leading-relaxed text-review">
+                <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                An overdue record has no approved photo since its check-up was due. No evidence is not evidence of survival.
+              </p>
+            )}
+          </section>
+        )}
+
         {/* 3. Boundary Map / Protected Location (Amendment A6) */}
         <section aria-labelledby="boundary-heading" className="space-y-3">
           <div className="flex items-center justify-between">
@@ -202,7 +240,7 @@ async function ProjectBody({ params }: ProjectPageProps) {
               id="boundary-heading"
               className="font-serif text-xl font-medium text-paper-ink"
             >
-              Restoration Demarcation &amp; Geofence
+              Where the site is
             </h2>
             <span className="font-mono text-xs text-paper-muted">
               SRID 4326 PostGIS
@@ -255,7 +293,7 @@ async function ProjectBody({ params }: ProjectPageProps) {
               className="font-serif text-lg font-medium text-paper-ink flex items-center gap-2"
             >
               <ShieldCheck className="size-4 text-paper-seal" />
-              <span>Assigned Independent Verifier Organisations</span>
+              <span>Who reviews it</span>
             </h2>
             <span className="text-[11px] text-paper-muted">
               Accountability governance

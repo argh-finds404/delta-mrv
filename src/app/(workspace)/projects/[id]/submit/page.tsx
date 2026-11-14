@@ -5,13 +5,14 @@ import { connection } from "next/server";
 import { SubmitWizard } from "@/src/components/submit/SubmitWizard";
 import { env } from "@/src/env";
 import { requireSession } from "@/src/server/auth/session";
-import { NotFoundError } from "@/src/server/services/errors";
+import { checkupTarget } from "@/src/server/services/checkups.service";
+import { ConflictError, NotFoundError } from "@/src/server/services/errors";
 import { AppShell, AppShellLoading } from "@/src/components/app/AppShell";
 import { getProject, myOrganisations } from "@/src/server/services/projects.service";
 
 interface SubmitPageProps {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ supplement?: string; drafts?: string }>;
+  searchParams?: Promise<{ supplement?: string; drafts?: string; checkup?: string }>;
 }
 
 export const metadata: Metadata = {
@@ -41,6 +42,16 @@ async function SubmitPageBody({ params, searchParams }: SubmitPageProps) {
     throw e;
   });
 
+  // ?checkup=<record>: a survival check-up of an approved record of this project
+  const target =
+    typeof sp.checkup === "string" && !supplementSubmissionId
+      ? await checkupTarget({ userId: session.user.id }, sp.checkup).catch((e: unknown) => {
+          if (e instanceof NotFoundError || e instanceof ConflictError) notFound();
+          throw e;
+        })
+      : null;
+  if (target && target.projectId !== project.id) notFound();
+
   const orgs = await myOrganisations({ userId: session.user.id });
   return (
     <AppShell userName={session.user.name || session.user.email} context={orgs[0]?.orgName}>
@@ -53,6 +64,11 @@ async function SubmitPageBody({ params, searchParams }: SubmitPageProps) {
           supplementSubmissionId={supplementSubmissionId}
           isDemoMode={Boolean(env.DEMO_MODE)}
           openVault={sp.drafts === "1"}
+          checkup={
+            target
+              ? { recordId: target.recordId, referenceUrl: target.referenceFileId ? `/api/evidence/${target.referenceFileId}` : null, approvedAt: target.approvedAt.toISOString(), visits: target.visits }
+              : undefined
+          }
         />
       </main>
     </AppShell>

@@ -52,7 +52,10 @@ not stop the others.
 | `NO_VISIBLE_CHANGE` | `MEDIUM` | Before/after Hamming < 4 — the pair may be the same scene |
 | `CLIENT_HASH_MISMATCH` | `MEDIUM` | PWA-reported hash differs from the server hash |
 | `AI_OBSERVATION` | `INFO`/`LOW` | See `docs/08-AI.md` |
-| `SATELLITE_NDVI` | `INFO` | X1: Sentinel-2 NDVI over the site around each photo's date, or `inconclusive` and why. Weighs nothing; a 20 m pixel shows no plant, and seasons move it. Band files are read only from `https://sentinel-cogs.s3.us-west-2.amazonaws.com`, by range request, whatever URL the catalogue names |
+| `SATELLITE_NDVI` | `INFO` | X1: Sentinel-2 NDVI over the site around each photo's date, or `inconclusive` and why. Weighs nothing; a 20 m pixel shows no plant, and seasons move it. Band files are read only from `https://sentinel-cogs.s3.us-west-2.amazonaws.com`, by range request, whatever URL the catalogue names. X7: also reads the same season (within 30 days of the date) in up to four earlier years, in parallel, and reports their median and this season's distance from it; a year with no clear view is skipped |
+| `CLAIM_CHECKED` | `INFO` | X12, `claims.v1`, once per submission: the claimed area fits the registered boundary, or the claimed plants per hectare, with the arithmetic |
+| `CLAIM_EXCEEDS_AREA` | `MEDIUM` | The claimed area is more than 1.05 times the boundary's spheroid area (PostGIS `ST_Area`) |
+| `CLAIM_DENSITY_IMPLAUSIBLE` | `MEDIUM` | More than 5 plants per square metre: denser than the densest planting methods (Miyawaki-style, about 3 to 5). Units it cannot read (kg, households) are not checked |
 
 ### The severity rule that matters
 
@@ -194,7 +197,8 @@ not that.
 `scripts/replay-forensics.ts <submissionId>` re-reads the stored bytes,
 re-runs stages 1–7, and asserts byte-identical output against the stored
 findings. Excludes `AI_OBSERVATION` and `SATELLITE_NDVI`, which are not reproducible (a
-model, a live archive).
+model, a live archive). `CLAIM_*` findings are compared only for a record that has one: a record
+checked before `claims.v1` existed is not re-judged by a rule it never ran.
 
 A replay mismatch means the pipeline drifted and is a critical defect.
 

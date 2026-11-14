@@ -28,8 +28,12 @@ Rules:
   Never run its `migrate`. Drizzle Kit owns migrations.
 - `nextCookies()` is always the final plugin.
 - Forbidden: `next-auth`, `@auth/*`. See `docs/07-DEPENDENCIES.md`.
-- Email verification is off for the demo build; say so in the README rather
-  than pretending otherwise.
+- Email (X6, `src/server/email.ts`): with `RESEND_API_KEY` and `EMAIL_FROM` (Resend's HTTP API,
+  free tier), or `EMAIL_OUTBOX_DIR` on a development machine, sign-up requires a confirmed address,
+  sign-in with an unconfirmed one sends a new link, and a forgotten password is reset by email
+  (every other session signed out). With neither, as on the demo build, verification is off and
+  the README says so. The organisation chosen at sign-up is created on `/sign-up/finish`, once the
+  link has signed the person in.
 
 ## 2. The two-level model
 
@@ -149,8 +153,9 @@ This suite must pass before any reviewer UI is built.
 > its user as an operator and proves the role grants no vote and cannot break a tie.
 > Operators run `/admin`: anchoring, the job queue, audit-chain checks, assigning a verifier
 > organisation to a project, and matchRef resolution. Organisations never assign themselves.
-> Email verification is off, so an operator's account must exist before its address is
-> listed on a deployment others can sign up to.
+> Where email is configured, an address counts as an operator only once its owner has confirmed
+> it. Where it is not, verification is off, so an operator's account must exist before its
+> address is listed on a deployment others can sign up to.
 
 ## 5. Tenant isolation
 
