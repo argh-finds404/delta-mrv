@@ -51,10 +51,12 @@ unchanged. Inspection on the ground is still needed.
    dHash, Hamming distance under 8), position against the boundary (PostGIS), capture time, and
    whether before and after differ at all. Each finding has a severity and a reason a person
    can read. A finding is a signal. It approves nothing and blocks nothing.
-3. **Verifiers from a different organisation decide.** Two approvals from two distinct people
-   are needed. Every decision needs a written reason. A reviewer cannot see a colleague's vote
-   until they have cast their own. One approval and one rejection escalate to an admin inside
-   the verifier organisation.
+3. **Verifiers from an assigned, independent organisation decide.** Owners request a review
+   and a Delta operator (`OPERATOR_EMAILS`, which holds no vote) assigns an independent
+   verifier organisation and resolves opaque cross-org `matchRef` duplicates. Two approvals from
+   two distinct people are needed. Every decision needs a written reason. A reviewer cannot see
+   a colleague's vote until they have cast their own. One approval and one rejection escalate to
+   an admin inside the verifier organisation; asking for more proof opens a new round.
 4. **Approved records are anchored.** Each approved record is sealed into a canonical manifest
    (RFC 8785). A day's manifests become one Merkle root, written to a registry contract on
    Base Sepolia.
@@ -63,9 +65,10 @@ unchanged. Inspection on the ground is still needed.
    page and it is hashed locally and compared. The file never leaves the browser.
 
 Optional, and advisory only: a Sentinel-2 vegetation cross-check of the site from the free
-Earth Search archive (`NDVI_ENABLED`), a device signature over the photos' fingerprints made by
-a key held in the capturing browser, and an error-level lens in the review workspace. None of
-them changes a status or a score.
+Earth Search archive (`NDVI_ENABLED`), a non-extractable WebCrypto P-256 device signature over
+the photos' fingerprints (checked on finalise and again on `/proof/[id]`), and a client-side
+error-level analysis (ELA) lens in the review workspace. None of them changes a status or a
+score.
 
 ## The rules the code enforces
 
@@ -129,50 +132,55 @@ milliseconds:
 The duplicate search is an exact scan on purpose. An approximate index would let a replay
 disagree with the first run.
 
-**Tests.** 235 unit tests, 150 integration tests against a real PostGIS database, 16 Foundry
-tests on the contract, and a Playwright run of the whole path from a field photo to a proof
-checked in a browser.
+**Tests.** 264 unit tests across 17 files, 166 integration tests across 22 files against a real
+PostGIS and pgvector database, 16 Foundry tests on the contract, and 3 Playwright browser
+specs covering the path from field photo to public proof.
 
 ## Status
 
-Built and tested end to end on a local stack: intake, forensics, review, the audit chain,
-anchoring, the proof page, the public API and the funder view.
+Development is complete and tested end-to-end on the local stack: intake, offline vault,
+forensics (plus optional NDVI, device signature and ELA lens), multi-round review, operator
+assignment and `matchRef` resolution, hash-chained audit logs, Merkle anchoring, the public
+proof dossier, public API v1, and the funder portal.
 
-Not done yet:
+Manual deployment steps still needed before public use:
 
-- The registry contract is **not deployed to Base Sepolia**. Anchoring has only run against a
-  local chain, so no proof on a public network exists yet.
-- There is no hosted deployment.
-- Webhooks were cut from scope.
+- **Deploy the contract:** deploy [contracts/src/ImpactAnchorRegistry.sol](contracts/src/ImpactAnchorRegistry.sol) to Base Sepolia and verify it on BaseScan. Anchoring has only run against a local Anvil chain so far.
+- **Provision hosting:** deploy the Next.js app (with a private Vercel Blob store and environment variables from [.env.example](.env.example)), apply migration `0005` (`pnpm db:migrate`), register your operator account *before* setting `OPERATOR_EMAILS`, and add GitHub repository secrets `APP_URL` and `CRON_SECRET` for [.github/workflows/scheduled.yml](.github/workflows/scheduled.yml).
+- Webhooks were intentionally cut from scope (`S10`).
 - No email is sent: no address verification and no password reset.
 
 ## Run it locally
 
-Needs Node 22+, pnpm 11, Docker, and [Foundry](https://getfoundry.sh) for the local chain.
+Needs Node 22+, pnpm 11, Docker, and [Foundry](https://getfoundry.sh) (`anvil` / `forge` on `PATH`) for the local chain.
 
 ```bash
 pnpm install
-cp .env.example .env.local        # set BETTER_AUTH_SECRET to 32 or more random characters
+cp .env.example .env.local        # fill the 5 boot vars (DATABASE_URL*, BETTER_AUTH_*, NEXT_PUBLIC_CHAIN_ID=84532)
 docker compose up -d              # PostgreSQL 18 with PostGIS and pgvector
 
 export DATABASE_URL_UNPOOLED=postgresql://delta:delta_local@localhost:5432/delta
 pnpm db:migrate
 
-pnpm dev:local                    # seeds, starts a local chain, serves http://localhost:3000
+pnpm dev:local                    # seeds, starts Anvil + deploys contract locally, serves http://localhost:3000
 ```
 
-`pnpm dev:local` uses the Docker database, a local chain with the real contract, and evidence
-stored on disk. It reaches no external service. Open `/demo` to sign in as the field officer,
-either verifier, the audit admin or the funder.
+`pnpm dev:local` uses the Docker database, a local Anvil chain with the real contract, and
+evidence stored on disk (`.local/storage`). It reaches no external service. Open `/demo` to sign
+in as the field officer, either verifier, the audit admin (also demo operator when
+`DEMO_MODE=true`) or the funder.
 
 | Command | What it does |
 |---|---|
 | `pnpm check` | ESLint, TypeScript, unit tests, the forbidden-dependency guard |
-| `pnpm test:integration` | Services against the database: conflict of interest, tenancy, append-only, queue, forensics, anchoring |
+| `pnpm test:integration` | Services against PostGIS: conflict of interest, tenancy, append-only, queue, forensics, anchoring, satellite & device attestation |
 | `pnpm contracts:test` | Foundry tests on `ImpactAnchorRegistry.sol` |
-| `pnpm test:e2e` | Playwright, the whole demo path on the local stack |
+| `pnpm test:e2e` | Playwright browser tests over the full local stack |
+| `pnpm build` | Production Next.js build |
+| `pnpm db:migrate` | Applies Drizzle migrations (including `0005_satellite_and_capture.sql`) |
 | `pnpm eval:forensics` | Re-measures duplicate detection and rewrites `docs/FORENSIC_EVAL.md` |
 | `pnpm forensics:replay <submissionId>` | Re-runs forensics over the stored bytes and fails unless the findings are byte-identical |
+| `pnpm audit:verify` | Walks every organisation's audit chain from genesis and verifies hashes |
 | `pnpm bench:queries` | Times the duplicate search and the geofence check on local Docker |
 
 ## Routes
@@ -181,25 +189,27 @@ either verifier, the audit admin or the funder.
 Public
   /                       Landing page
   /atlas                  Map of projects, area-level positions only
-  /p/[id]                 Public project page
-  /proof/[id]             Proof dossier, verified in the browser
+  /p/[id]                 Public project page and proof links
+  /proof/[id]             Proof dossier, verified in the browser (manifest, Merkle proof, device signature)
   /verify                 Look up a proof id, a transaction hash or a dropped photo
   /trust                  What is proved, every check, measured results, limits
+  /sign-in, /sign-up      Email/password authentication and invite sign-up
+  /demo                   Demo persona switcher (DEMO_MODE=true only)
 
 Workspace (signed in)
-  /dashboard              Home, by role: owner, verifier or funder
+  /dashboard              Home, by role (owner, verifier or funder), invites & offline draft banner
   /projects/new           Register a site and draw its boundary
   /projects/[id]          Project workspace with the exact boundary
-  /projects/[id]/submit   Evidence intake and the offline queue
-  /projects/[id]/manage   Description, closing the project, who reviews it
+  /projects/[id]/submit   Evidence intake, offline queue and device-key attestation
+  /projects/[id]/manage   Description, closing the project, requesting a reviewer
   /submissions/[id]       One submission in full: decisions, evidence, findings, audit trail
-  /lab                    Review queue for assigned verifiers
-  /admin                  Operators: anchoring, reviewer assignment, jobs, matches, audit chains
+  /lab                    Keyboard-first review queue with rounds and ELA lens
+  /admin                  Operators only: anchoring, reviewer assignment, jobs, matchRef, audit chains
 
 API
   /api/v1/submissions/[id]/proof   Public: canonical manifest and Merkle proof
   /api/v1/proofs/lookup            Public: find a proof by id, transaction or file hash
-  /api/v1/projects, /stats         API key
+  /api/v1/projects, /[id], /stats  API key (dmrv_…)
 ```
 
 ## Stack
@@ -213,9 +223,13 @@ Runs on free tiers only: no paid service is required.
 ## Where to read more
 
 - [docs/00-PRODUCT.md](docs/00-PRODUCT.md): the problem, the users, the product boundary
+- [docs/01-FEATURE-LOCK.md](docs/01-FEATURE-LOCK.md): scope, state machine, cut decisions and stretch items
+- [docs/02-ARCHITECTURE.md](docs/02-ARCHITECTURE.md): layering and the cross-runtime cryptographic contract
+- [docs/05-ROUTES.md](docs/05-ROUTES.md): full public, workspace and API route catalog
+- [docs/10-FORENSICS.md](docs/10-FORENSICS.md): perceptual hashing, EXIF geofencing, NDVI, device signatures
 - [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md): adversaries and mitigations
 - [docs/adr/](docs/adr/): five architecture decisions
-- [docs/02-ARCHITECTURE.md](docs/02-ARCHITECTURE.md): layering and the cross-runtime cryptographic contract
+- [docs/SESSION-HANDOFF.md](docs/SESSION-HANDOFF.md): current status, carry-overs and deployment checklist
 
 ## Authorship
 
