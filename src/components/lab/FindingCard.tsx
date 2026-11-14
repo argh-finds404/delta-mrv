@@ -40,6 +40,7 @@ export const findingKindDisplayMap: Record<string, string> = {
   CLAIM_CHECKED: "The claim against the drawn boundary",
   CLAIM_EXCEEDS_AREA: "Claims more area than the boundary holds",
   CLAIM_DENSITY_IMPLAUSIBLE: "More plants per square metre than any method",
+  CONTENT_CREDENTIALS: "Content Credentials (C2PA)",
 };
 
 /**
@@ -77,6 +78,11 @@ export function findingSummary(finding: LabFinding): string {
   if (kind === "CLAIM_DENSITY_IMPLAUSIBLE" && claim?.perSquareMetre !== undefined) return `${claim.perSquareMetre.toLocaleString("en-GB", { maximumFractionDigits: 1 })} per m², above ${claim.maxPerSquareMetre ?? 5}.`;
   if (kind === "CLAIM_CHECKED" && claim?.perHectare !== undefined) return `About ${claim.perHectare.toLocaleString("en-GB")} per hectare.`;
   if (kind === "CLAIM_CHECKED") return "The claimed area fits the boundary.";
+  if (kind === "CONTENT_CREDENTIALS") {
+    if (evidence.c2pa?.outcome === "valid") return "Signed C2PA manifest; signature verified.";
+    if (evidence.c2pa?.outcome === "invalid") return "C2PA manifest present; signature failed.";
+    return "No C2PA Content Credentials in the file.";
+  }
   return "See the numbers for the measured values.";
 }
 
@@ -182,7 +188,23 @@ export function FindingCard({ finding, theme = "field", className }: FindingCard
       ]
     : null;
 
-  const rows: { label: string; value: string; mono: boolean }[] = ndviRows ?? claimRows ?? [
+  const c2paRows = evidence.c2pa
+    ? evidence.c2pa.outcome === "absent"
+      ? [
+          { label: "Manifest", value: "None embedded", mono: false },
+          { label: "Rule version", value: evidence.ruleVersion || "c2pa.v1", mono: true },
+        ]
+      : [
+          { label: "Status", value: evidence.c2pa.outcome === "valid" ? "Signature and data hash verified" : "Verification failed", mono: false },
+          { label: "Signer", value: evidence.c2pa.signer ?? evidence.c2pa.issuer ?? "Not recorded", mono: false },
+          ...(evidence.c2pa.claimGenerator ? [{ label: "Generator", value: evidence.c2pa.claimGenerator, mono: true }] : []),
+          ...(evidence.c2pa.signedAt ? [{ label: "Signed at", value: evidence.c2pa.signedAt, mono: true }] : []),
+          ...(evidence.c2pa.failureCodes?.length ? [{ label: "Failure code", value: evidence.c2pa.failureCodes.join(", "), mono: true }] : []),
+          { label: "Rule version", value: evidence.ruleVersion || "c2pa.v1", mono: true },
+        ]
+    : null;
+
+  const rows: { label: string; value: string; mono: boolean }[] = ndviRows ?? claimRows ?? c2paRows ?? [
     {
       label:
         evidence.hammingDistance !== undefined

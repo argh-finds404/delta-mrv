@@ -5,6 +5,7 @@ import exifr from "exifr";
 import sharp from "sharp";
 import { z } from "zod";
 import { requireEnv } from "../../env";
+import { C2PA_RULE_VERSION, c2paFinding, type C2paReadResult, readC2pa } from "../forensics/c2pa";
 import { checkClaim, claimFinding, CLAIMS_RULE_VERSION } from "../../lib/forensics/claims";
 import { DHASH_RESIZE, hammingDistance, packDHash } from "../../lib/forensics/dhash";
 import { scoreV1 } from "../../lib/scoring/v1";
@@ -166,7 +167,7 @@ async function perceptualMatches(x: Executor, s: SubmissionRow, f: FileRow, dhas
 // ---------------------------------------------------------------------------------------
 // One file and one round, as values. Reads only: the run writes them, the replay compares.
 
-type Inspected = { file: FileRow; dhash: string; facts: ExifFacts | null; gps: GeoPoint | null; capturedAt: Date | null };
+type Inspected = { file: FileRow; dhash: string; facts: ExifFacts | null; gps: GeoPoint | null; capturedAt: Date | null; c2pa: C2paReadResult };
 
 /** Stages 1, 3 and 5 from the stored bytes, which are the evidence (never the client's). */
 async function inspect(storage: StoragePort, file: FileRow): Promise<Inspected> {
@@ -178,7 +179,8 @@ async function inspect(storage: StoragePort, file: FileRow): Promise<Inspected> 
   const dhash = await dHashOf(bytes);
   if (file.dhash !== null && file.dhash !== dhash) throw new Error(`evidence file ${file.id}: dHash drifted from the one recorded at intake`);
   const { facts, gps } = await readExif(bytes);
-  return { file, dhash, facts, gps, capturedAt: facts ? (captureWindow(facts)?.instant ?? null) : null };
+  const c2pa = await readC2pa(bytes, file.mime);
+  return { file, dhash, facts, gps, capturedAt: facts ? (captureWindow(facts)?.instant ?? null) : null, c2pa };
 }
 
 const finding = (file: FileRow | null, kind: Kind, severity: Severity, reason: string, evidence: Record<string, unknown> = {}): PipelineFinding => ({
@@ -194,7 +196,11 @@ type ProjectFacts = { createdAt: Date; claimedQuantity: string | null; claimedUn
 
 async function analyse(x: Executor, s: SubmissionRow, project: ProjectFacts, files: Inspected[]): Promise<PipelineFinding[]> {
   const out: PipelineFinding[] = [];
-  for (const { file, dhash, facts, gps } of files) {
+  for (const { file, dhash, facts, gps, c2pa } of files) {
+    if (c2pa.outcome !== "absent") {
+      const cf = c2paFinding(c2pa);
+      out.push({ evidenceFileId: file.id, kind: cf.kind, severity: cf.severity, reason: cf.reason, evidence: cf.evidence, ruleVersion: C2PA_RULE_VERSION });
+    }
     for (const m of await exactMatches(x, s, file)) {
       const [kind, severity, reason] = EXACT[m.scope];
       out.push(finding(file, kind, severity, reason, { sha256: file.sha256, matchRef: matchRef(m.id) }));
@@ -259,6 +265,10 @@ async function analyse(x: Executor, s: SubmissionRow, project: ProjectFacts, fil
   if (files[0]?.file.round === 1) {
     const claim = claimFinding(checkClaim(project.claimedQuantity === null ? null : Number(project.claimedQuantity), project.claimedUnit, project.boundaryAreaM2));
     if (claim) out.push({ evidenceFileId: null, kind: claim.kind, severity: claim.severity, reason: claim.reason, evidence: claim.evidence, ruleVersion: CLAIMS_RULE_VERSION });
+    if (files.every((f) => f.c2pa.outcome === "absent")) {
+      const cf = c2paFinding({ outcome: "absent" });
+      out.push({ evidenceFileId: null, kind: cf.kind, severity: cf.severity, reason: cf.reason, evidence: cf.evidence, ruleVersion: C2PA_RULE_VERSION });
+    }
   }
   return out;
 }
@@ -375,9 +385,12 @@ export async function replayForensics(submissionId: string, x: Executor = db, st
     .from(forensicFinding)
     .where(and(eq(forensicFinding.submissionId, submissionId), notInArray(forensicFinding.kind, ["AI_OBSERVATION", "SATELLITE_NDVI", "CLIENT_HASH_MISMATCH"])));
   const stored = storedRows.map((f) => lineOf({ ...f, evidence: f.evidence as Record<string, unknown> }));
-  // a record checked before claims.v1 existed has no claim finding: it is not re-judged by a rule it never ran
+  // a record checked before claims.v1 or c2pa.v1 existed has no such finding: it is not re-judged by a rule it never ran
   const claimsRan = storedRows.some((f) => CLAIM_KINDS.has(f.kind));
-  const expected = fresh.filter((f) => claimsRan || !CLAIM_KINDS.has(f.kind)).map(lineOf);
+  const c2paRan = storedRows.some((f) => f.kind === "CONTENT_CREDENTIALS");
+  const expected = fresh
+    .filter((f) => (claimsRan || !CLAIM_KINDS.has(f.kind)) && (c2paRan || f.kind !== "CONTENT_CREDENTIALS"))
+    .map(lineOf);
   const sorted = (a: string[]) => [...a].sort();
   const findingsMatch = canonical(sorted(expected)) === canonical(sorted(stored));
   const filesMatch = canonical(actualFiles) === canonical(storedFiles);

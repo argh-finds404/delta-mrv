@@ -50,6 +50,13 @@
       "when": 1794634500911,
       "tag": "0006_survival_and_claims",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794645189780,
+      "tag": "0007_content_credentials",
+      "breakpoints": true
     }
   ]
 }

@@ -43,6 +43,20 @@ export interface LabFinding {
     };
     /** claims.v1: the project's claimed number against its registered boundary. */
     claim?: { boundaryAreaM2?: number; perHectare?: number; perSquareMetre?: number; maxPerSquareMetre?: number; ratio?: number; tolerance?: number; claimed?: number; plants?: number; unit?: string };
+    /** X9 (c2pa.v1): Content Credentials (C2PA) JUMBF manifest read. */
+    c2pa?: {
+      outcome: "absent" | "valid" | "invalid";
+      activeManifest?: string;
+      signer?: string | null;
+      issuer?: string | null;
+      signedAt?: string | null;
+      alg?: string | null;
+      claimGenerator?: string | null;
+      title?: string | null;
+      actions?: string[];
+      failureCodes?: string[];
+      failureReasons?: string[];
+    };
     /** Whatever the check recorded about how it ran, shown as is in the raw tier. */
     telemetry?: unknown;
   };

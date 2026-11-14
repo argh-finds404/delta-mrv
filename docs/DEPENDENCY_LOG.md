@@ -50,6 +50,7 @@ Then add the row below. A package in `package.json` without a row here is a
 | 2026-11-02 | `@types/node` | 24.19.2 | No | registry check 2026-11-02 | Node 24 types (dev). Build-time row in docs/07 §3 |
 | 2026-11-02 | `@types/react` | 19.3.0 | No | registry check 2026-11-02 | React types (dev). Build-time row in docs/07 §3 |
 | 2026-11-02 | `@types/react-dom` | 19.3.0 | No | registry check 2026-11-02 | React DOM types (dev). Build-time row in docs/07 §3 |
+| 2026-11-14 | `@contentauth/c2pa-wasm` | 0.14.0 | No | registry check 2026-11-14 (`0.14.0` published 2026-11-04; `0.15.0` published 2026-11-11 inside the 7-day `minimumReleaseAge`) | C2PA Content Credentials JUMBF reader (X9, `c2pa.v1`). MIT licence, no install scripts, loaded via `initSync` and `WasmReader.fromBytes` in Node |
 
 ---
 

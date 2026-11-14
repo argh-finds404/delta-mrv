@@ -87,7 +87,7 @@ on the ground is still needed.
 |---|---|---|
 | Sites | Boundary drawn on a map or imported from GeoJSON/KML; area, perimeter and claim density shown live; exact geometry private | `/projects/new`, `src/lib/geo/` |
 | Intake | Before/after pair, device fingerprint, direct upload with progress, offline vault (IndexedDB), framing check, optional device signature (WebCrypto P-256) | `/projects/[id]/submit`, `src/components/submit/` |
-| Checks | SHA-256 and dHash reuse across tenants, EXIF time and position against PostGIS, no-change, claim against boundary (`claims.v1`), advisory AI note, advisory Sentinel-2 NDVI with a same-season baseline | `src/server/services/forensics.service.ts`, `docs/10-FORENSICS.md` |
+| Checks | SHA-256 and dHash reuse across tenants, EXIF time and position against PostGIS, no-change, claim against boundary (`claims.v1`), C2PA Content Credentials (`c2pa.v1`), advisory AI note, advisory Sentinel-2 NDVI with a same-season baseline | `src/server/services/forensics.service.ts`, `docs/10-FORENSICS.md` |
 | Review | Keyboard-first queue (windowed, filter pills), slider and side-by-side comparison, rounds, error-level lens, written reasons, blind votes, 2-of-N quorum, escalation | `/lab` |
 | Survival | Check-up schedule per project (only shortened once approved), one-photo check-ups compared with the approved photo, due/overdue tracking | `/projects/[id]/manage`, `/p/[id]`, `checkups.service.ts` |
 | Integrity | Per-organisation hash-chained audit log, append-only tables, Merkle anchoring, deterministic replay | `audit-chain.service.ts`, `anchor.service.ts`, `contracts/` |
@@ -145,12 +145,13 @@ src/
 │   └── api/               v1 (public), submissions, lab, evidence, internal (cron), dev
 ├── components/            admin, app, atlas, auth, hero, lab, motion, projects, proof, site,
 │                          submit, verify, and small primitives (badges, chips, hash display…)
-├── lib/                   crypto (frozen), forensics (dhash, claims, ndvi, ela), geo (area,
+├── lib/                   crypto (frozen), forensics (dhash, claims, c2pa, ndvi, ela), geo (area,
 │                          boundary files, fuzz, utm), scoring, state-machine, chain,
 │                          capture-statement, proof-bundle, feeds, format
 └── server/
     ├── auth/              Better Auth config and session helpers
     ├── db/                client and schema (auth, projects, evidence, governance, operations)
+    ├── forensics/         C2PA Content Credentials WASM reader (@contentauth/c2pa-wasm)
     ├── services/          the domain: projects, submissions, reviews, forensics, checkups,
     │                      feeds, anchor, audit-chain, admin, jobs, ndvi, ai-audit, api-key…
     ├── storage/           StoragePort: Vercel Blob (private) or local disk in development
@@ -356,15 +357,14 @@ Everything runs on free tiers; no paid service is required.
 
 ## Status and deployment
 
-Every MUST, SHOULD and STRETCH item in the feature lock is built and tested on the local stack
-(`pnpm bench:queries` stands in for k6, which has no HTTP endpoint to aim at for these queries),
-except C2PA Content Credentials (X9), which waits on approval of the reader package
-(`@contentauth/c2pa-wasm`). Before public use:
+Every MUST, SHOULD and STRETCH item in the feature lock (including C2PA Content Credentials, X9)
+is built and tested on the local stack (`pnpm bench:queries` stands in for k6, which has no HTTP
+endpoint to aim at for these queries). Before public use:
 
 - **Deploy the contract** ([contracts/src/ImpactAnchorRegistry.sol](contracts/src/ImpactAnchorRegistry.sol))
   to Base Sepolia by hand and verify it on BaseScan; anchoring has run only on a local Anvil chain.
 - **Provision hosting:** the Next.js app with a private Vercel Blob store and the variables
-  above; `pnpm db:migrate` (through `0006`); `RESEND_API_KEY` and `EMAIL_FROM` for email (or
+  above; `pnpm db:migrate` (through `0007`); `RESEND_API_KEY` and `EMAIL_FROM` for email (or
   register each operator account before listing it in `OPERATOR_EMAILS` if email stays off);
   repository secrets `APP_URL` and `CRON_SECRET` for
   [.github/workflows/scheduled.yml](.github/workflows/scheduled.yml).

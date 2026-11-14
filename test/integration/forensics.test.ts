@@ -1,6 +1,8 @@
 // The forensics pipeline (docs/10-FORENSICS.md): severities from the §3 table, the severity
 // rule that matters, EXIF and geofence outcomes, the pair check, idempotency, replay (#12),
 // the score cache, and the seed pool hashing the same through the service as through the seed.
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { eq, sql } from "drizzle-orm";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -237,6 +239,31 @@ describe("runForensics", () => {
     expect(await runOneJob(tx, { kinds: ["forensics.run"] })).toEqual({ id: queued!.id, outcome: "done" });
     const [s] = await tx.select().from(evidenceSubmission).where(eq(evidenceSubmission.id, id));
     expect(s!.status).toBe("IN_REVIEW");
+  });
+
+  scenario("Content Credentials (X9): records a verified C2PA manifest on the signed photo and replays identically", async (tx, w, store) => {
+    const signed = readFileSync(path.join(process.cwd(), "test/fixtures/forensics/c2pa-signed.jpg"));
+    const id = await submitPair(tx, store, w.u.ownerMember, w.project.id, signed, await synthetic(6650));
+    expect(await runForensics(id, 1, tx, store.port)).toBe("done");
+    const before = await fileOf(tx, id, "BEFORE");
+    const c2pa = (await findings(tx, id)).filter((f) => f.kind === "CONTENT_CREDENTIALS");
+    expect(c2pa).toHaveLength(1);
+    expect(c2pa[0]).toMatchObject({
+      evidenceFileId: before.id,
+      severity: "INFO",
+      ruleVersion: "c2pa.v1",
+      evidence: {
+        ruleVersion: "c2pa.v1",
+        c2pa: {
+          outcome: "valid",
+          signer: "C2PA Signer",
+          issuer: "C2PA Test Signing Cert",
+          alg: "Ps256",
+        },
+      },
+    });
+    const replay = await replayForensics(id, tx, store.port);
+    expect(replay.identical).toBe(true);
   });
 });
 

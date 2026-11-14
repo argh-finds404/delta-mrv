@@ -50,6 +50,8 @@ export const findingKind = pgEnum("finding_kind", [
   "CLAIM_CHECKED",
   "CLAIM_EXCEEDS_AREA",
   "CLAIM_DENSITY_IMPLAUSIBLE",
+  // X9 (c2pa.v1): Content Credentials (C2PA) JUMBF manifest read; advisory, always INFO, weighs nothing
+  "CONTENT_CREDENTIALS",
 ]);
 
 export const evidenceSubmission = pgTable("evidence_submission", {

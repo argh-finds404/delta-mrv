@@ -27,6 +27,7 @@
     "seed:images": "NODE_OPTIONS=--network-family-autoselection-attempt-timeout=5000 tsx scripts/upload-seed-images.ts"
   },
   "dependencies": {
+    "@contentauth/c2pa-wasm": "0.14.0",
     "@google/genai": "2.31.0",
     "@openzeppelin/merkle-tree": "1.0.8",
     "@tailwindcss/postcss": "4.3.3",

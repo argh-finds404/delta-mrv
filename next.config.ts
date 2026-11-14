@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  serverExternalPackages: ["@contentauth/c2pa-wasm"],
+  outputFileTracingIncludes: {
+    "/**": ["./node_modules/@contentauth/c2pa-wasm/pkg/c2pa_bg.wasm"],
+  },
   // Dev only: less browser noise in the terminal.
   logging: { browserToTerminal: "error" },
   // Dev only. The dev MCP endpoint's file logger writes every browser console line, whatever the

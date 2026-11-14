@@ -171,9 +171,10 @@ the maintainer's watercolour illustrations.
   page; due and overdue check-ups on the owner's overview; reviewers see the record's photo as
   the before.
 - **X12** `claims.v1`: `CLAIM_CHECKED`, `CLAIM_EXCEEDS_AREA`, `CLAIM_DENSITY_IMPLAUSIBLE`.
-- **X9** C2PA read is not built: the sandbox refused to run the downloaded
-  `@contentauth/c2pa-wasm` package to evaluate it. Approve the package (9 MB WebAssembly,
-  MIT, no install script) and it can read Content Credentials server-side as an INFO finding.
+- **X9** C2PA Content Credentials read (`c2pa.v1`, built 2026-11-14): `@contentauth/c2pa-wasm`
+  (`0.14.0`, MIT, no install script) reads embedded JUMBF manifests in `src/server/forensics/c2pa.ts`
+  and parses the manifest store in `src/lib/forensics/c2pa.ts`, recording an advisory
+  `CONTENT_CREDENTIALS` (`INFO`) finding (`valid`, `invalid`, or `absent`). Migration `0007`.
 
 **Sixth update, review and polish of X4 to X12 (2026-11-14):**
 
@@ -202,9 +203,10 @@ the maintainer's watercolour illustrations.
 **Not built or not done:**
 
 - The Base Sepolia deployment and a real batch; the hosted deployment. Both by hand.
-- Migration `0005` is applied to local Docker only. Apply it to the Neon dev branch with
-  `pnpm db:migrate` (direct URL in the environment) before deploying.
-- X2 is a browser-held key, not WebAuthn or a hardware attestation, and reads no C2PA.
+- Migrations `0005`, `0006` and `0007` are applied to local Docker only. Apply them to the Neon
+  dev branch with `pnpm db:migrate` (direct URL in the environment) before deploying.
+- X2's capture signature uses a browser-held WebCrypto P-256 key (not WebAuthn or hardware
+  attestation), alongside X9's server-side C2PA Content Credentials reader (`@contentauth/c2pa-wasm`).
 - k6: `pnpm bench:queries` stands in for it.
 
 ## 3. The documents are the contract

@@ -60,6 +60,11 @@ export const toLabFinding = (f: ApiFinding, files: { id: string; role: keyof typ
           },
         }
       : {}),
+    ...(f.kind === "CONTENT_CREDENTIALS" && f.evidence.c2pa && typeof f.evidence.c2pa === "object"
+      ? {
+          c2pa: f.evidence.c2pa as NonNullable<LabFinding["evidence"]["c2pa"]>,
+        }
+      : {}),
   },
 });
 

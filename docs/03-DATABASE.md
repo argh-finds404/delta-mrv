@@ -188,7 +188,7 @@ file did not contain.
 | `id` | uuid PK |
 | `submission_id` | uuid FK |
 | `evidence_file_id` | uuid FK → evidence_file, nullable — the specific file the finding concerns |
-| `kind` | enum — see `docs/10-FORENSICS.md` |
+| `kind` | enum — see `docs/10-FORENSICS.md` (`0005` adds `SATELLITE_NDVI`; `0006` adds `CLAIM_*`; `0007` adds `CONTENT_CREDENTIALS`) |
 | `severity` | enum `INFO`,`LOW`,`MEDIUM`,`HIGH` |
 | `reason` | text — human-readable, shown verbatim in the Lab |
 | `evidence` | jsonb — the literal inputs (distances, hashes, thresholds) |

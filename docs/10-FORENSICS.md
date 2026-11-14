@@ -56,6 +56,7 @@ not stop the others.
 | `CLAIM_CHECKED` | `INFO` | X12, `claims.v1`, once per submission: the claimed area fits the registered boundary, or the claimed plants per hectare, with the arithmetic |
 | `CLAIM_EXCEEDS_AREA` | `MEDIUM` | The claimed area is more than 1.05 times the boundary's spheroid area (PostGIS `ST_Area`) |
 | `CLAIM_DENSITY_IMPLAUSIBLE` | `MEDIUM` | More than 5 plants per square metre: denser than the densest planting methods (Miyawaki-style, about 3 to 5). Units it cannot read (kg, households) are not checked |
+| `CONTENT_CREDENTIALS` | `INFO` | X9, `c2pa.v1`: reads embedded C2PA Content Credentials (JUMBF) via `@contentauth/c2pa-wasm` (`WasmReader.fromBytes`), verifies the claim signature and image data hash, and records the signer, generator, timestamp and validation outcome (`valid`, `invalid`, or `absent`). Always `INFO` (weighs nothing); most cameras do not sign photos yet |
 
 ### The severity rule that matters
 
@@ -197,8 +198,9 @@ not that.
 `scripts/replay-forensics.ts <submissionId>` re-reads the stored bytes,
 re-runs stages 1–7, and asserts byte-identical output against the stored
 findings. Excludes `AI_OBSERVATION` and `SATELLITE_NDVI`, which are not reproducible (a
-model, a live archive). `CLAIM_*` findings are compared only for a record that has one: a record
-checked before `claims.v1` existed is not re-judged by a rule it never ran.
+model, a live archive). `CLAIM_*` and `CONTENT_CREDENTIALS` findings are compared only for a record
+that has one: a record checked before `claims.v1` or `c2pa.v1` existed is not re-judged by a rule it
+never ran.
 
 A replay mismatch means the pipeline drifted and is a critical defect.
 

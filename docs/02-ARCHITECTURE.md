@@ -31,7 +31,7 @@ delta-mrv/
 ├── contracts/                      Foundry project: ImpactAnchorRegistry.sol, its tests, Deploy.s.sol
 ├── docker/db.Dockerfile            PostGIS + pgvector in one image
 ├── docs/                           This document set, ADRs, eval results, handoff
-├── drizzle/                        Reviewed SQL migrations 0000–0006 and their snapshots
+├── drizzle/                        Reviewed SQL migrations 0000–0007 and their snapshots
 ├── scripts/                        seed, dev-local, eval-forensics, replay, verify-audit-chain,
 │   └── lib/                        bench-queries, render-hero-*; scripts/lib: local chain, seed pools
 ├── public/                         hero art, life photographs, service worker, offline page
@@ -47,7 +47,7 @@ delta-mrv/
 │   │                               projects, proof, site, submit, verify, and small primitives
 │   ├── lib/                        ISOMORPHIC — must run in browser AND Node
 │   │   ├── crypto/                 FROZEN. Manifest, RFC 8785, Merkle leaves, location commitment
-│   │   ├── forensics/              dHash, claims.v1, NDVI arithmetic, ELA, MIME sniffing
+│   │   ├── forensics/              dHash, claims.v1, c2pa.v1, NDVI arithmetic, ELA, MIME sniffing
 │   │   ├── geo/                    Area and perimeter, boundary files, fuzzing, UTM
 │   │   ├── scoring/  state-machine/  chain/  format/
 │   │   └── capture-statement.ts  proof-bundle.ts  feeds.ts  safe-next.ts …
@@ -57,6 +57,7 @@ delta-mrv/
 │       ├── storage/                StoragePort: private Vercel Blob, local disk in development
 │       ├── chain/  ai/             ChainPort (viem), AIPort (Gemini): every outside service behind a port
 │       ├── satellite/              Earth Search catalogue, minimal COG range reader
+│       ├── forensics/              C2PA Content Credentials WASM reader (@contentauth/c2pa-wasm)
 │       ├── email.ts                Resend over fetch, or a development outbox
 │       └── services/               The domain: projects, submissions, reviews, forensics, checkups,
 │                                   feeds, anchor, audit-chain, admin, jobs, ndvi, ai-audit, api-key,
